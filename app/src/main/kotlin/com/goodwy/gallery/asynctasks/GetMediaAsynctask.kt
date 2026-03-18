@@ -34,7 +34,9 @@ class GetMediaAsynctask(
             folderGrouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0 ||
             folderGrouping and GROUP_BY_LAST_MODIFIED_YEARLY != 0
 
-        val getProperFileSize = folderSorting and SORT_BY_SIZE != 0 || context.config.showFolderSize
+        // showFolderSize controla o badge na tela de pastas (Directory.size já está no banco)
+        // getProperFileSize aqui é só para ordenação por tamanho dentro de uma pasta
+        val getProperFileSize = folderSorting and SORT_BY_SIZE != 0
         val favoritePaths = context.getFavoritePaths()
         val getVideoDurations = context.config.showThumbnailVideoDuration
         val lastModifieds = if (getProperLastModified) mediaFetcher.getLastModifieds() else HashMap()
