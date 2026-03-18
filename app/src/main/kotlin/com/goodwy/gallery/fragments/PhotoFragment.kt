@@ -428,10 +428,13 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
+            // MultiTransformation: primeiro CenterCrop para preencher sem distorcer,
+            // depois BlurTransformation para o efeito igual ao BestGallery
             val options = RequestOptions()
-                .transform(BlurTransformation(60, 3))
-                .override(300, 300)
-                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
+                .transform(
+                    com.bumptech.glide.load.resource.bitmap.CenterCrop(),
+                    BlurTransformation(60, 3)
+                )
             Glide.with(ctx)
                 .load(mMedium.path)
                 .apply(options)
