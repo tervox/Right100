@@ -634,7 +634,7 @@ class MediaFetcher(val context: Context) {
         val dateTakens = HashMap<String, Long>()
         if (folder != FAVORITES) {
             val projection = arrayOf(
-                Images.Media.DISPLAY_NAME,
+                Images.Media.DATA,
                 Images.Media.DATE_TAKEN
             )
 
@@ -646,8 +646,8 @@ class MediaFetcher(val context: Context) {
                 try {
                     val dateTaken = cursor.getLongValue(Images.Media.DATE_TAKEN)
                     if (dateTaken != 0L) {
-                        val name = cursor.getStringValue(Images.Media.DISPLAY_NAME)
-                        dateTakens["$folder/$name"] = dateTaken
+                        val path = cursor.getStringValue(Images.Media.DATA)
+                        dateTakens[path] = dateTaken
                     }
                 } catch (_: Exception) {
                 }
@@ -707,7 +707,7 @@ class MediaFetcher(val context: Context) {
         val lastModifieds = HashMap<String, Long>()
         if (folder != FAVORITES) {
             val projection = arrayOf(
-                Images.Media.DISPLAY_NAME,
+                Images.Media.DATA,
                 Images.Media.DATE_MODIFIED
             )
 
@@ -719,8 +719,8 @@ class MediaFetcher(val context: Context) {
                 try {
                     val lastModified = cursor.getLongValue(Images.Media.DATE_MODIFIED) * 1000
                     if (lastModified != 0L) {
-                        val name = cursor.getStringValue(Images.Media.DISPLAY_NAME)
-                        lastModifieds["$folder/$name"] = lastModified
+                        val path = cursor.getStringValue(Images.Media.DATA)
+                        lastModifieds[path] = lastModified
                     }
                 } catch (_: Exception) {
                 }
