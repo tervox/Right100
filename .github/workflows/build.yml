@@ -22,20 +22,14 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
       - name: Fix gradlew line endings
         run: sed -i 's/\r$//' gradlew && chmod +x gradlew
-
-      - name: Fix gradle-wrapper.jar
-        run: |
-          GRADLE_VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties \
-            | sed 's/.*gradle-\(.*\)-bin.zip/\1/')
-          echo "Gradle version: $GRADLE_VERSION"
-          curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-            -o /tmp/gradle.zip
-          unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
-          GRADLE_BIN=$(find /tmp/gradle-dist -name "gradle" -type f | head -1)
-          $GRADLE_BIN wrapper --gradle-version "$GRADLE_VERSION"
-          chmod +x gradlew
 
       - name: Decode Keystore
         env:
