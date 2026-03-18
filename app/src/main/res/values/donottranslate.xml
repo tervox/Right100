@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Right Gallery</string>
+    <string name="gif">GIF</string>
+    <string name="raw">RAW</string>
+    <string name="svg">SVG</string>
+    <string name="package_name">com.goodwy.gallery</string>
+    <string name="playback_speed_display_text">2x >></string>
+
+    <!-- Release notes -->
+    <string name="release_820">
+        Compatibility updates for Android 15 &amp; 16\n
+        Changed the logic of styles\n
+        Changed colors of context action modes\n
+        Added support for custom fonts\n
+        Added ‘App font’ option\n
+        Added ‘Show search bar’ option\n
+        Added ‘Hide icons in menu’ option\n
+        Added "On video tap" option to choose between in-app player or default player app\n
+        Added option to toggle Ultra HDR rendering (Android 14+)\n
+        Videos now open in the in-app player; use the "Open with" option for other apps\n
+        Long press gesture to play videos at 2x speed\n
+        Fixed bugs, improved stability
+    </string>
+    <string name="release_700">
+        Changed color schemes and theme behavior\n
+        Added an auto dark/light theme\n
+        Added voice input for search\n
+        Fixed bugs, improved stability
+    </string>
+    <string name="release_650">
+        Added ‘Hide the grouping bar when scrolling‘ option\n
+        Added ‘Font size‘ option\n
+        Added date format YYYY.MM.DD\n
+        Persian calendar added\n
+        Support for animated AVIF images\n
+        Support for Ultra HDR images (Android 14+)\n
+        Support for wide-color-gamut images\n
+        Copy to clipboard button for images\n
+        Option to keep screen on while viewing media\n
+        Ability to sort folders by item count\n
+        Confirmation dialog when restoring media\n
+        Fixed volume adjustment bug on some devices\n
+        Fixed media picker showing only GIFs when both images and videos are requested\n
+        Fixed metadata loss (EXIF) when editing or resizing images\n
+        Fixed pixelation and artifacts in some JPEG XL images\n
+        Fixed unresponsive image/video controls after rotating device\n
+        Swipe-to-close gesture now works with WebP images\n
+        Fixed inaccurate or broken seeking in some videos\n
+        Image rotation edits no longer auto-save without confirmation\n
+        External keyboards now work properly in copy/move dialogs
+    </string>
+    <string name="release_601">
+        Added ‘Hide the grouping bar‘ option\n
+        Added grouping button, you can disable it in the settings\n
+        Added option to select text color for the widget\n
+        Improved performance, bug fixes
+    </string>
+    <string name="release_600">
+        Changed theme logic\n
+        Improved app lock logic and user interface\n
+        The mute logic has changed. Now muting an app does not affect the system, but system sound settings affect the app\n
+        Added option to control video playback speed\n
+        Added error indicator for media load failures\n
+        Added initial support for JPEG XL format\n
+        Added ‘Allow instantly changing media by clicking on screen sides’ option\n
+        Added ‘App icon color’ option\n
+        Added ‘Change the colour of the top bar when scrolling’ option\n
+        Added options for bottom action buttons\n
+        Improved scrolling performance and interface\n
+        Improved performance, bug fixes
+    </string>
+    <string name="release_504">
+        Fixed viewing of media files opened from other apps\n
+        Improved performance, bug fixes
+    </string>
+
+</resources>

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/video_player_holder"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/playback_speed_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="@dimen/label_start_margin"
+        android:background="@drawable/playback_pill_background"
+        android:elevation="10dp"
+        android:paddingStart="@dimen/list_item_padding_horizontal"
+        android:paddingTop="@dimen/list_item_padding_vertical"
+        android:paddingEnd="@dimen/list_item_padding_horizontal"
+        android:paddingBottom="@dimen/list_item_padding_vertical"
+        android:text="@string/playback_speed_display_text"
+        android:textColor="@android:color/white"
+        android:textSize="@dimen/list_secondary_text_size"
+        android:textStyle="bold"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <com.alexvasilkov.gestures.GestureFrameLayout
+        android:id="@+id/video_surface_frame"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <TextureView
+            android:id="@+id/video_surface"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_centerInParent="true" />
+
+    </com.alexvasilkov.gestures.GestureFrameLayout>
+
+    <com.goodwy.gallery.views.MediaSideScroll
+        android:id="@+id/video_volume_controller"
+        android:layout_width="@dimen/media_side_slider_width"
+        android:layout_height="match_parent"
+        android:layout_alignParentEnd="true" />
+
+    <com.goodwy.gallery.views.MediaSideScroll
+        android:id="@+id/video_brightness_controller"
+        android:layout_width="@dimen/media_side_slider_width"
+        android:layout_height="match_parent" />
+
+    <ImageView
+        android:id="@+id/top_shadow"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_alignBottom="@id/video_appbar"
+        android:layout_alignParentTop="true"
+        android:background="@drawable/gradient_background_flipped"
+        android:contentDescription="@null"
+        android:minHeight="@dimen/default_status_action_height" />
+
+    <TextView
+        android:id="@+id/video_bottom_gradient"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/default_status_action_height"
+        android:layout_alignTop="@+id/video_time_holder"
+        android:layout_alignParentBottom="true"
+        android:background="@drawable/gradient_background"
+        tools:ignore="UnknownIdInLayout" />
+
+    <include
+        android:id="@+id/bottom_video_time_holder"
+        layout="@layout/bottom_video_time_holder"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true" />
+
+    <include
+        android:id="@+id/error_message_holder"
+        layout="@layout/layout_media_load_error" />
+
+    <TextView
+        android:id="@+id/slide_info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/bottom_video_time_holder"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="@dimen/big_margin"
+        android:alpha="0"
+        android:background="@drawable/black_rounded_background"
+        android:gravity="center"
+        android:paddingLeft="@dimen/activity_margin"
+        android:paddingTop="@dimen/medium_margin"
+        android:paddingRight="@dimen/activity_margin"
+        android:paddingBottom="@dimen/medium_margin"
+        android:textColor="@android:color/white"
+        android:textSize="@dimen/extra_big_text_size" />
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/video_appbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:background="@android:color/transparent"
+        android:elevation="0dp"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/video_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:menu="@menu/menu_video_player"
+            app:navigationIcon="@drawable/ic_chevron_left_vector" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+</RelativeLayout>
