@@ -699,6 +699,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         } else {
             binding.bottomActionsDummy.beVisible()
             mTimeHolder.fadeIn(DEFAULT_ANIMATION_DURATION)
+            // Restaura visibilidade correta do botão stretch
+            if (!mIsVideoStretched) {
+                binding.bottomVideoTimeHolder.videoStretch.beVisible()
+            } else {
+                binding.bottomVideoTimeHolder.videoStretch.beGone()
+            }
         }
 
         binding.videoDetails.apply {
@@ -961,13 +967,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
             params.width = displayMetrics.widthPixels
             params.height = displayMetrics.heightPixels
+            mTextureView.layoutParams = params
+            // Esconde o botão enquanto está esticado
+            binding.bottomVideoTimeHolder.videoStretch.beGone()
         } else {
             setVideoSize()
-            return
+            // Mostra o botão novamente ao sair do modo esticado
+            binding.bottomVideoTimeHolder.videoStretch.beVisible()
         }
-        mTextureView.layoutParams = params
-        val iconRes = if (mIsVideoStretched) com.goodwy.commons.R.drawable.ic_cross_vector else R.drawable.ic_maximize_vector
-        binding.bottomVideoTimeHolder.videoStretch.setImageResource(iconRes)
     }
 
     private fun cleanup() {

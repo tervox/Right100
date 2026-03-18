@@ -299,6 +299,6 @@
     <string name="faq_17_text">That stopped working due to the system changes that came with Android 11 too, the app cannot browse real folders anymore, it relies on the so called MediaStore at fetching data.</string>
     <string name="faq_18_title">Why do I see ads during video playback?</string>
     <string name="faq_18_text">Our apps have no ads whatsoever. If you see them during video playback, you must be using some other apps video player. Try finding your default video player in the device settings, then do a \"Clear defaults\" on it. The next time you invoke some video intent you will see an app picker prompt, where you can select what app you want to use.</string>
-    <string name="stretch">Stretch video</string>
-    <string name="show_folder_size">Show folder size</string>
+    <string name="stretch">Esticar vídeo</string>
+    <string name="show_folder_size">Mostrar tamanho das pastas</string>
 </resources>

@@ -681,6 +681,16 @@ class MediaAdapter(
                 videoDuration?.setTextColor(textColor)
             }
 
+            // Badge de tamanho do arquivo no canto superior esquerdo (só no grid)
+            mediumSize?.apply {
+                if (!isListViewType && config.showFolderSize && medium.size > 0) {
+                    text = medium.size.formatSize()
+                    beVisible()
+                } else {
+                    beGone()
+                }
+            }
+
             mediumCheck.beVisibleIf(isSelected)
             if (isSelected) {
                 mediumCheck.background?.applyColorFilter(properPrimaryColor)
