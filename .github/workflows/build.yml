@@ -27,23 +27,20 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      - name: Fix gradlew and gradle-wrapper.jar
+      - name: Fix gradlew and regenerate wrapper jar
         run: |
-          sed -i 's/\r$//' gradlew
-          chmod +x gradlew
+          sed -i 's/\r$//' gradlew && chmod +x gradlew
           GRADLE_VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties \
             | sed 's/.*gradle-\(.*\)-bin\.zip.*/\1/')
-          echo "Using Gradle: $GRADLE_VERSION"
-          curl -fsSL \
-            "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar || \
-          curl -fsSL \
-            "https://raw.githubusercontent.com/gradle/gradle/refs/tags/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar || \
-          (apt-get install -y gradle -q && gradle wrapper --gradle-version "$GRADLE_VERSION" --distribution-type bin)
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+          echo "Downloading Gradle $GRADLE_VERSION..."
+          curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle-install
+          /tmp/gradle-install/gradle-${GRADLE_VERSION}/bin/gradle wrapper \
+            --gradle-version "$GRADLE_VERSION" \
+            --distribution-type bin
+          chmod +x gradlew
+          echo "Done. JAR size: $(wc -c < gradle/wrapper/gradle-wrapper.jar) bytes"
 
       - name: Decode Keystore
         env:
