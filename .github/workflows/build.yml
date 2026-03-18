@@ -41,7 +41,7 @@ jobs:
           chmod +x gradlew
 
       - name: Build Debug APK (sem assinatura)
-        run: ./gradlew assembleGplayDebug --stacktrace
+        run: ./gradlew assembleFossDebug --stacktrace
 
       - name: Find APK
         id: find_apk
