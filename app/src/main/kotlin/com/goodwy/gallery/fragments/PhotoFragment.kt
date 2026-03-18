@@ -426,11 +426,13 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
+            val options = RequestOptions()
+                .transform(BlurTransformation(60, 3))
+                .override(300, 300)
+                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
             Glide.with(ctx)
-                .asBitmap()
                 .load(mMedium.path)
-                .thumbnail(0.2f)
-                .apply(com.bumptech.glide.request.RequestOptions().transform(BlurTransformation(60, 3)))
+                .apply(options)
                 .into(binding.photoBlurBg)
         } else {
             binding.photoBlurBg.beGone()
