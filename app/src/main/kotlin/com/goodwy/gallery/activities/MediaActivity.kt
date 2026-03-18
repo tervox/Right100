@@ -532,7 +532,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 mShowLoadingIndicator = false
             }
 
-            binding.mediaMenu.updateTitle(if (mShowAll) resources.getString(com.goodwy.strings.R.string.library) else dirName)
+            binding.mediaMenu.updateTitle(if (mShowAll) resources.getString(com.goodwy.strings.R.string.library) else {
+                val dirSize = intent.getLongExtra(DIR_SIZE, 0L)
+                if (config.showFolderSize && dirSize > 0) "$dirName · ${dirSize.formatSize()}"
+                else dirName
+            })
             binding.mediaMenu.searchBeVisibleIf(config.showSearchBar)
             getMedia()
             setupLayoutManager()

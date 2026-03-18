@@ -158,6 +158,7 @@ const val EXOPLAYER_MIN_BUFFER_MS = 2000
 const val EXOPLAYER_MAX_BUFFER_MS = 8000
 
 const val DIRECTORY = "directory"
+const val DIR_SIZE = "dir_size"
 const val MEDIUM = "medium"
 const val PATH = "path"
 const val GET_IMAGE_INTENT = "get_image_intent"

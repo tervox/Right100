@@ -1044,12 +1044,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         resultIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
-    private fun itemClicked(path: String) {
+    private fun itemClicked(path: String, dirSize: Long = 0L) {
         handleLockedFolderOpening(path) { success ->
             if (success) {
                 Intent(this, MediaActivity::class.java).apply {
                     putExtra(SKIP_AUTHENTICATION, true)
                     putExtra(DIRECTORY, path)
+                    if (dirSize > 0) putExtra(DIR_SIZE, dirSize)
                     handleMediaIntent(this)
                 }
             }
@@ -1485,7 +1486,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 val path = clickedDir.path
                 if (clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
                     if (path != config.tempFolderPath) {
-                        itemClicked(path)
+                        itemClicked(path, clickedDir.size)
                     }
                 } else {
                     mCurrentPathPrefix = path
