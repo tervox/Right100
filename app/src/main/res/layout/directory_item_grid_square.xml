@@ -54,6 +54,26 @@
         android:src="@drawable/ic_pin_angle_filled"
         android:visibility="gone" />
 
+    <!-- Badge de tamanho no canto superior esquerdo DA THUMBNAIL (overlay) -->
+    <TextView
+        android:id="@+id/dir_size"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/circle_black_background"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="2dp"
+        android:textColor="@android:color/white"
+        android:textSize="10sp"
+        android:maxLines="1"
+        android:elevation="4dp"
+        android:visibility="gone"
+        tools:text="128 MB"
+        tools:visibility="visible" />
+
     <RelativeLayout
         android:id="@+id/dir_drag_handle_wrapper"
         android:layout_width="wrap_content"
@@ -119,18 +139,6 @@
             android:textSize="@dimen/normal_text_size"
             android:alpha="0.6"
             tools:text="18 items" />
-
-        <TextView
-            android:id="@+id/dir_size"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="-2dp"
-            android:textColor="@android:color/white"
-            android:textSize="@dimen/smaller_text_size"
-            android:alpha="0.5"
-            android:visibility="gone"
-            tools:text="128 MB"
-            tools:visibility="visible" />
 
     </LinearLayout>
 

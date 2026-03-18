@@ -83,17 +83,22 @@
         android:textColor="@android:color/white"
         android:textSize="@dimen/smaller_text_size" />
 
+    <!-- Badge de tamanho no canto superior esquerdo da thumbnail -->
     <TextView
         android:id="@+id/dir_size"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/dir_path"
-        android:layout_alignStart="@+id/dir_name"
-        android:paddingStart="@dimen/medium_margin"
-        android:paddingEnd="@dimen/medium_margin"
-        android:alpha="0.5"
+        android:layout_alignStart="@+id/dir_thumbnail"
+        android:layout_alignTop="@+id/dir_thumbnail"
+        android:layout_marginStart="3dp"
+        android:layout_marginTop="3dp"
+        android:background="@drawable/circle_black_background"
+        android:paddingHorizontal="5dp"
+        android:paddingVertical="1dp"
         android:textColor="@android:color/white"
-        android:textSize="@dimen/smaller_text_size"
+        android:textSize="9sp"
+        android:maxLines="1"
+        android:elevation="4dp"
         android:visibility="gone"
         tools:text="128 MB"
         tools:visibility="visible" />

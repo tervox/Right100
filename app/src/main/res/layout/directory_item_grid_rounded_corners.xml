@@ -89,6 +89,26 @@
         android:visibility="gone"
         tools:visibility="visible" />
 
+    <!-- Badge de tamanho no canto superior esquerdo DA THUMBNAIL (overlay) -->
+    <TextView
+        android:id="@+id/dir_size"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignStart="@+id/dir_thumbnail"
+        android:layout_alignTop="@+id/dir_thumbnail"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/circle_black_background"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="2dp"
+        android:textColor="@android:color/white"
+        android:textSize="10sp"
+        android:maxLines="1"
+        android:elevation="4dp"
+        android:visibility="gone"
+        tools:text="128 MB"
+        tools:visibility="visible" />
+
     <TextView
         android:id="@+id/dir_name"
         android:layout_width="match_parent"
@@ -116,23 +136,6 @@
         android:alpha="0.6"
         android:lines="1"
         tools:text="18 items" />
-
-    <TextView
-        android:id="@+id/dir_size"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/photo_cnt"
-        android:layout_alignStart="@+id/dir_thumbnail"
-        android:layout_alignEnd="@+id/dir_thumbnail"
-        android:layout_marginTop="-2dp"
-        android:paddingHorizontal="@dimen/tiny_margin"
-        android:textColor="@android:color/white"
-        android:textSize="@dimen/smaller_text_size"
-        android:alpha="0.5"
-        android:lines="1"
-        android:visibility="gone"
-        tools:text="128 MB"
-        tools:visibility="visible" />
 
     <ImageView
         android:id="@+id/dir_location"

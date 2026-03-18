@@ -137,6 +137,8 @@ class PhotoFragment : ViewPagerFragment() {
         binding.apply {
             subsamplingView.setOnClickListener { photoClicked() }
             gesturesView.setOnClickListener { photoClicked() }
+            // Fundo transparente desde o início para o blur aparecer nas bordas
+            gesturesView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
             gifView.setOnClickListener { photoClicked() }
             instantPrevItem.setOnClickListener { listener?.goToPrevItem() }
             instantNextItem.setOnClickListener { listener?.goToNextItem() }
