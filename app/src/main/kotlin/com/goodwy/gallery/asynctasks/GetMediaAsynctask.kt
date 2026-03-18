@@ -8,7 +8,7 @@ import com.goodwy.commons.helpers.SORT_BY_DATE_TAKEN
 import com.goodwy.commons.helpers.SORT_BY_SIZE
 import com.goodwy.gallery.extensions.config
 import com.goodwy.gallery.extensions.getFavoritePaths
-import com.goodwy.gallery.extensions.mediaDB
+import com.goodwy.gallery.databases.GalleryDatabase
 import com.goodwy.gallery.helpers.*
 import com.goodwy.gallery.models.Medium
 import com.goodwy.gallery.models.ThumbnailItem
@@ -62,6 +62,7 @@ class GetMediaAsynctask(
 
         // Salva durações dos vídeos no banco para acelerar próximas cargas
         if (getVideoDurations) {
+            val mediaDB = GalleryDatabase.getInstance(context.applicationContext).MediumDao()
             media.filterIsInstance<Medium>()
                 .filter { it.isVideo() && it.videoDuration > 0 }
                 .forEach { medium ->
