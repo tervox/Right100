@@ -29,7 +29,8 @@ class MediaFetcher(val context: Context) {
     fun getFilesFrom(
         curPath: String, isPickImage: Boolean, isPickVideo: Boolean, getProperDateTaken: Boolean, getProperLastModified: Boolean,
         getProperFileSize: Boolean, favoritePaths: ArrayList<String>, getVideoDurations: Boolean,
-        lastModifieds: HashMap<String, Long>, dateTakens: HashMap<String, Long>, android11Files: HashMap<String, ArrayList<Medium>>?
+        lastModifieds: HashMap<String, Long>, dateTakens: HashMap<String, Long>, android11Files: HashMap<String, ArrayList<Medium>>?,
+        videoDurationsBatch: HashMap<String, Int> = HashMap()
     ): ArrayList<Medium> {
         val filterMedia = context.config.filterMedia
         if (filterMedia == 0) {
@@ -40,9 +41,14 @@ class MediaFetcher(val context: Context) {
         val cachedDurations: HashMap<String, Int> = if (getVideoDurations && curPath != FAVORITES && curPath != RECYCLE_BIN) {
             try {
                 val cached = HashMap<String, Int>()
-                context.mediaDB.getMediaFromPath(curPath)
-                    .filter { it.videoDuration > 0 }
-                    .forEach { cached[it.path] = it.videoDuration }
+                // Prioriza o batch do MediaStore (mais rápido e completo)
+                if (videoDurationsBatch.isNotEmpty()) {
+                    cached.putAll(videoDurationsBatch)
+                } else {
+                    context.mediaDB.getMediaFromPath(curPath)
+                        .filter { it.videoDuration > 0 }
+                        .forEach { cached[it.path] = it.videoDuration }
+                }
                 cached
             } catch (_: Exception) { HashMap() }
         } else HashMap()
@@ -722,6 +728,28 @@ class MediaFetcher(val context: Context) {
         }
 
         return lastModifieds
+    }
+
+    // Busca durações de TODOS os vídeos de uma vez via MediaStore (muito mais rápido que getDuration por arquivo)
+    fun getVideoDurationsBatch(): HashMap<String, Int> {
+        val durations = HashMap<String, Int>()
+        val projection = arrayOf(
+            Images.Media.DATA,
+            MediaStore.MediaColumns.DURATION
+        )
+        val uri = Files.getContentUri("external")
+        try {
+            context.queryCursor(uri, projection) { cursor ->
+                try {
+                    val durationMs = cursor.getLongValue(MediaStore.MediaColumns.DURATION)
+                    if (durationMs > 0) {
+                        val path = cursor.getStringValue(Images.Media.DATA)
+                        durations[path] = (durationMs / 1000.0).toInt()
+                    }
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+        return durations
     }
 
     fun getLastModifieds(): HashMap<String, Long> {

@@ -39,6 +39,8 @@ class GetMediaAsynctask(
         val getVideoDurations = context.config.showThumbnailVideoDuration
         val lastModifieds = if (getProperLastModified) mediaFetcher.getLastModifieds() else HashMap()
         val dateTakens = if (getProperDateTaken) mediaFetcher.getDateTakens() else HashMap()
+        // Busca todas as durações de uma vez via MediaStore — muito mais rápido que getDuration() por arquivo
+        val videoDurationsBatch = if (getVideoDurations) mediaFetcher.getVideoDurationsBatch() else HashMap()
 
         val media = if (showAll) {
             val foldersToScan = mediaFetcher.getFoldersToScan().filter { it != RECYCLE_BIN && it != FAVORITES && !context.config.isFolderProtected(it) }
@@ -46,7 +48,8 @@ class GetMediaAsynctask(
             foldersToScan.forEach {
                 val newMedia = mediaFetcher.getFilesFrom(
                     it, isPickImage, isPickVideo, getProperDateTaken, getProperLastModified, getProperFileSize,
-                    favoritePaths, getVideoDurations, lastModifieds, dateTakens.clone() as HashMap<String, Long>, null
+                    favoritePaths, getVideoDurations, lastModifieds, dateTakens.clone() as HashMap<String, Long>, null,
+                    videoDurationsBatch
                 )
                 media.addAll(newMedia)
             }
@@ -56,7 +59,7 @@ class GetMediaAsynctask(
         } else {
             mediaFetcher.getFilesFrom(
                 mPath, isPickImage, isPickVideo, getProperDateTaken, getProperLastModified, getProperFileSize, favoritePaths,
-                getVideoDurations, lastModifieds, dateTakens, null
+                getVideoDurations, lastModifieds, dateTakens, null, videoDurationsBatch
             )
         }
 
