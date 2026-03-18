@@ -22,14 +22,25 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Grant execute permission to gradlew
-        run: chmod +x ./gradlew
+      - name: Fix gradlew line endings
+        run: sed -i 's/\r$//' gradlew && chmod +x gradlew
+
+      - name: Fix gradle-wrapper.jar
+        run: |
+          GRADLE_VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties \
+            | sed 's/.*gradle-\(.*\)-bin.zip/\1/')
+          echo "Gradle version: $GRADLE_VERSION"
+          curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
+          GRADLE_BIN=$(find /tmp/gradle-dist -name "gradle" -type f | head -1)
+          $GRADLE_BIN wrapper --gradle-version "$GRADLE_VERSION"
+          chmod +x gradlew
 
       - name: Decode Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > keystore.jks
+        run: echo "$KEYSTORE_BASE64" | base64 --decode > keystore.jks
 
       - name: Build Release APK
         env:
@@ -44,7 +55,6 @@ jobs:
         run: |
           APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          echo "apk_name=$(basename $APK_PATH)" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -66,17 +76,6 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.version_code }}
           name: "Right Gallery v${{ steps.version.outputs.version_name }}"
-          body: |
-            ## Right Gallery v${{ steps.version.outputs.version_name }} (build ${{ steps.version.outputs.version_code }})
-
-            ### Mudanças nesta versão
-            - Botão stretch no VideoFragment (ic_maximize_vector)
-            - Blur background no PhotoFragment via BlurTransformation(60, 3)
-            - Fundo transparente no SubsamplingScaleImageView para mostrar o blur
-            - Badge de tamanho das pastas nos 3 layouts de diretório
-            - Opção "Mostrar tamanho das pastas" nas configurações do app
-
-            Built from commit ${{ github.sha }}
           files: ${{ steps.find_apk.outputs.apk_path }}
           draft: false
           prerelease: false
