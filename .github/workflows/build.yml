@@ -20,7 +20,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -28,8 +27,23 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      - name: Fix gradlew line endings
-        run: sed -i 's/\r$//' gradlew && chmod +x gradlew
+      - name: Fix gradlew and gradle-wrapper.jar
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+          GRADLE_VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties \
+            | sed 's/.*gradle-\(.*\)-bin\.zip.*/\1/')
+          echo "Using Gradle: $GRADLE_VERSION"
+          curl -fsSL \
+            "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar || \
+          curl -fsSL \
+            "https://raw.githubusercontent.com/gradle/gradle/refs/tags/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar || \
+          (apt-get install -y gradle -q && gradle wrapper --gradle-version "$GRADLE_VERSION" --distribution-type bin)
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Decode Keystore
         env:
