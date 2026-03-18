@@ -780,6 +780,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         mIsGettingMedia = true
+
+        // Já tem mídia carregada e é uma segunda visita — mostrar imediatamente sem loading
+        if (mLoadedInitialPhotos && mMedia.isNotEmpty()) {
+            mShowLoadingIndicator = false
+            // Roda o async task em silêncio no background para sincronizar mudanças
+            startAsyncTask()
+            return
+        }
+
         if (mLoadedInitialPhotos) {
             startAsyncTask()
         } else {
@@ -1128,6 +1137,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
+
+        // Se o conteúdo não mudou e já temos mídia, não recarrega o adapter desnecessariamente
+        val contentChanged = isFromCache || mMedia.size != media.size ||
+            mMedia.mapNotNull { it as? Medium }.map { it.path }.toSet() !=
+            media.mapNotNull { it as? Medium }.map { it.path }.toSet()
+
         mMedia = media
 
         runOnUiThread {
@@ -1140,7 +1155,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 binding.mediaEmptyTextPlaceholder.text = getString(R.string.no_media_with_filters)
             }
             binding.mediaFastscroller.beVisibleIf(binding.mediaEmptyTextPlaceholder.isGone())
-            if (!isFromCache) setupAdapter()
+            if (!isFromCache && contentChanged) setupAdapter()
         }
 
         mLatestMediaId = getLatestMediaId()
