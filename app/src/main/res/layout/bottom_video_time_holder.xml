@@ -86,7 +86,7 @@
             android:padding="@dimen/medium_margin"
             android:src="@drawable/ic_vector_speaker_on"
             android:visibility="visible"
-            app:layout_constraintEnd_toStartOf="@+id/videoStretch"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:visibility="visible" />
 
@@ -99,8 +99,8 @@
             android:gravity="center"
             android:padding="@dimen/medium_margin"
             android:src="@drawable/ic_maximize_vector"
-            android:visibility="gone"
-            app:layout_constraintEnd_toEndOf="parent"
+            android:visibility="visible"
+            app:layout_constraintEnd_toStartOf="@+id/videoToggleMute"
             app:layout_constraintTop_toTopOf="parent"
             tools:visibility="visible" />
     </androidx.constraintlayout.widget.ConstraintLayout>

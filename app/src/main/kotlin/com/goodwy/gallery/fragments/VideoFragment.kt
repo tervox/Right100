@@ -699,12 +699,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         } else {
             binding.bottomActionsDummy.beVisible()
             mTimeHolder.fadeIn(DEFAULT_ANIMATION_DURATION)
-            // Restaura visibilidade correta do botão stretch
-            if (!mIsVideoStretched) {
-                binding.bottomVideoTimeHolder.videoStretch.beVisible()
-            } else {
-                binding.bottomVideoTimeHolder.videoStretch.beGone()
-            }
         }
 
         binding.videoDetails.apply {
@@ -961,20 +955,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun toggleVideoStretch() {
         mIsVideoStretched = !mIsVideoStretched
-        val params = mTextureView.layoutParams
         if (mIsVideoStretched) {
             val displayMetrics = DisplayMetrics()
             requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
-            params.width = displayMetrics.widthPixels
-            params.height = displayMetrics.heightPixels
-            mTextureView.layoutParams = params
-            // Esconde o botão enquanto está esticado
-            binding.bottomVideoTimeHolder.videoStretch.beGone()
+            mTextureView.layoutParams.apply {
+                width = displayMetrics.widthPixels
+                height = displayMetrics.heightPixels
+                mTextureView.layoutParams = this
+            }
         } else {
             setVideoSize()
-            // Mostra o botão novamente ao sair do modo esticado
-            binding.bottomVideoTimeHolder.videoStretch.beVisible()
         }
+        // Só troca o ícone — nunca esconde o botão
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            if (mIsVideoStretched) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector
+        )
     }
 
     private fun cleanup() {

@@ -551,6 +551,8 @@ class PhotoFragment : ViewPagerFragment() {
                     applyProperColorMode(resource)
                     val allowZoomingImages = context?.config?.allowZoomingImages ?: true
                     binding.gesturesView.controller.settings.isZoomEnabled = mMedium.isRaw() || mCurrentRotationDegrees != 0 || allowZoomingImages == false
+                    // Fundo transparente para mostrar o blur atrás da imagem
+                    binding.gesturesView.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
                     if (mIsFragmentVisible && addZoomableView) {
                         scheduleZoomableView()
                     }
