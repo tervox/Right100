@@ -8,6 +8,7 @@ import com.goodwy.commons.helpers.SORT_BY_DATE_TAKEN
 import com.goodwy.commons.helpers.SORT_BY_SIZE
 import com.goodwy.gallery.extensions.config
 import com.goodwy.gallery.extensions.getFavoritePaths
+import com.goodwy.gallery.extensions.mediaDB
 import com.goodwy.gallery.helpers.*
 import com.goodwy.gallery.models.Medium
 import com.goodwy.gallery.models.ThumbnailItem
@@ -57,6 +58,17 @@ class GetMediaAsynctask(
                 mPath, isPickImage, isPickVideo, getProperDateTaken, getProperLastModified, getProperFileSize, favoritePaths,
                 getVideoDurations, lastModifieds, dateTakens, null
             )
+        }
+
+        // Salva durações dos vídeos no banco para acelerar próximas cargas
+        if (getVideoDurations) {
+            media.filterIsInstance<Medium>()
+                .filter { it.isVideo() && it.videoDuration > 0 }
+                .forEach { medium ->
+                    try {
+                        mediaDB.updateVideoDuration(medium.path, medium.videoDuration)
+                    } catch (_: Exception) {}
+                }
         }
 
         return mediaFetcher.groupMedia(media, pathToUse)

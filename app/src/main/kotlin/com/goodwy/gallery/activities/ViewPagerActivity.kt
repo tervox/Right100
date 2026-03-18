@@ -689,6 +689,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun copyMoveTo(isCopyOperation: Boolean) {
+        // Pausa o vídeo antes de copiar/mover
+        (getCurrentFragment() as? VideoFragment)?.apply {
+            if (mIsPlaying) togglePlayPause()
+        }
+
         val currPath = getCurrentPath()
         if (!isCopyOperation && currPath.startsWith(recycleBinPath)) {
             toast(com.goodwy.commons.R.string.moving_recycle_bin_items_disabled, Toast.LENGTH_LONG)
@@ -836,7 +841,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         return@withContext false
     }
 
-    private fun getCurrentFragment() = (binding.viewPager.adapter as? MyPagerAdapter)?.getCurrentFragment(binding.viewPager.currentItem)
+    fun getCurrentFragment() = (binding.viewPager.adapter as? MyPagerAdapter)?.getCurrentFragment(binding.viewPager.currentItem)
 
     private fun showProperties() {
         if (getCurrentMedium() != null) {

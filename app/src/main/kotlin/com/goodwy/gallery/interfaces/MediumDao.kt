@@ -50,6 +50,9 @@ interface MediumDao {
     @Query("UPDATE media SET is_favorite = 0")
     fun clearFavorites()
 
+    @Query("UPDATE media SET video_duration = :duration WHERE full_path = :path COLLATE NOCASE")
+    fun updateVideoDuration(path: String, duration: Int)
+
     @Query("DELETE FROM media WHERE deleted_ts != 0")
     fun clearRecycleBin()
 }

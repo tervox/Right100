@@ -36,6 +36,17 @@ class MediaFetcher(val context: Context) {
             return ArrayList()
         }
 
+        // Pré-carrega durações salvas no banco para esta pasta — evita getDuration() por arquivo
+        val cachedDurations: HashMap<String, Int> = if (getVideoDurations && curPath != FAVORITES && curPath != RECYCLE_BIN) {
+            try {
+                val cached = HashMap<String, Int>()
+                context.mediaDB.getMediaFromPath(curPath)
+                    .filter { it.videoDuration > 0 }
+                    .forEach { cached[it.path] = it.videoDuration }
+                cached
+            } catch (_: Exception) { HashMap() }
+        } else HashMap()
+
         val curMedia = ArrayList<Medium>()
         if (context.isPathOnOTG(curPath)) {
             if (context.hasOTGConnected()) {
@@ -57,7 +68,8 @@ class MediaFetcher(val context: Context) {
             if (curMedia.isEmpty()) {
                 val newMedia = getMediaInFolder(
                     curPath, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified, getProperFileSize,
-                    favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>, dateTakens.clone() as HashMap<String, Long>
+                    favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>,
+                    dateTakens.clone() as HashMap<String, Long>, cachedDurations
                 )
 
                 if (curPath == FAVORITES && isRPlus() && !isExternalStorageManager()) {
@@ -287,7 +299,8 @@ class MediaFetcher(val context: Context) {
     private fun getMediaInFolder(
         folder: String, isPickImage: Boolean, isPickVideo: Boolean, filterMedia: Int, getProperDateTaken: Boolean,
         getProperLastModified: Boolean, getProperFileSize: Boolean, favoritePaths: ArrayList<String>,
-        getVideoDurations: Boolean, lastModifieds: HashMap<String, Long>, dateTakens: HashMap<String, Long>
+        getVideoDurations: Boolean, lastModifieds: HashMap<String, Long>, dateTakens: HashMap<String, Long>,
+        cachedDurations: HashMap<String, Int> = HashMap()
     ): ArrayList<Medium> {
         val media = ArrayList<Medium>()
         val isRecycleBin = folder == RECYCLE_BIN
@@ -393,7 +406,10 @@ class MediaFetcher(val context: Context) {
                 lastModified = newLastModified
 
                 var dateTaken = lastModified
-                val videoDuration = if (getVideoDurations && isVideo) context.getDuration(path) ?: 0 else 0
+                val videoDuration = if (getVideoDurations && isVideo) {
+                    // Usa cache do banco se disponível, senão busca e será salvo no próximo sync
+                    cachedDurations[path] ?: (context.getDuration(path) ?: 0)
+                } else 0
 
                 if (getProperDateTaken) {
                     var newDateTaken = dateTakens.remove(path)
