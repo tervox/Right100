@@ -85,6 +85,7 @@
         tools:visibility="visible" />
 
     <ImageView
+        android:id="@+id/medium_check"
         android:layout_width="@dimen/selection_check_size"
         android:layout_height="@dimen/selection_check_size"
         android:layout_alignEnd="@+id/medium_name"
