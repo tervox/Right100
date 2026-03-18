@@ -39,9 +39,18 @@ class GetMediaAsynctask(
         val getProperFileSize = folderSorting and SORT_BY_SIZE != 0
         val favoritePaths = context.getFavoritePaths()
         val getVideoDurations = context.config.showThumbnailVideoDuration
-        val lastModifieds = if (getProperLastModified) mediaFetcher.getLastModifieds() else HashMap()
-        val dateTakens = if (getProperDateTaken) mediaFetcher.getDateTakens() else HashMap()
-        // Busca todas as durações de uma vez via MediaStore — muito mais rápido que getDuration() por arquivo
+
+        // Usa queries por pasta quando não é showAll — muito mais rápido que varrer todo o dispositivo
+        val lastModifieds = when {
+            !getProperLastModified -> HashMap()
+            showAll -> mediaFetcher.getLastModifieds()
+            else -> mediaFetcher.getFolderLastModifieds(mPath)
+        }
+        val dateTakens = when {
+            !getProperDateTaken -> HashMap()
+            showAll -> mediaFetcher.getDateTakens()
+            else -> mediaFetcher.getFolderDateTakens(mPath)
+        }
         val videoDurationsBatch = if (getVideoDurations) mediaFetcher.getVideoDurationsBatch() else HashMap()
 
         val media = if (showAll) {
