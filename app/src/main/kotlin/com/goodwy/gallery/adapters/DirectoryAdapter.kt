@@ -84,6 +84,27 @@ class DirectoryAdapter(
     private val fontSizeDir = config.fontSizeDir
 
     private val keyToPositionCache = mutableMapOf<Int, Int>()
+    // Cache de ícones de apps — carregado uma vez para evitar lag no scroll
+    private val appIconCache = mutableMapOf<String, android.graphics.drawable.Drawable?>()
+
+    private fun getAppIconForFolder(folderName: String): android.graphics.drawable.Drawable? {
+        return appIconCache.getOrPut(folderName) {
+            val pkg = getFolderAppPackage(folderName)
+            val pm = activity.packageManager
+            if (pkg != null) {
+                try { pm.getApplicationIcon(pkg) } catch (_: Exception) { null }
+            } else {
+                // Busca por label só se não tem package mapeado
+                try {
+                    val name = folderName.lowercase()
+                    pm.getInstalledApplications(0).firstOrNull { info ->
+                        val label = pm.getApplicationLabel(info).toString().lowercase()
+                        label.length >= 3 && (name.contains(label.take(5)) || label.contains(name.take(5)))
+                    }?.let { pm.getApplicationIcon(it) }
+                } catch (_: Exception) { null }
+            }
+        }
+    }
 
     init {
         setupDragListener(true)
@@ -830,35 +851,17 @@ class DirectoryAdapter(
             dirHolder.setPadding(0, 0, 0, 0)
             dirHolder.background = null
 
-            // Ícone do app no canto inferior esquerdo da thumbnail
+            // Ícone do app — canto inferior esquerdo da THUMBNAIL, pequeno como no Aves
             dirAppIcon?.apply {
                 if (!config.showFolderColors || isListViewType) {
+                    beGone(); return@apply
+                }
+                val icon = getAppIconForFolder(directory.name)
+                if (icon != null) {
+                    setImageDrawable(icon)
+                    beVisible()
+                } else {
                     beGone()
-                    return@apply
-                }
-                val pm = root.context.packageManager
-                val appPackage = getFolderAppPackage(directory.path)
-                var shown = false
-                if (appPackage != null) {
-                    try {
-                        setImageDrawable(pm.getApplicationIcon(appPackage))
-                        beVisible()
-                        shown = true
-                    } catch (_: Exception) {}
-                }
-                if (!shown) {
-                    // Tenta encontrar pelo nome da pasta entre os apps instalados
-                    try {
-                        val folderName = directory.name.lowercase()
-                        val match = pm.getInstalledApplications(0).firstOrNull { info ->
-                            val label = pm.getApplicationLabel(info).toString().lowercase()
-                            label.contains(folderName) || folderName.contains(label.take(5))
-                        }
-                        if (match != null) {
-                            setImageDrawable(pm.getApplicationIcon(match))
-                            beVisible()
-                        } else beGone()
-                    } catch (_: Exception) { beGone() }
                 }
             }
 
