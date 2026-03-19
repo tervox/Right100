@@ -89,6 +89,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     companion object {
         var mMedia = ArrayList<ThumbnailItem>()
+        var mMediaPath = ""
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -781,10 +782,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
-        // Segunda visita: mMedia já tem os dados na memória — mostra INSTANTÂNEO
-        if (mLoadedInitialPhotos && mMedia.isNotEmpty()) {
+        // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
+        // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
+        if (mMedia.isNotEmpty() && mMediaPath == mPath) {
             runOnUiThread { setupAdapter() }
-            // Sincroniza em background sem bloquear a UI
             getCachedMedia(
                 mPath,
                 mIsGetVideoIntent && !mIsGetImageIntent,
@@ -793,10 +794,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 if (cached.isNotEmpty()) gotMedia(cached, true)
                 startAsyncTask()
             }
+            mLoadedInitialPhotos = true
             return
         }
 
-        // Primeira visita: usa cache do banco, depois async task
+        // Primeira visita: banco de dados → async task
         getCachedMedia(
             mPath,
             mIsGetVideoIntent && !mIsGetImageIntent,
@@ -1140,6 +1142,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mIsGettingMedia = false
         checkLastMediaChanged()
         mMedia = media
+        mMediaPath = mPath
 
         runOnUiThread {
             binding.loadingIndicator.hide()
