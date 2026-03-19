@@ -781,23 +781,24 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
-        if (mLoadedInitialPhotos) {
-            startAsyncTask()
-        } else {
-            getCachedMedia(
-                mPath,
-                mIsGetVideoIntent && !mIsGetImageIntent,
-                mIsGetImageIntent && !mIsGetVideoIntent
-            ) {
-                if (it.isEmpty()) {
-                    runOnUiThread {
-                        binding.mediaRefreshLayout.isRefreshing = true
-                    }
-                } else {
-                    gotMedia(it, true)
+        // Sempre mostra o cache do banco primeiro (instantâneo)
+        // depois o async task sincroniza em background sem bloquear a UI
+        getCachedMedia(
+            mPath,
+            mIsGetVideoIntent && !mIsGetImageIntent,
+            mIsGetImageIntent && !mIsGetVideoIntent
+        ) { cached ->
+            if (cached.isEmpty()) {
+                // Sem cache: mostra loading e aguarda o async task
+                if (!mLoadedInitialPhotos) {
+                    runOnUiThread { binding.mediaRefreshLayout.isRefreshing = true }
                 }
-                startAsyncTask()
+            } else {
+                // Com cache: mostra imediatamente
+                gotMedia(cached, true)
             }
+            // Async task roda em background para sincronizar mudanças
+            startAsyncTask()
         }
 
         mLoadedInitialPhotos = true
