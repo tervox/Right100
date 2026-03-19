@@ -807,37 +807,52 @@ class DirectoryAdapter(
                 dirCheck.applyColorFilter(contrastColor)
             }
 
-            // Borda colorida estilo Aves - background do holder com padding e cantos arredondados
-            val borderColor = getFolderBorderColor(directory.path)
-            val cornerRadius = when {
-                folderStyle == FOLDER_STYLE_ROUNDED_CORNERS -> 36f
-                isListViewType -> 20f
-                else -> 12f
+            // Borda colorida e ícone — só se a opção estiver ativa
+            if (config.showFolderColors) {
+                val borderColor = getFolderBorderColor(directory.path)
+                val cornerRadius = when {
+                    folderStyle == FOLDER_STYLE_ROUNDED_CORNERS -> 28f
+                    isListViewType -> 14f
+                    else -> 8f
+                }
+                val borderDrawable = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    this.cornerRadius = cornerRadius
+                    setStroke(4, borderColor)
+                    setColor(Color.TRANSPARENT)
+                }
+                dirThumbnail.foreground = borderDrawable
+            } else {
+                dirThumbnail.foreground = null
             }
-            val borderDrawable = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                this.cornerRadius = cornerRadius
-                setStroke(8, borderColor)
-                setColor(Color.TRANSPARENT)
-            }
-            dirHolder.background = borderDrawable
-            val pad = 8
-            dirHolder.setPadding(pad, pad, pad, pad)
+            dirHolder.setPadding(0, 0, 0, 0)
+            dirHolder.background = null
 
             // Ícone do app no canto inferior esquerdo da thumbnail (estilo Aves)
             dirAppIcon?.apply {
-                val appPackage = getFolderAppPackage(directory.path)
-                if (appPackage != null && !isListViewType) {
-                    try {
-                        val icon = activity.packageManager.getApplicationIcon(appPackage)
-                        setImageDrawable(icon)
-                        beVisible()
-                    } catch (_: Exception) {
-                        beGone()
-                    }
-                } else {
-                    beGone()
-                }
+                if (config.showFolderColors) {
+                    val appPackage = getFolderAppPackage(directory.path)
+                    if (appPackage != null && !isListViewType) {
+                        try {
+                            val pm = root.context.packageManager
+                            val icon = pm.getApplicationIcon(appPackage)
+                            setImageDrawable(icon)
+                            beVisible()
+                        } catch (_: Exception) {
+                            try {
+                                val packages = root.context.packageManager.getInstalledApplications(0)
+                                val folderName = directory.path.substringAfterLast("/").lowercase()
+                                val match = packages.firstOrNull {
+                                    it.packageName.lowercase().contains(folderName.take(6))
+                                }
+                                if (match != null) {
+                                    setImageDrawable(root.context.packageManager.getApplicationIcon(match))
+                                    beVisible()
+                                } else beGone()
+                            } catch (_: Exception) { beGone() }
+                        }
+                    } else beGone()
+                } else beGone()
             }
 
             if (isListViewType) {
