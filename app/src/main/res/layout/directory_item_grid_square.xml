@@ -155,4 +155,17 @@
         android:src="@drawable/ic_sd_card_vector"
         android:visibility="gone" />
 
+    <!-- Ícone do app no canto inferior direito -->
+    <ImageView
+        android:id="@+id/dir_app_icon"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginEnd="6dp"
+        android:layout_marginBottom="6dp"
+        android:elevation="4dp"
+        android:contentDescription="@null"
+        android:visibility="gone" />
+
 </RelativeLayout>

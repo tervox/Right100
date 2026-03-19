@@ -142,4 +142,18 @@
             android:visibility="gone" />
 
     </LinearLayout>
+
+    <!-- Ícone do app sobre a thumbnail, canto inferior direito -->
+    <ImageView
+        android:id="@+id/dir_app_icon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_alignBottom="@+id/dir_thumbnail"
+        android:layout_alignEnd="@+id/dir_thumbnail"
+        android:layout_marginEnd="4dp"
+        android:layout_marginBottom="4dp"
+        android:elevation="4dp"
+        android:contentDescription="@null"
+        android:visibility="gone" />
+
 </RelativeLayout>

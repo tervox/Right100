@@ -4,7 +4,9 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
+import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Icon
 import android.text.TextUtils
 import android.util.TypedValue
@@ -805,6 +807,32 @@ class DirectoryAdapter(
                 dirCheck.applyColorFilter(contrastColor)
             }
 
+            // Borda colorida baseada no caminho da pasta
+            val borderColor = getFolderBorderColor(directory.path)
+            val borderDrawable = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = if (folderStyle == FOLDER_STYLE_ROUNDED_CORNERS) 32f else if (isListViewType) 16f else 0f
+                setStroke(6, borderColor)
+                setColor(Color.TRANSPARENT)
+            }
+            dirHolder.foreground = borderDrawable
+
+            // Ícone do app no canto inferior direito da thumbnail
+            dirAppIcon?.apply {
+                val appPackage = getFolderAppPackage(directory.path)
+                if (appPackage != null && !isListViewType) {
+                    try {
+                        val icon = activity.packageManager.getApplicationIcon(appPackage)
+                        setImageDrawable(icon)
+                        beVisible()
+                    } catch (_: Exception) {
+                        beGone()
+                    }
+                } else {
+                    beGone()
+                }
+            }
+
             if (isListViewType) {
                 dirHolder.isSelected = isSelected
             }
@@ -964,6 +992,64 @@ class DirectoryAdapter(
     }
 
     override fun onChange(position: Int) = dirs.getOrNull(position)?.getBubbleText(directorySorting, activity, dateFormat, timeFormat) ?: ""
+
+    private fun getFolderAppPackage(path: String): String? {
+        val name = path.lowercase()
+        return when {
+            name.contains("whatsapp")                           -> "com.whatsapp"
+            name.contains("instagold") || name.contains("instander") -> "me.anon.instander"
+            name.contains("instagram")                          -> "com.instagram.android"
+            name.contains("facebook")                           -> "com.facebook.katana"
+            name.contains("telegram")                           -> "org.telegram.messenger"
+            name.contains("twitter") || name.contains("/x/")   -> "com.twitter.android"
+            name.contains("youtube")                            -> "com.google.android.youtube"
+            name.contains("tiktok")                             -> "com.zhiliaoapp.musically"
+            name.contains("kwai")                               -> "com.kwai.video"
+            name.contains("snapchat")                           -> "com.snapchat.android"
+            name.contains("discord")                            -> "com.discord"
+            name.contains("pinterest")                          -> "com.pinterest"
+            name.contains("linkedin")                           -> "com.linkedin.android"
+            name.contains("gbinsta") || name.contains("gb_insta") -> "com.gbinsta"
+            name.contains("gbwhatsapp") || name.contains("gb_whatsapp") -> "com.gbwhatsapp"
+            name.contains("spotify")                            -> "com.spotify.music"
+            name.contains("netflix")                            -> "com.netflix.mediaclient"
+            name.contains("reddit")                             -> "com.reddit.frontpage"
+            name.contains("capcut")                             -> "com.lemon.lvoverseas"
+            name.contains("alight")                             -> "com.alightcreative.motion"
+            else -> null
+        }
+    }
+
+    private fun getFolderBorderColor(path: String): Int {
+        val name = path.lowercase()
+        return when {
+            // Apps conhecidas com cores oficiais
+            name.contains("whatsapp")                    -> Color.parseColor("#25D366")
+            name.contains("instagram") || name.contains("instagold") || name.contains("insta") -> Color.parseColor("#E1306C")
+            name.contains("facebook")                    -> Color.parseColor("#1877F2")
+            name.contains("telegram")                    -> Color.parseColor("#2CA5E0")
+            name.contains("twitter") || name.contains("x/")-> Color.parseColor("#1DA1F2")
+            name.contains("youtube")                     -> Color.parseColor("#FF0000")
+            name.contains("tiktok")                      -> Color.parseColor("#69C9D0")
+            name.contains("kwai")                        -> Color.parseColor("#FF6800")
+            name.contains("snapchat")                    -> Color.parseColor("#FFFC00")
+            name.contains("discord")                     -> Color.parseColor("#5865F2")
+            name.contains("pinterest")                   -> Color.parseColor("#E60023")
+            name.contains("linkedin")                    -> Color.parseColor("#0A66C2")
+            name.contains("camera") || name.contains("dcim") -> Color.parseColor("#4CAF50")
+            name.contains("screenshot")                  -> Color.parseColor("#9C27B0")
+            name.contains("download")                    -> Color.parseColor("#FF9800")
+            name.contains("video")                       -> Color.parseColor("#F44336")
+            name.contains("music") || name.contains("audio")-> Color.parseColor("#00BCD4")
+            name.contains("document") || name.contains("pdf")-> Color.parseColor("#795548")
+            // Cor gerada automaticamente pelo hash do caminho
+            else -> {
+                val hash = path.hashCode()
+                val hue = ((hash and 0xFFFFFF) % 360).toFloat()
+                Color.HSVToColor(floatArrayOf(hue, 0.7f, 0.9f))
+            }
+        }
+    }
 
     private fun bindItem(view: View): DirectoryItemBinding {
         return when {
