@@ -807,17 +807,24 @@ class DirectoryAdapter(
                 dirCheck.applyColorFilter(contrastColor)
             }
 
-            // Borda colorida baseada no caminho da pasta
+            // Borda colorida estilo Aves - background do holder com padding e cantos arredondados
             val borderColor = getFolderBorderColor(directory.path)
+            val cornerRadius = when {
+                folderStyle == FOLDER_STYLE_ROUNDED_CORNERS -> 36f
+                isListViewType -> 20f
+                else -> 12f
+            }
             val borderDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = if (folderStyle == FOLDER_STYLE_ROUNDED_CORNERS) 32f else if (isListViewType) 16f else 0f
-                setStroke(6, borderColor)
+                this.cornerRadius = cornerRadius
+                setStroke(8, borderColor)
                 setColor(Color.TRANSPARENT)
             }
-            dirHolder.foreground = borderDrawable
+            dirHolder.background = borderDrawable
+            val pad = 8
+            dirHolder.setPadding(pad, pad, pad, pad)
 
-            // Ícone do app no canto inferior direito da thumbnail
+            // Ícone do app no canto inferior esquerdo da thumbnail (estilo Aves)
             dirAppIcon?.apply {
                 val appPackage = getFolderAppPackage(directory.path)
                 if (appPackage != null && !isListViewType) {

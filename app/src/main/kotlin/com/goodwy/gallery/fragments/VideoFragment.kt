@@ -741,17 +741,25 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             return
         }
 
+        // Seek rápido para botões de avançar/retroceder
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         val curr = mExoPlayer!!.currentPosition
         var newPosition =
             if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
         newPosition = newPosition.coerceIn(0, maxOf(mExoPlayer!!.duration, 0))
         setPosition(newPosition)
+        // Volta para EXACT após um curto delay
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            mExoPlayer?.setSeekParameters(SeekParameters.EXACT)
+        }, 200)
     }
 
     override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
         if (fromUser) {
             val newPosition = progress.toLong()
             if (mExoPlayer != null) {
+                // Seek rápido enquanto arrasta (menos preciso mas instantâneo)
+                mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
                 if (!mWasPlayerInited) {
                     mPositionWhenInit = newPosition
                 }
@@ -783,6 +791,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mExoPlayer == null) {
             return
         }
+
+        // Volta para seek preciso após soltar
+        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
