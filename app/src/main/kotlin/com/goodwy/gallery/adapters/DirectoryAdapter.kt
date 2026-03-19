@@ -807,52 +807,59 @@ class DirectoryAdapter(
                 dirCheck.applyColorFilter(contrastColor)
             }
 
-            // Borda colorida e ícone — só se a opção estiver ativa
+            // Borda colorida cobre tudo (thumbnail + nome + contagem) igual ao Aves
             if (config.showFolderColors) {
                 val borderColor = getFolderBorderColor(directory.path)
                 val cornerRadius = when {
-                    folderStyle == FOLDER_STYLE_ROUNDED_CORNERS -> 28f
-                    isListViewType -> 14f
-                    else -> 8f
+                    folderStyle == FOLDER_STYLE_ROUNDED_CORNERS -> 40f
+                    isListViewType -> 0f
+                    else -> 16f
                 }
                 val borderDrawable = GradientDrawable().apply {
                     shape = GradientDrawable.RECTANGLE
                     this.cornerRadius = cornerRadius
-                    setStroke(4, borderColor)
+                    setStroke(6, borderColor)
                     setColor(Color.TRANSPARENT)
                 }
-                dirThumbnail.foreground = borderDrawable
+                dirHolder.foreground = borderDrawable
+                dirThumbnail.foreground = null
             } else {
+                dirHolder.foreground = null
                 dirThumbnail.foreground = null
             }
             dirHolder.setPadding(0, 0, 0, 0)
             dirHolder.background = null
 
-            // Ícone do app no canto inferior esquerdo da thumbnail (estilo Aves)
+            // Ícone do app no canto inferior esquerdo da thumbnail
             dirAppIcon?.apply {
-                if (config.showFolderColors) {
-                    val appPackage = getFolderAppPackage(directory.path)
-                    if (appPackage != null && !isListViewType) {
-                        try {
-                            val pm = root.context.packageManager
-                            val icon = pm.getApplicationIcon(appPackage)
-                            setImageDrawable(icon)
-                            beVisible()
-                        } catch (_: Exception) {
-                            try {
-                                val packages = root.context.packageManager.getInstalledApplications(0)
-                                val folderName = directory.path.substringAfterLast("/").lowercase()
-                                val match = packages.firstOrNull {
-                                    it.packageName.lowercase().contains(folderName.take(6))
-                                }
-                                if (match != null) {
-                                    setImageDrawable(root.context.packageManager.getApplicationIcon(match))
-                                    beVisible()
-                                } else beGone()
-                            } catch (_: Exception) { beGone() }
+                if (!config.showFolderColors || isListViewType) {
+                    beGone()
+                    return@apply
+                }
+                val pm = root.context.packageManager
+                val appPackage = getFolderAppPackage(directory.path)
+                var shown = false
+                if (appPackage != null) {
+                    try {
+                        setImageDrawable(pm.getApplicationIcon(appPackage))
+                        beVisible()
+                        shown = true
+                    } catch (_: Exception) {}
+                }
+                if (!shown) {
+                    // Tenta encontrar pelo nome da pasta entre os apps instalados
+                    try {
+                        val folderName = directory.name.lowercase()
+                        val match = pm.getInstalledApplications(0).firstOrNull { info ->
+                            val label = pm.getApplicationLabel(info).toString().lowercase()
+                            label.contains(folderName) || folderName.contains(label.take(5))
                         }
-                    } else beGone()
-                } else beGone()
+                        if (match != null) {
+                            setImageDrawable(pm.getApplicationIcon(match))
+                            beVisible()
+                        } else beGone()
+                    } catch (_: Exception) { beGone() }
+                }
             }
 
             if (isListViewType) {
