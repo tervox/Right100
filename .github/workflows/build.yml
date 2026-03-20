@@ -45,24 +45,13 @@ jobs:
             $GRADLE_BIN wrapper --gradle-version "$GRADLE_VERSION"
           fi
 
-      - name: Decode Keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > keystore.jks
-
-      - name: Build Release APK
-        env:
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          SIGNING_STORE_FILE: ${{ github.workspace }}/keystore.jks
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+      - name: Build Debug APK
         run: |
           printf 'sdk.dir=/usr/local/lib/android/sdk\n' > local.properties
           printf 'PRODUCT_ID_X1=\nPRODUCT_ID_X2=\nPRODUCT_ID_X3=\nPRODUCT_ID_X4=\n' >> local.properties
           printf 'SUBSCRIPTION_ID_X1=\nSUBSCRIPTION_ID_X2=\nSUBSCRIPTION_ID_X3=\n' >> local.properties
           printf 'SUBSCRIPTION_YEAR_ID_X1=\nSUBSCRIPTION_YEAR_ID_X2=\nSUBSCRIPTION_YEAR_ID_X3=\n' >> local.properties
-          ./gradlew assembleGplayRelease --stacktrace
+          ./gradlew assembleGplayDebug
 
       - name: Find APK
         id: find_apk
@@ -74,7 +63,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
+          name: debug-apk
           path: ${{ steps.find_apk.outputs.apk_path }}
           retention-days: 30
 
