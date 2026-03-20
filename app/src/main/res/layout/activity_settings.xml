@@ -525,17 +525,6 @@
 
                     </RelativeLayout>
 
-                    <RelativeLayout
-                        android:id="@+id/settings_show_folder_colors_holder"
-                        style="@style/SettingsHolderSwitchStyle">
-
-                        <com.goodwy.commons.views.MyMaterialSwitch
-                            android:id="@+id/settings_show_folder_colors"
-                            style="@style/SettingsSwitchStyle"
-                            android:text="@string/show_folder_colors"
-                            app:switchPadding="@dimen/bigger_margin" />
-
-                    </RelativeLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

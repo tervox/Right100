@@ -143,7 +143,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mVolumeController: VolumeController? = null
     private var mMuteInit: Boolean = false
 
-    private var mIsVideoStretched = false
+    // 0 = fit (default), 1 = fill/cover (sem esticar), 2 = stretch (esticado)
+    private var mVideoFillMode = 0
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
@@ -311,6 +312,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             mWasFragmentInit = true
+            mVideoFillMode = 0
             setVideoSize()
 
             binding.apply {
@@ -965,21 +967,48 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun toggleVideoStretch() {
-        mIsVideoStretched = !mIsVideoStretched
-        if (mIsVideoStretched) {
-            val displayMetrics = DisplayMetrics()
-            requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
-            mTextureView.layoutParams.apply {
-                width = displayMetrics.widthPixels
-                height = displayMetrics.heightPixels
-                mTextureView.layoutParams = this
+        mVideoFillMode = (mVideoFillMode + 1) % 3
+        val displayMetrics = DisplayMetrics()
+        requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        when (mVideoFillMode) {
+            0 -> {
+                // Fit: proporcional, sem cortar
+                setVideoSize()
             }
-        } else {
-            setVideoSize()
+            1 -> {
+                // Fill/Cover: preenche a tela mantendo proporção (corta as bordas)
+                val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+                val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                mTextureView.layoutParams.apply {
+                    if (videoProportion > screenProportion) {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    } else {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                    mTextureView.layoutParams = this
+                }
+            }
+            2 -> {
+                // Stretch: estica para preencher tudo
+                mTextureView.layoutParams.apply {
+                    width = screenWidth
+                    height = screenHeight
+                    mTextureView.layoutParams = this
+                }
+            }
         }
-        // Só troca o ícone — nunca esconde o botão
+
         binding.bottomVideoTimeHolder.videoStretch.setImageResource(
-            if (mIsVideoStretched) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_maximize_vector   // fill ativo
+                2 -> R.drawable.ic_minimize_vector   // stretch ativo
+                else -> R.drawable.ic_maximize_vector // fit (botão mostra próximo modo)
+            }
         )
     }
 

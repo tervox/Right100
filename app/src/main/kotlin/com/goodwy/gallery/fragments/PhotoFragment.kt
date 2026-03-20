@@ -39,6 +39,8 @@ import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
 import jp.wasabeef.glide.transformations.BlurTransformation
+import com.bumptech.glide.load.MultiTransformation
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.davemorrissey.labs.subscaleview.DecoderFactory
 import com.davemorrissey.labs.subscaleview.ImageDecoder
 import com.davemorrissey.labs.subscaleview.ImageRegionDecoder
@@ -428,13 +430,9 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
-            // MultiTransformation: primeiro CenterCrop para preencher sem distorcer,
-            // depois BlurTransformation para o efeito igual ao BestGallery
+            // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(
-                    com.bumptech.glide.load.resource.bitmap.CenterCrop(),
-                    BlurTransformation(60, 3)
-                )
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
                 .load(mMedium.path)
                 .apply(options)

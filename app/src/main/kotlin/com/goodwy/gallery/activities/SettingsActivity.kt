@@ -585,12 +585,6 @@ class SettingsActivity : SimpleActivity() {
     }
 
     private fun setupShowFolderColors() {
-        binding.settingsShowFolderColors.isChecked = config.showFolderColors
-        binding.settingsShowFolderColorsHolder.setOnClickListener {
-            binding.settingsShowFolderColors.toggle()
-            config.showFolderColors = binding.settingsShowFolderColors.isChecked
-        }
-    }
 
     private fun setupDarkBackground() {
         binding.settingsBlackBackground.isChecked = config.blackBackground

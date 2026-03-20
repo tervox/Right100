@@ -175,9 +175,7 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(SHOW_FOLDER_SIZE, false)
         set(showFolderSize) = prefs.edit { putBoolean(SHOW_FOLDER_SIZE, showFolderSize) }
 
-    var showFolderColors: Boolean
-        get() = prefs.getBoolean(SHOW_FOLDER_COLORS, true)
-        set(showFolderColors) = prefs.edit { putBoolean(SHOW_FOLDER_COLORS, showFolderColors) }
+
 
     var maxBrightness: Boolean
         get() = prefs.getBoolean(MAX_BRIGHTNESS, false)
