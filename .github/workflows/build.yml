@@ -51,7 +51,7 @@ jobs:
           printf 'PRODUCT_ID_X1=\nPRODUCT_ID_X2=\nPRODUCT_ID_X3=\nPRODUCT_ID_X4=\n' >> local.properties
           printf 'SUBSCRIPTION_ID_X1=\nSUBSCRIPTION_ID_X2=\nSUBSCRIPTION_ID_X3=\n' >> local.properties
           printf 'SUBSCRIPTION_YEAR_ID_X1=\nSUBSCRIPTION_YEAR_ID_X2=\nSUBSCRIPTION_YEAR_ID_X3=\n' >> local.properties
-          ./gradlew assembleGplayDebug
+          ./gradlew assembleFossDebug
 
       - name: Find APK
         id: find_apk
@@ -74,25 +74,3 @@ jobs:
           VERSION_CODE=$(grep "^VERSION_CODE" gradle.properties | cut -d'=' -f2)
           echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version_name }}-${{ steps.version.outputs.version_code }}
-          name: "Right Gallery v${{ steps.version.outputs.version_name }}"
-          body: |
-            ## Right Gallery v${{ steps.version.outputs.version_name }} (build ${{ steps.version.outputs.version_code }})
-
-            ### Mudanças nesta versão
-            - Botão stretch no VideoFragment (ic_maximize_vector)
-            - Blur background no PhotoFragment via BlurTransformation(60, 3)
-            - Fundo transparente no SubsamplingScaleImageView para mostrar o blur
-            - Badge de tamanho das pastas nos 3 layouts de diretório
-            - Opção "Mostrar tamanho das pastas" nas configurações do app
-
-            Built from commit ${{ github.sha }}
-          files: ${{ steps.find_apk.outputs.apk_path }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

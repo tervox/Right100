@@ -975,21 +975,15 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         when (mVideoFillMode) {
             0 -> {
-                // Fit: proporcional, sem cortar
+                // Fit: proporcional com barras pretas
                 setVideoSize()
             }
             1 -> {
-                // Fill/Cover: preenche a tela mantendo proporção (corta as bordas)
-                val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-                val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                // Ajustar à tela: escala pela altura para preencher a tela verticalmente
+                val scale = screenHeight.toFloat() / mVideoSize.y.toFloat()
                 mTextureView.layoutParams.apply {
-                    if (videoProportion > screenProportion) {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
+                    width = (mVideoSize.x * scale).toInt()
+                    height = screenHeight
                     mTextureView.layoutParams = this
                 }
             }
@@ -1005,9 +999,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         binding.bottomVideoTimeHolder.videoStretch.setImageResource(
             when (mVideoFillMode) {
-                1 -> R.drawable.ic_maximize_vector   // fill ativo
-                2 -> R.drawable.ic_minimize_vector   // stretch ativo
-                else -> R.drawable.ic_maximize_vector // fit (botão mostra próximo modo)
+                1 -> R.drawable.ic_maximize_vector
+                2 -> R.drawable.ic_minimize_vector
+                else -> R.drawable.ic_maximize_vector
             }
         )
     }
