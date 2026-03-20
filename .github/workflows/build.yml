@@ -53,7 +53,7 @@ jobs:
 
       - name: Create local.properties
         run: |
-          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > local.properties
+          printf 'sdk.dir=/usr/local/lib/android/sdk\n' > local.properties
 
       - name: Build Release APK
         env:
