@@ -54,6 +54,9 @@ jobs:
       - name: Create local.properties
         run: |
           printf 'sdk.dir=/usr/local/lib/android/sdk\n' > local.properties
+          printf 'PRODUCT_ID_X1=\nPRODUCT_ID_X2=\nPRODUCT_ID_X3=\nPRODUCT_ID_X4=\n' >> local.properties
+          printf 'SUBSCRIPTION_ID_X1=\nSUBSCRIPTION_ID_X2=\nSUBSCRIPTION_ID_X3=\n' >> local.properties
+          printf 'SUBSCRIPTION_YEAR_ID_X1=\nSUBSCRIPTION_YEAR_ID_X2=\nSUBSCRIPTION_YEAR_ID_X3=\n' >> local.properties
 
       - name: Build Release APK
         env:
