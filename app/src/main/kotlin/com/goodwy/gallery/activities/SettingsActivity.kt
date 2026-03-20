@@ -119,7 +119,6 @@ class SettingsActivity : SimpleActivity() {
         setupCropThumbnails()
         setupAnimateGifs()
         setupShowFolderSize()
-        setupShowFolderColors()
 
         setupOverflowIcon()
         setupHideIconsInMenu()
@@ -583,8 +582,6 @@ class SettingsActivity : SimpleActivity() {
             config.showFolderSize = binding.settingsShowFolderSize.isChecked
         }
     }
-
-    private fun setupShowFolderColors() {
 
     private fun setupDarkBackground() {
         binding.settingsBlackBackground.isChecked = config.blackBackground
