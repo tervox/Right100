@@ -967,10 +967,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun toggleVideoStretch() {
-        mVideoFillMode = (mVideoFillMode + 1) % 3
+        mVideoFillMode = (mVideoFillMode + 1) % 2
         val displayMetrics = DisplayMetrics()
         requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
-        val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
 
         when (mVideoFillMode) {
@@ -979,18 +978,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 setVideoSize()
             }
             1 -> {
-                // Ajustar à tela: escala pela altura para preencher a tela verticalmente
+                // Fill: escala pela altura para preencher a tela verticalmente
                 val scale = screenHeight.toFloat() / mVideoSize.y.toFloat()
                 mTextureView.layoutParams.apply {
                     width = (mVideoSize.x * scale).toInt()
-                    height = screenHeight
-                    mTextureView.layoutParams = this
-                }
-            }
-            2 -> {
-                // Stretch: estica para preencher tudo
-                mTextureView.layoutParams.apply {
-                    width = screenWidth
                     height = screenHeight
                     mTextureView.layoutParams = this
                 }
@@ -999,8 +990,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         binding.bottomVideoTimeHolder.videoStretch.setImageResource(
             when (mVideoFillMode) {
-                1 -> R.drawable.ic_maximize_vector
-                2 -> R.drawable.ic_minimize_vector
+                1 -> R.drawable.ic_minimize_vector
                 else -> R.drawable.ic_maximize_vector
             }
         )

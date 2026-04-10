@@ -563,6 +563,7 @@ fun Context.loadImage(
             signature = signature,
             skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
             animate = animateGifs,
+            isVideo = type == TYPE_VIDEOS,
             tryLoadingWithPicasso = type == TYPE_IMAGES && path.isPng(),
             onError = onError
         )
@@ -611,6 +612,7 @@ fun Context.loadImageBase(
     signature: ObjectKey,
     skipMemoryCacheAtPaths: ArrayList<String>? = null,
     animate: Boolean = false,
+    isVideo: Boolean = false,
     tryLoadingWithPicasso: Boolean = false,
     crossFadeDuration: Int = THUMBNAIL_FADE_DURATION_MS,
     onError: (() -> Unit)? = null
@@ -621,6 +623,11 @@ fun Context.loadImageBase(
         .priority(Priority.LOW)
         .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
         .format(DecodeFormat.PREFER_ARGB_8888)
+
+    if (isVideo) {
+        // Extrai apenas o primeiro frame do vídeo — muito mais rápido que o frame padrão do Glide
+        options.frame(0L)
+    }
 
     if (cropThumbnails) {
         options.optionalTransform(CenterCrop())
