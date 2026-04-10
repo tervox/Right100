@@ -25,6 +25,30 @@ import kotlin.math.roundToInt
 class MediaFetcher(val context: Context) {
     var shouldStop = false
 
+    // Cache lazy: carregado uma única vez por instância de MediaFetcher.
+    // Evita query ao MediaStore por pasta quando showFolderSize está ativo.
+    private var allFileSizesCache: HashMap<String, Long>? = null
+
+    private fun getAllFileSizes(): HashMap<String, Long> {
+        allFileSizesCache?.let { return it }
+        val sizes = HashMap<String, Long>()
+        val projection = arrayOf(Images.Media.DATA, Images.Media.SIZE)
+        val uri = Files.getContentUri("external")
+        try {
+            context.queryCursor(uri, projection) { cursor ->
+                try {
+                    val size = cursor.getLongValue(Images.Media.SIZE)
+                    if (size > 0L) {
+                        val path = cursor.getStringValue(Images.Media.DATA)
+                        if (path != null) sizes[path] = size
+                    }
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+        allFileSizesCache = sizes
+        return sizes
+    }
+
     // on Android 11 we fetch all files at once from MediaStore and have it split by folder, use it if available
     fun getFilesFrom(
         curPath: String, isPickImage: Boolean, isPickVideo: Boolean, getProperDateTaken: Boolean, getProperLastModified: Boolean,
@@ -779,29 +803,15 @@ class MediaFetcher(val context: Context) {
     }
 
     private fun getFolderSizes(folder: String): HashMap<String, Long> {
+        if (folder == FAVORITES) return HashMap()
+        val prefix = "$folder/"
+        val all = getAllFileSizes()
         val sizes = HashMap<String, Long>()
-        if (folder != FAVORITES) {
-            val projection = arrayOf(
-                Images.Media.DISPLAY_NAME,
-                Images.Media.SIZE
-            )
-
-            val uri = Files.getContentUri("external")
-            val selection = "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ?"
-            val selectionArgs = arrayOf("$folder/%", "$folder/%/%")
-
-            context.queryCursor(uri, projection, selection, selectionArgs) { cursor ->
-                try {
-                    val size = cursor.getLongValue(Images.Media.SIZE)
-                    if (size != 0L) {
-                        val name = cursor.getStringValue(Images.Media.DISPLAY_NAME)
-                        sizes["$folder/$name"] = size
-                    }
-                } catch (_: Exception) {
-                }
+        for ((path, size) in all) {
+            if (path.startsWith(prefix) && !path.substring(prefix.length).contains('/')) {
+                sizes[path] = size
             }
         }
-
         return sizes
     }
 

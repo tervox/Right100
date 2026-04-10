@@ -20,6 +20,19 @@ class GetMediaAsynctask(
     AsyncTask<Void, Void, ArrayList<ThumbnailItem>>() {
     private val mediaFetcher = MediaFetcher(context)
 
+    companion object {
+        // Cache de durações válido por 5 minutos dentro da mesma sessão do app.
+        // Evita query full ao MediaStore toda vez que o usuário abre uma pasta.
+        @Volatile private var cachedDurationsMap: HashMap<String, Int>? = null
+        @Volatile private var cachedDurationsTimestamp: Long = 0L
+        private const val DURATIONS_CACHE_TTL_MS = 5 * 60 * 1000L // 5 min
+
+        fun invalidateDurationsCache() {
+            cachedDurationsMap = null
+            cachedDurationsTimestamp = 0L
+        }
+    }
+
     override fun doInBackground(vararg params: Void): ArrayList<ThumbnailItem> {
         val pathToUse = if (showAll) SHOW_ALL else mPath
         val folderGrouping = context.config.getFolderGrouping(pathToUse)
@@ -51,7 +64,18 @@ class GetMediaAsynctask(
             showAll -> mediaFetcher.getDateTakens()
             else -> mediaFetcher.getFolderDateTakens(mPath)
         }
-        val videoDurationsBatch = if (getVideoDurations) mediaFetcher.getVideoDurationsBatch() else HashMap()
+        val videoDurationsBatch = if (getVideoDurations) {
+            val now = System.currentTimeMillis()
+            val cached = cachedDurationsMap
+            if (cached != null && (now - cachedDurationsTimestamp) < DURATIONS_CACHE_TTL_MS) {
+                cached
+            } else {
+                val fresh = mediaFetcher.getVideoDurationsBatch()
+                cachedDurationsMap = fresh
+                cachedDurationsTimestamp = now
+                fresh
+            }
+        } else HashMap()
 
         val media = if (showAll) {
             val foldersToScan = mediaFetcher.getFoldersToScan().filter { it != RECYCLE_BIN && it != FAVORITES && !context.config.isFolderProtected(it) }

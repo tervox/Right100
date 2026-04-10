@@ -356,9 +356,13 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
     val source = fileDirItems[0].getParentPath()
     PickDirectoryDialog(this, source, true, false, true, false) {
         val destination = it
-        handleSAFDialog(source) {
-            if (it) {
-                copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden, callback)
+        handleSAFDialog(source) { sourceGranted ->
+            if (sourceGranted) {
+                handleSAFDialogSdk30(destination) { destGranted ->
+                    if (destGranted) {
+                        copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden, callback)
+                    }
+                }
             }
         }
     }
