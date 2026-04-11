@@ -970,6 +970,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mVideoFillMode = (mVideoFillMode + 1) % 2
         val displayMetrics = DisplayMetrics()
         requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+        val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
 
         when (mVideoFillMode) {
@@ -978,10 +979,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 setVideoSize()
             }
             1 -> {
-                // Fill: escala pela altura para preencher a tela verticalmente
-                val scale = screenHeight.toFloat() / mVideoSize.y.toFloat()
+                // Stretch: estica para preencher tudo
                 mTextureView.layoutParams.apply {
-                    width = (mVideoSize.x * scale).toInt()
+                    width = screenWidth
                     height = screenHeight
                     mTextureView.layoutParams = this
                 }

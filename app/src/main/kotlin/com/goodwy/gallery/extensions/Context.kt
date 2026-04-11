@@ -624,11 +624,6 @@ fun Context.loadImageBase(
         .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
         .format(DecodeFormat.PREFER_ARGB_8888)
 
-    if (isVideo) {
-        // Extrai apenas o primeiro frame do vídeo — muito mais rápido que o frame padrão do Glide
-        options.frame(0L)
-    }
-
     if (cropThumbnails) {
         options.optionalTransform(CenterCrop())
         options.optionalTransform(

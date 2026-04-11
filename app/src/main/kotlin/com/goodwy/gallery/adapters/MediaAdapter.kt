@@ -671,7 +671,7 @@ class MediaAdapter(
             mediumName.text = medium.name
             mediumName.tag = medium.path
 
-            val showVideoDuration = medium.isVideo() && config.showThumbnailVideoDuration
+            val showVideoDuration = medium.isVideo() && config.showThumbnailVideoDuration && medium.videoDuration > 0
             if (showVideoDuration) {
                 videoDuration?.text = medium.videoDuration.getFormattedDuration()
                 if (isListViewType) videoDuration?.setTextColor(textColor)
