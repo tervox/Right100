@@ -7,7 +7,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.*
 import com.goodwy.commons.activities.BaseSimpleActivity
-import com.goodwy.commons.extensions.*
+import com.goodwy.commons.extensions.getAlertDialogBuilder
+import com.goodwy.commons.extensions.toast
 import com.goodwy.gallery.R
 import java.io.File
 
@@ -76,7 +77,7 @@ class BulkRenameDialog(
         val padding = paddingInput.text.toString().toIntOrNull()?.coerceIn(1, 9) ?: 3
         val keepExt = keepExtCheck.isChecked
 
-        ensureBackgroundThread {
+        Thread {
             var renamed = 0
             paths.forEachIndexed { index, path ->
                 val file = File(path)
@@ -95,6 +96,6 @@ class BulkRenameDialog(
                 activity.toast(activity.getString(R.string.bulk_rename_done, count))
                 callback(count)
             }
-        }
+        }.start()
     }
 }
