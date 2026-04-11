@@ -59,6 +59,11 @@ import com.goodwy.gallery.fragments.PhotoFragment
 import com.goodwy.gallery.fragments.VideoFragment
 import com.goodwy.gallery.fragments.ViewPagerFragment
 import com.goodwy.gallery.helpers.*
+import com.goodwy.gallery.helpers.CubePageTransformer
+import com.goodwy.gallery.helpers.DepthPageTransformer
+import com.goodwy.gallery.helpers.FlipPageTransformer
+import com.goodwy.gallery.helpers.ZoomInPageTransformer
+import com.goodwy.gallery.helpers.ZoomOutPageTransformer
 import com.goodwy.gallery.models.Medium
 import com.goodwy.gallery.models.ThumbnailItem
 import kotlinx.coroutines.Dispatchers
