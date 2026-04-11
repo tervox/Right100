@@ -29,6 +29,7 @@ import com.goodwy.commons.views.MyRecyclerView
 import com.goodwy.gallery.R
 import com.goodwy.gallery.activities.ViewPagerActivity
 import com.goodwy.gallery.databinding.*
+import com.goodwy.gallery.dialogs.BulkRenameDialog
 import com.goodwy.gallery.dialogs.DeleteWithRememberDialog
 import com.goodwy.gallery.extensions.*
 import com.goodwy.gallery.helpers.*
@@ -136,6 +137,7 @@ class MediaAdapter(
         val isInRecycleBin = selectedItems.firstOrNull()?.getIsInRecycleBin() == true
         menu.apply {
             findItem(R.id.cab_rename).isVisible = !isInRecycleBin
+            findItem(R.id.cab_bulk_rename).isVisible = !isInRecycleBin && !isOneItemSelected
             findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin
             findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin
             findItem(R.id.cab_move_to).isVisible = !isInRecycleBin
@@ -161,6 +163,7 @@ class MediaAdapter(
             R.id.cab_confirm_selection -> confirmSelection()
             R.id.cab_properties -> showProperties()
             R.id.cab_rename -> checkMediaManagementAndRename()
+            R.id.cab_bulk_rename -> checkMediaManagementAndBulkRename()
             R.id.cab_edit -> editFile()
             R.id.cab_hide -> toggleFileVisibility(true)
             R.id.cab_unhide -> toggleFileVisibility(false)
@@ -244,6 +247,21 @@ class MediaAdapter(
     private fun checkMediaManagementAndRename() {
         activity.handleMediaManagementPrompt {
             renameFile()
+        }
+    }
+
+    private fun checkMediaManagementAndBulkRename() {
+        activity.handleMediaManagementPrompt {
+            bulkRenameFiles()
+        }
+    }
+
+    private fun bulkRenameFiles() {
+        val paths = getSelectedPaths()
+        if (paths.isEmpty()) return
+        BulkRenameDialog(activity, paths) {
+            listener?.refreshItems()
+            finishActMode()
         }
     }
 

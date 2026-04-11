@@ -132,6 +132,12 @@ const val SLIDESHOW_START_ON_ENTER = "slideshow_start_on_enter"
 const val SLIDESHOW_ANIMATION_NONE = 0
 const val SLIDESHOW_ANIMATION_SLIDE = 1
 const val SLIDESHOW_ANIMATION_FADE = 2
+const val SLIDESHOW_ANIMATION_ZOOM_IN = 3
+const val SLIDESHOW_ANIMATION_ZOOM_OUT = 4
+const val SLIDESHOW_ANIMATION_FLIP = 5
+const val SLIDESHOW_ANIMATION_CUBE = 6
+const val SLIDESHOW_ANIMATION_DEPTH = 7
+const val SLIDESHOW_ANIMATION_RANDOM = 8
 
 const val RECYCLE_BIN = "recycle_bin"
 const val SHOW_FAVORITES = "show_favorites"

@@ -11,9 +11,15 @@ import com.goodwy.commons.models.RadioItem
 import com.goodwy.gallery.R
 import com.goodwy.gallery.databinding.DialogSlideshowBinding
 import com.goodwy.gallery.extensions.config
+import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_CUBE
+import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_DEPTH
 import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_FADE
+import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_FLIP
 import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_NONE
+import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_RANDOM
 import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_SLIDE
+import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_ZOOM_IN
+import com.goodwy.gallery.helpers.SLIDESHOW_ANIMATION_ZOOM_OUT
 import com.goodwy.gallery.helpers.SLIDESHOW_DEFAULT_INTERVAL
 
 class SlideshowDialog(val activity: BaseSimpleActivity, val callback: () -> Unit) {
@@ -35,7 +41,13 @@ class SlideshowDialog(val activity: BaseSimpleActivity, val callback: () -> Unit
                 val items = arrayListOf(
                     RadioItem(SLIDESHOW_ANIMATION_NONE, activity.getString(R.string.no_animation)),
                     RadioItem(SLIDESHOW_ANIMATION_SLIDE, activity.getString(R.string.slide)),
-                    RadioItem(SLIDESHOW_ANIMATION_FADE, activity.getString(R.string.fade))
+                    RadioItem(SLIDESHOW_ANIMATION_FADE, activity.getString(R.string.fade)),
+                    RadioItem(SLIDESHOW_ANIMATION_ZOOM_IN, activity.getString(R.string.zoom_in)),
+                    RadioItem(SLIDESHOW_ANIMATION_ZOOM_OUT, activity.getString(R.string.zoom_out)),
+                    RadioItem(SLIDESHOW_ANIMATION_FLIP, activity.getString(R.string.flip)),
+                    RadioItem(SLIDESHOW_ANIMATION_CUBE, activity.getString(R.string.cube)),
+                    RadioItem(SLIDESHOW_ANIMATION_DEPTH, activity.getString(R.string.depth)),
+                    RadioItem(SLIDESHOW_ANIMATION_RANDOM, activity.getString(R.string.random_animation))
                 )
 
                 RadioGroupDialog(activity, items, activity.config.slideshowAnimation, R.string.animation) {
@@ -119,6 +131,12 @@ class SlideshowDialog(val activity: BaseSimpleActivity, val callback: () -> Unit
         return when (activity.config.slideshowAnimation) {
             SLIDESHOW_ANIMATION_SLIDE -> activity.getString(R.string.slide)
             SLIDESHOW_ANIMATION_FADE -> activity.getString(R.string.fade)
+            SLIDESHOW_ANIMATION_ZOOM_IN -> activity.getString(R.string.zoom_in)
+            SLIDESHOW_ANIMATION_ZOOM_OUT -> activity.getString(R.string.zoom_out)
+            SLIDESHOW_ANIMATION_FLIP -> activity.getString(R.string.flip)
+            SLIDESHOW_ANIMATION_CUBE -> activity.getString(R.string.cube)
+            SLIDESHOW_ANIMATION_DEPTH -> activity.getString(R.string.depth)
+            SLIDESHOW_ANIMATION_RANDOM -> activity.getString(R.string.random_animation)
             else -> activity.getString(R.string.no_animation)
         }
     }
@@ -127,6 +145,12 @@ class SlideshowDialog(val activity: BaseSimpleActivity, val callback: () -> Unit
         return when (text) {
             activity.getString(R.string.slide) -> SLIDESHOW_ANIMATION_SLIDE
             activity.getString(R.string.fade) -> SLIDESHOW_ANIMATION_FADE
+            activity.getString(R.string.zoom_in) -> SLIDESHOW_ANIMATION_ZOOM_IN
+            activity.getString(R.string.zoom_out) -> SLIDESHOW_ANIMATION_ZOOM_OUT
+            activity.getString(R.string.flip) -> SLIDESHOW_ANIMATION_FLIP
+            activity.getString(R.string.cube) -> SLIDESHOW_ANIMATION_CUBE
+            activity.getString(R.string.depth) -> SLIDESHOW_ANIMATION_DEPTH
+            activity.getString(R.string.random_animation) -> SLIDESHOW_ANIMATION_RANDOM
             else -> SLIDESHOW_ANIMATION_NONE
         }
     }

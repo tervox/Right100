@@ -48,6 +48,10 @@
         android:title="@string/rename"
         app:showAsAction="never" />
     <item
+        android:id="@+id/cab_bulk_rename"
+        android:title="@string/bulk_rename"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/cab_hide"
         android:icon="@drawable/ic_hide_vector"
         android:title="@string/hide"

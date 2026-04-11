@@ -147,6 +147,20 @@
     <string name="slide">Slide</string>
     <string name="slideshow_ended">The slideshow ended</string>
     <string name="no_media_for_slideshow">No media for the slideshow have been found</string>
+    <string name="zoom_in">Zoom In</string>
+    <string name="zoom_out">Zoom Out</string>
+    <string name="flip">Flip</string>
+    <string name="cube">Cube</string>
+    <string name="depth">Depth</string>
+    <string name="random_animation">Aleatório</string>
+    <string name="bulk_rename">Renomear em massa</string>
+    <string name="bulk_rename_prefix">Prefixo</string>
+    <string name="bulk_rename_suffix">Sufixo</string>
+    <string name="bulk_rename_start_number">Número inicial</string>
+    <string name="bulk_rename_padding">Dígitos</string>
+    <string name="bulk_rename_keep_extension">Manter extensão original</string>
+    <string name="bulk_rename_preview_label">Prévia:</string>
+    <string name="bulk_rename_done">%1$d arquivos renomeados</string>
 
     <!-- View types -->
     <string name="group_direct_subfolders">Group direct subfolders</string>

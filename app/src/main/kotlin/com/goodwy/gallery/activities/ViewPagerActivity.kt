@@ -66,6 +66,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.min
+import kotlin.random.Random
 
 @Suppress("UNCHECKED_CAST")
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
@@ -513,13 +514,37 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
+    // Animações disponíveis para o modo Aleatório (exclui NONE e RANDOM)
+    private val slideshowAnimations = listOf(
+        SLIDESHOW_ANIMATION_SLIDE,
+        SLIDESHOW_ANIMATION_FADE,
+        SLIDESHOW_ANIMATION_ZOOM_IN,
+        SLIDESHOW_ANIMATION_ZOOM_OUT,
+        SLIDESHOW_ANIMATION_FLIP,
+        SLIDESHOW_ANIMATION_CUBE,
+        SLIDESHOW_ANIMATION_DEPTH
+    )
+
+    private fun getTransformerForAnimation(animation: Int): ViewPager.PageTransformer {
+        val anim = if (animation == SLIDESHOW_ANIMATION_RANDOM) {
+            slideshowAnimations[Random.nextInt(slideshowAnimations.size)]
+        } else animation
+        return when (anim) {
+            SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
+            SLIDESHOW_ANIMATION_ZOOM_IN -> ZoomInPageTransformer()
+            SLIDESHOW_ANIMATION_ZOOM_OUT -> ZoomOutPageTransformer()
+            SLIDESHOW_ANIMATION_FLIP -> FlipPageTransformer()
+            SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
+            SLIDESHOW_ANIMATION_DEPTH -> DepthPageTransformer()
+            else -> DefaultPageTransformer()
+        }
+    }
+
     private fun startSlideshow() {
         if (getMediaForSlideshow()) {
             binding.viewPager.onGlobalLayout {
                 if (!isDestroyed) {
-                    if (config.slideshowAnimation == SLIDESHOW_ANIMATION_FADE) {
-                        binding.viewPager.setPageTransformer(false, FadePageTransformer())
-                    }
+                    binding.viewPager.setPageTransformer(false, getTransformerForAnimation(config.slideshowAnimation))
 
                     hideSystemUI()
                     if (!mIsFullScreen) {
@@ -649,6 +674,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         if (config.slideshowAnimation == SLIDESHOW_ANIMATION_NONE) {
             goToNextMedium(!mSlideshowMoveBackwards)
         } else {
+            if (config.slideshowAnimation == SLIDESHOW_ANIMATION_RANDOM) {
+                binding.viewPager.setPageTransformer(false, getTransformerForAnimation(SLIDESHOW_ANIMATION_RANDOM))
+            }
             animatePagerTransition(!mSlideshowMoveBackwards)
         }
     }
