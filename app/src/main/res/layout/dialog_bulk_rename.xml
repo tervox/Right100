@@ -1,108 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/medium_margin"
+    android:paddingEnd="@dimen/medium_margin"
+    android:paddingTop="@dimen/big_margin"
+    android:paddingBottom="@dimen/medium_margin">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/bulk_rename_prefix">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/bulk_rename_prefix"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/small_margin"
+        android:hint="@string/bulk_rename_suffix">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/bulk_rename_suffix"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="@dimen/medium_margin"
-        android:paddingEnd="@dimen/medium_margin"
-        android:paddingTop="@dimen/big_margin"
-        android:paddingBottom="@dimen/medium_margin">
+        android:layout_marginTop="@dimen/small_margin"
+        android:orientation="horizontal">
 
         <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:hint="@string/bulk_rename_prefix">
-
+            android:layout_weight="1"
+            android:layout_marginEnd="@dimen/small_margin"
+            android:hint="@string/bulk_rename_start_number">
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/bulk_rename_prefix"
+                android:id="@+id/bulk_rename_start_number"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
-                android:text="Foto_" />
+                android:inputType="number"
+                android:text="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/medium_margin"
-            android:hint="@string/bulk_rename_suffix">
-
+            android:layout_weight="1"
+            android:layout_marginStart="@dimen/small_margin"
+            android:hint="@string/bulk_rename_padding">
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/bulk_rename_suffix"
+                android:id="@+id/bulk_rename_padding"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text" />
+                android:inputType="number"
+                android:text="1" />
         </com.google.android.material.textfield.TextInputLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/medium_margin"
-            android:orientation="horizontal">
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="@dimen/small_margin"
-                android:hint="@string/bulk_rename_start_number">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/bulk_rename_start_number"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:text="1" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="@dimen/small_margin"
-                android:hint="@string/bulk_rename_padding">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/bulk_rename_padding"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:text="3" />
-            </com.google.android.material.textfield.TextInputLayout>
-        </LinearLayout>
-
-        <CheckBox
-            android:id="@+id/bulk_rename_keep_extension"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/medium_margin"
-            android:text="@string/bulk_rename_keep_extension"
-            android:checked="true" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/medium_margin"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <com.goodwy.commons.views.MyTextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/bulk_rename_preview_label"
-                android:textStyle="bold" />
-
-            <com.goodwy.commons.views.MyTextView
-                android:id="@+id/bulk_rename_preview"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/small_margin"
-                android:textStyle="italic" />
-        </LinearLayout>
-
     </LinearLayout>
-</ScrollView>
+
+    <CheckBox
+        android:id="@+id/bulk_rename_keep_extension"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/small_margin"
+        android:text="@string/bulk_rename_keep_extension"
+        android:checked="true" />
+
+    <com.goodwy.commons.views.MyTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/medium_margin"
+        android:text="@string/bulk_rename_files_label"
+        android:textStyle="bold" />
+
+    <ListView
+        android:id="@+id/bulk_rename_list"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginTop="@dimen/small_margin"
+        android:dividerHeight="1dp" />
+
+</LinearLayout>

@@ -160,6 +160,10 @@
     <string name="bulk_rename_keep_extension">Manter extensão original</string>
     <string name="bulk_rename_preview_label">Prévia:</string>
     <string name="bulk_rename_done">%1$d arquivos renomeados</string>
+    <string name="bulk_rename_files_label">Arquivos selecionados:</string>
+    <string name="bulk_rename_conflict_title">Conflito de nomes</string>
+    <string name="bulk_rename_conflict_msg">Os seguintes arquivos já existem:</string>
+    <string name="bulk_rename_skip_conflicts">Pular conflitos</string>
 
     <!-- View types -->
     <string name="group_direct_subfolders">Group direct subfolders</string>
