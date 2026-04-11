@@ -776,6 +776,30 @@ class MediaFetcher(val context: Context) {
         return durations
     }
 
+    // Busca durações apenas dos vídeos numa pasta específica — muito mais rápido que o batch completo
+    fun getVideoDurationsForFolder(folder: String): HashMap<String, Int> {
+        val durations = HashMap<String, Int>()
+        val projection = arrayOf(
+            Images.Media.DATA,
+            MediaStore.MediaColumns.DURATION
+        )
+        val uri = Files.getContentUri("external")
+        val selection = "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ? AND ${MediaStore.MediaColumns.DURATION} > 0"
+        val selectionArgs = arrayOf("$folder/%", "$folder/%/%")
+        try {
+            context.queryCursor(uri, projection, selection, selectionArgs) { cursor ->
+                try {
+                    val durationMs = cursor.getLongValue(MediaStore.MediaColumns.DURATION)
+                    if (durationMs > 0) {
+                        val path = cursor.getStringValue(Images.Media.DATA)
+                        durations[path] = (durationMs / 1000.0).toInt()
+                    }
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+        return durations
+    }
+
     fun getLastModifieds(): HashMap<String, Long> {
         val lastModifieds = HashMap<String, Long>()
         val projection = arrayOf(

@@ -65,15 +65,21 @@ class GetMediaAsynctask(
             else -> mediaFetcher.getFolderDateTakens(mPath)
         }
         val videoDurationsBatch = if (getVideoDurations) {
-            val now = System.currentTimeMillis()
-            val cached = cachedDurationsMap
-            if (cached != null && (now - cachedDurationsTimestamp) < DURATIONS_CACHE_TTL_MS) {
-                cached
+            if (showAll) {
+                // showAll varre todo o dispositivo — usa cache global com TTL
+                val now = System.currentTimeMillis()
+                val cached = cachedDurationsMap
+                if (cached != null && (now - cachedDurationsTimestamp) < DURATIONS_CACHE_TTL_MS) {
+                    cached
+                } else {
+                    val fresh = mediaFetcher.getVideoDurationsBatch()
+                    cachedDurationsMap = fresh
+                    cachedDurationsTimestamp = now
+                    fresh
+                }
             } else {
-                val fresh = mediaFetcher.getVideoDurationsBatch()
-                cachedDurationsMap = fresh
-                cachedDurationsTimestamp = now
-                fresh
+                // Pasta específica — query filtrada, muito mais rápida
+                mediaFetcher.getVideoDurationsForFolder(mPath)
             }
         } else HashMap()
 
