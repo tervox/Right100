@@ -917,6 +917,24 @@ fun Context.getCachedMedia(
 
         val pathToUse = path.ifEmpty { SHOW_ALL }
         mediaFetcher.sortMedia(media, config.getFolderSorting(pathToUse))
+
+        // Se showThumbnailVideoDuration está ativo e há vídeos sem duração no DB,
+        // busca as durações agora (query rápida por pasta) para não mostrar 00:00 nem esperar o async task
+        if (config.showThumbnailVideoDuration && path.isNotEmpty() && path != FAVORITES && path != RECYCLE_BIN) {
+            val missingDuration = media.any { it.isVideo() && it.videoDuration == 0 }
+            if (missingDuration) {
+                val durations = mediaFetcher.getVideoDurationsForFolder(path)
+                if (durations.isNotEmpty()) {
+                    media.forEach { medium ->
+                        if (medium.isVideo() && medium.videoDuration == 0) {
+                            val dur = durations[medium.path]
+                            if (dur != null && dur > 0) medium.videoDuration = dur
+                        }
+                    }
+                }
+            }
+        }
+
         val grouped = mediaFetcher.groupMedia(media, pathToUse)
         callback(grouped.clone() as ArrayList<ThumbnailItem>)
         val OTGPath = config.OTGPath

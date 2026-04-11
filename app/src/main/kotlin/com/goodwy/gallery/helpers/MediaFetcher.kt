@@ -88,7 +88,7 @@ class MediaFetcher(val context: Context) {
                 if (android11Files?.containsKey(curPath.lowercase(Locale.getDefault())) == true) {
                     curMedia.addAll(android11Files[curPath.lowercase(Locale.getDefault())]!!)
                 } else if (android11Files == null) {
-                    val files = getAndroid11FolderMedia(isPickImage, isPickVideo, favoritePaths, false, getProperDateTaken, dateTakens)
+                    val files = getAndroid11FolderMedia(isPickImage, isPickVideo, favoritePaths, false, getProperDateTaken, dateTakens, folderPath = curPath)
                     if (files.containsKey(curPath.lowercase(Locale.getDefault()))) {
                         curMedia.addAll(files[curPath.lowercase(Locale.getDefault())]!!)
                     }
@@ -477,7 +477,8 @@ class MediaFetcher(val context: Context) {
         favoritePaths: ArrayList<String>,
         getFavoritePathsOnly: Boolean,
         getProperDateTaken: Boolean,
-        dateTakens: HashMap<String, Long>
+        dateTakens: HashMap<String, Long>,
+        folderPath: String? = null   // quando não-null, filtra só essa pasta na query
     ): HashMap<String, ArrayList<Medium>> {
         val media = HashMap<String, ArrayList<Medium>>()
         if (!isRPlus() || Environment.isExternalStorageManager()) {
@@ -499,7 +500,17 @@ class MediaFetcher(val context: Context) {
 
         val uri = Files.getContentUri("external")
 
-        context.queryCursor(uri, projection) { cursor ->
+        // Filtrar por pasta específica evita scan completo do MediaStore
+        val (selection, selectionArgs) = if (folderPath != null) {
+            Pair(
+                "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ?",
+                arrayOf("$folderPath/%", "$folderPath/%/%")
+            )
+        } else {
+            Pair(null, null)
+        }
+
+        context.queryCursor(uri, projection, selection, selectionArgs) { cursor ->
             if (shouldStop) {
                 return@queryCursor
             }
