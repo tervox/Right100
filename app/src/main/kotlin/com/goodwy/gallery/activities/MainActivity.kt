@@ -5,7 +5,9 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.database.ContentObserver
 import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.Video
@@ -47,10 +49,6 @@ import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.Objects
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
-import android.provider.MediaStore
 
 class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override var isSearchBarEnabled = true

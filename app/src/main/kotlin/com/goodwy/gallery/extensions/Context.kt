@@ -23,11 +23,6 @@ import com.bumptech.glide.Priority
 import com.bumptech.glide.integration.webp.WebpBitmapFactory
 import com.bumptech.glide.integration.webp.decoder.WebpDownsampler
 import com.bumptech.glide.integration.webp.decoder.WebpDrawable
-
-// Cache de noMediaFolders — TTL de 60s para não repetir query cara ao MediaStore
-private var noMediaFoldersCache: ArrayList<String>? = null
-private var noMediaFoldersCacheTime: Long = 0L
-private const val NO_MEDIA_CACHE_TTL = 60_000L
 import com.bumptech.glide.integration.webp.decoder.WebpDrawableTransformation
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.DecodeFormat
@@ -59,6 +54,11 @@ import java.nio.channels.FileChannel
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+
+// Cache de noMediaFolders — TTL de 60s para não repetir query cara ao MediaStore
+private var noMediaFoldersCache: ArrayList<String>? = null
+private var noMediaFoldersCacheTime: Long = 0L
+private const val NO_MEDIA_CACHE_TTL = 60_000L
 
 val Context.audioManager get() = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
