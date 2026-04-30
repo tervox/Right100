@@ -297,15 +297,15 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             val observer = object : ContentObserver(mMediaObserverHandler) {
                 private var pendingRefresh: Runnable? = null
                 override fun onChange(selfChange: Boolean) {
-                    // Debounce: espera 1.5s após a última mudança antes de recarregar
+                    // Debounce: espera 4s após a última mudança e só dispara se não há scan em curso
                     pendingRefresh?.let { mMediaObserverHandler.removeCallbacks(it) }
                     val r = Runnable {
-                        if (!isDestroyed && !isFinishing) {
+                        if (!isDestroyed && !isFinishing && !mIsGettingDirs) {
                             getDirectories()
                         }
                     }
                     pendingRefresh = r
-                    mMediaObserverHandler.postDelayed(r, 1500)
+                    mMediaObserverHandler.postDelayed(r, 4000)
                 }
             }
             contentResolver.registerContentObserver(
@@ -1260,8 +1260,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     sortValue = getDirectorySortingValue(curMedia, path, name, size, mediaCnt)
                 }
 
-                setupAdapter(dirs)
-
                 // update directories and media files in the local db, delete invalid items. Intentionally creating a new thread
                 updateDBDirectory(directory)
                 if (!directory.isRecycleBin() && !directory.areFavorites()) {
@@ -1296,8 +1294,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     directoryDB.deleteDirPath(it.path)
                 }
                 dirs.removeAll(dirsToRemove)
-                setupAdapter(dirs)
             }
+            // Atualização única após o loop — evita N re-renders por pasta
+            setupAdapter(dirs)
         } catch (_: Exception) {
         }
 
@@ -1376,7 +1375,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 noMediaFolders = noMediaFolders
             )
             dirs.add(newDir)
-            setupAdapter(dirs)
+            // Não chama setupAdapter aqui — acumulamos e atualizamos em batch abaixo
 
             // make sure to create a new thread for these operations, dont just use the common bg thread
             Thread {
@@ -1388,6 +1387,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 } catch (_: Exception) {
                 }
             }.start()
+        }
+
+        // Atualização em batch após descobrir todas as novas pastas — evita jank por N chamadas dentro do loop
+        if (dirs.isNotEmpty()) {
+            setupAdapter(dirs)
         }
 
         mLoadedInitialPhotos = true

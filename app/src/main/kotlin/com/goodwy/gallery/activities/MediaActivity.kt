@@ -241,7 +241,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         // do not refresh Random sorted files after opening a fullscreen image and going Back
         val isRandomSorting = config.getFolderSorting(mPath) and SORT_BY_RANDOM != 0
-        if (mMedia.isEmpty() || !isRandomSorting || (isRandomSorting && !mWasFullscreenViewOpen)) {
+        val wasFullscreen = mWasFullscreenViewOpen
+        mWasFullscreenViewOpen = false
+        // Pular reload se voltamos de fullscreen com mídia já carregada e ordenação não-aleatória
+        // Evita scan completo do MediaStore toda vez que o usuário abre/fecha uma foto
+        val skipReload = mMedia.isNotEmpty() && wasFullscreen && !isRandomSorting
+        if (!skipReload) {
             if (shouldSkipAuthentication()) {
                 tryLoadGallery()
             } else {

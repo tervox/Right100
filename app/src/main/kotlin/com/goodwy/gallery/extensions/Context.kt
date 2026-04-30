@@ -632,9 +632,9 @@ fun Context.loadImageBase(
     val options = RequestOptions()
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
-        .priority(Priority.LOW)
+        .priority(Priority.NORMAL)
         .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-        .format(DecodeFormat.PREFER_ARGB_8888)
+        .format(DecodeFormat.PREFER_RGB_565)
 
     if (cropThumbnails) {
         options.optionalTransform(CenterCrop())
