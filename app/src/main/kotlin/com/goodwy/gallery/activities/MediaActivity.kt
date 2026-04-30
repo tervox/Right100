@@ -605,9 +605,23 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         }
                     },
                     sizeProvider,
-                    8 // pré-carrega 8 itens à frente
+                    20 // pré-carrega 20 itens à frente
                 )
                 binding.mediaGrid.addOnScrollListener(preloader)
+
+                // Pausa o Glide durante fling (dedo levantado, scroll por inércia):
+                // evita dezenas de requests cancelados/reiniciados por segundo durante rolagem rápida.
+                // Resume quando o scroll para, carregando só o que está visível.
+                binding.mediaGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                    override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                        when (newState) {
+                            RecyclerView.SCROLL_STATE_SETTLING ->
+                                com.bumptech.glide.Glide.with(this@MediaActivity).pauseRequests()
+                            RecyclerView.SCROLL_STATE_IDLE ->
+                                com.bumptech.glide.Glide.with(this@MediaActivity).resumeRequests()
+                        }
+                    }
+                })
             }
 
             val viewType = config.getFolderViewType(if (mShowAll) SHOW_ALL else mPath)
