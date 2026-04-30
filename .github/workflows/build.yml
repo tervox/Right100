@@ -46,6 +46,14 @@ jobs:
             $GRADLE_BIN wrapper --gradle-version "$GRADLE_VERSION"
           fi
 
+      # Restaura a keystore fixa no lugar da debug keystore padrão do Android.
+      # Isso garante que todos os builds tenham a mesma assinatura, permitindo
+      # atualizar o APK instalado sem precisar desinstalar.
+      - name: Restore fixed debug keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > ~/.android/debug.keystore
+
       - name: Build Debug APK
         run: |
           printf 'sdk.dir=/usr/local/lib/android/sdk\n' > local.properties
