@@ -29,6 +29,32 @@ class MediaFetcher(val context: Context) {
     // Evita query ao MediaStore por pasta quando showFolderSize está ativo.
     private var allFileSizesCache: HashMap<String, Long>? = null
 
+    // Cache de lastModifieds — reutilizado dentro da mesma instância
+    private var lastModifiedsCache: HashMap<String, Long>? = null
+
+    fun getLastModifieds(): HashMap<String, Long> {
+        lastModifiedsCache?.let { return it }
+        val lastModifieds = HashMap<String, Long>()
+        val projection = arrayOf(
+            Images.Media.DATA,
+            Images.Media.DATE_MODIFIED
+        )
+        val uri = Files.getContentUri("external")
+        try {
+            context.queryCursor(uri, projection) { cursor ->
+                try {
+                    val lastModified = cursor.getLongValue(Images.Media.DATE_MODIFIED) * 1000
+                    if (lastModified != 0L) {
+                        val path = cursor.getStringValue(Images.Media.DATA)
+                        lastModifieds[path] = lastModified
+                    }
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+        lastModifiedsCache = lastModifieds
+        return lastModifieds
+    }
+
     private fun getAllFileSizes(): HashMap<String, Long> {
         allFileSizesCache?.let { return it }
         val sizes = HashMap<String, Long>()
@@ -809,32 +835,6 @@ class MediaFetcher(val context: Context) {
             }
         } catch (_: Exception) {}
         return durations
-    }
-
-    fun getLastModifieds(): HashMap<String, Long> {
-        val lastModifieds = HashMap<String, Long>()
-        val projection = arrayOf(
-            Images.Media.DATA,
-            Images.Media.DATE_MODIFIED
-        )
-
-        val uri = Files.getContentUri("external")
-
-        try {
-            context.queryCursor(uri, projection) { cursor ->
-                try {
-                    val lastModified = cursor.getLongValue(Images.Media.DATE_MODIFIED) * 1000
-                    if (lastModified != 0L) {
-                        val path = cursor.getStringValue(Images.Media.DATA)
-                        lastModifieds[path] = lastModified
-                    }
-                } catch (_: Exception) {
-                }
-            }
-        } catch (_: Exception) {
-        }
-
-        return lastModifieds
     }
 
     private fun getFolderSizes(folder: String): HashMap<String, Long> {

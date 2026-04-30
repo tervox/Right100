@@ -47,6 +47,10 @@ import java.io.FileNotFoundException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.Objects
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 
 class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override var isSearchBarEnabled = true
@@ -87,6 +91,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mLastMediaFetcher: MediaFetcher? = null
     private var mDirs = ArrayList<Directory>()
     private var mDirsIgnoringSearch = ArrayList<Directory>()
+
+    // Observer que detecta novas mídias automaticamente sem recarregar tudo
+    private var mMediaStoreObserver: ContentObserver? = null
+    private val mMediaObserverHandler = Handler(Looper.getMainLooper())
 
     private var mStoredAnimateGifs = true
     private var mStoredCropThumbnails = true
@@ -285,6 +293,31 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         newAppRecommendation()
+
+        // Registrar observer para detectar novas mídias automaticamente
+        if (mMediaStoreObserver == null) {
+            val observer = object : ContentObserver(mMediaObserverHandler) {
+                private var pendingRefresh: Runnable? = null
+                override fun onChange(selfChange: Boolean) {
+                    // Debounce: espera 1.5s após a última mudança antes de recarregar
+                    pendingRefresh?.let { mMediaObserverHandler.removeCallbacks(it) }
+                    val r = Runnable {
+                        if (!isDestroyed && !isFinishing) {
+                            getDirectories()
+                        }
+                    }
+                    pendingRefresh = r
+                    mMediaObserverHandler.postDelayed(r, 1500)
+                }
+            }
+            contentResolver.registerContentObserver(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer
+            )
+            contentResolver.registerContentObserver(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer
+            )
+            mMediaStoreObserver = observer
+        }
     }
 
     override fun onPause() {
@@ -293,6 +326,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mIsGettingDirs = false
         storeStateVariables()
         mLastMediaHandler.removeCallbacksAndMessages(null)
+        // Desregistrar observer ao sair
+        mMediaStoreObserver?.let { contentResolver.unregisterContentObserver(it) }
+        mMediaStoreObserver = null
     }
 
     override fun onStop() {

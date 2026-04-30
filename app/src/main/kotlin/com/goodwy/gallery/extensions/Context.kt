@@ -23,6 +23,11 @@ import com.bumptech.glide.Priority
 import com.bumptech.glide.integration.webp.WebpBitmapFactory
 import com.bumptech.glide.integration.webp.decoder.WebpDownsampler
 import com.bumptech.glide.integration.webp.decoder.WebpDrawable
+
+// Cache de noMediaFolders — TTL de 60s para não repetir query cara ao MediaStore
+private var noMediaFoldersCache: ArrayList<String>? = null
+private var noMediaFoldersCacheTime: Long = 0L
+private const val NO_MEDIA_CACHE_TTL = 60_000L
 import com.bumptech.glide.integration.webp.decoder.WebpDrawableTransformation
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.DecodeFormat
@@ -427,8 +432,13 @@ fun Context.getNoMediaFolders(callback: (folders: ArrayList<String>) -> Unit) {
 }
 
 fun Context.getNoMediaFoldersSync(): ArrayList<String> {
-    val folders = ArrayList<String>()
+    val now = System.currentTimeMillis()
+    val cached = noMediaFoldersCache
+    if (cached != null && (now - noMediaFoldersCacheTime) < NO_MEDIA_CACHE_TTL) {
+        return cached
+    }
 
+    val folders = ArrayList<String>()
     val uri = Files.getContentUri("external")
     val projection = arrayOf(Files.FileColumns.DATA)
     val selection = "${Files.FileColumns.MEDIA_TYPE} = ? AND ${Files.FileColumns.TITLE} LIKE ?"
@@ -456,6 +466,8 @@ fun Context.getNoMediaFoldersSync(): ArrayList<String> {
         cursor?.close()
     }
 
+    noMediaFoldersCache = folders
+    noMediaFoldersCacheTime = now
     return folders
 }
 
