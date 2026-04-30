@@ -37,6 +37,10 @@ import com.goodwy.gallery.interfaces.MediaOperationsListener
 import com.goodwy.gallery.models.Medium
 import com.goodwy.gallery.models.ThumbnailItem
 import com.goodwy.gallery.models.ThumbnailSection
+import com.bumptech.glide.ListPreloader
+import com.bumptech.glide.RequestBuilder
+import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
+import com.bumptech.glide.util.ViewPreloadSizeProvider
 
 class MediaAdapter(
     activity: BaseSimpleActivity,
@@ -116,6 +120,14 @@ class MediaAdapter(
     }
 
     override fun getItemCount() = media.size
+
+    override fun getItemId(position: Int): Long {
+        return when (val item = media.getOrNull(position)) {
+            is Medium -> item.path.hashCode().toLong()
+            is ThumbnailSection -> item.title.hashCode().toLong()
+            else -> position.toLong()
+        }
+    }
 
     override fun getItemViewType(position: Int): Int {
         val tmbItem = media[position]

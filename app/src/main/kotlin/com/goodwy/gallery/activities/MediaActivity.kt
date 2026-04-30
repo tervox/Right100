@@ -19,6 +19,10 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.ListPreloader
+import com.bumptech.glide.RequestBuilder
+import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
+import com.bumptech.glide.util.ViewPreloadSizeProvider
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.SimpleTarget
@@ -554,6 +558,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val currAdapter = binding.mediaGrid.adapter
         if (currAdapter == null) {
             initZoomListener()
+
+            // Otimizações de RecyclerView para scroll suave
+            binding.mediaGrid.setHasFixedSize(true)
+            binding.mediaGrid.setItemViewCacheSize(20)
+            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(0, 20)
+            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(1, 20)
+            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(2, 20)
+
             MediaAdapter(
                 activity = this,
                 media = mMedia.clone() as ArrayList<ThumbnailItem>,
@@ -568,8 +580,29 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     itemClicked(it.path)
                 }
             }.apply {
+                setHasStableIds(true)
                 setupZoomListener(mZoomListener)
                 binding.mediaGrid.adapter = this
+
+                // Preloader: pré-carrega thumbnails antes do scroll chegar
+                val sizeProvider = ViewPreloadSizeProvider<ThumbnailItem>()
+                val preloader = RecyclerViewPreloader(
+                    com.bumptech.glide.Glide.with(this@MediaActivity),
+                    object : ListPreloader.PreloadModelProvider<ThumbnailItem> {
+                        override fun getPreloadItems(position: Int): List<ThumbnailItem> {
+                            return listOf(mMedia.getOrNull(position) ?: return emptyList())
+                        }
+                        override fun getPreloadRequestBuilder(item: ThumbnailItem): RequestBuilder<*>? {
+                            if (item !is Medium) return null
+                            return com.bumptech.glide.Glide.with(this@MediaActivity)
+                                .load(item.path)
+                                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
+                        }
+                    },
+                    sizeProvider,
+                    8 // pré-carrega 8 itens à frente
+                )
+                binding.mediaGrid.addOnScrollListener(preloader)
             }
 
             val viewType = config.getFolderViewType(if (mShowAll) SHOW_ALL else mPath)

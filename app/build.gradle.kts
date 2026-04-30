@@ -186,6 +186,7 @@ dependencies {
     compileOnly(libs.okhttp)
 
     ksp(libs.glide.compiler)
+    implementation(libs.glide.recyclerview)
     implementation(libs.zjupure.webpdecoder)
     implementation(libs.wasabeef.transformations)
 
