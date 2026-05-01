@@ -107,13 +107,33 @@ class GetMediaAsynctask(
         // Salva durações dos vídeos no banco para acelerar próximas cargas
         if (getVideoDurations) {
             val mediaDB = GalleryDatabase.getInstance(context.applicationContext).MediumDao()
-            media.filterIsInstance<Medium>()
+            val videosWithDuration = media.filterIsInstance<Medium>()
                 .filter { it.isVideo() && it.videoDuration > 0 }
-                .forEach { medium ->
-                    try {
-                        mediaDB.updateVideoDuration(medium.path, medium.videoDuration)
-                    } catch (_: Exception) {}
-                }
+            videosWithDuration.forEach { medium ->
+                try { mediaDB.updateVideoDuration(medium.path, medium.videoDuration) } catch (_: Exception) {}
+            }
+
+            // Fallback assíncrono: vídeos com duration=0 (não indexados no MediaStore)
+            // buscam duração via MediaMetadataRetriever sem bloquear o scan principal
+            val videosWithoutDuration = media.filterIsInstance<Medium>()
+                .filter { it.isVideo() && it.videoDuration == 0 }
+            if (videosWithoutDuration.isNotEmpty()) {
+                Thread {
+                    videosWithoutDuration.forEach { medium ->
+                        try {
+                            val duration = android.media.MediaMetadataRetriever().use { retriever ->
+                                retriever.setDataSource(medium.path)
+                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                    ?.toLongOrNull()?.div(1000)?.toInt() ?: 0
+                            }
+                            if (duration > 0) {
+                                medium.videoDuration = duration
+                                mediaDB.updateVideoDuration(medium.path, duration)
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }.start()
+            }
         }
 
         return mediaFetcher.groupMedia(media, pathToUse)
