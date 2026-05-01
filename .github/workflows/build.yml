@@ -27,7 +27,7 @@ jobs:
       - name: Fix gradlew line endings (CRLF → LF)
         run: sed -i 's/\r$//' gradlew && chmod +x gradlew
 
-      - name: Fix gradle-wrapper.jar (download fresh copy)
+      - name: Fix gradle-wrapper.jar
         run: |
           GRADLE_VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties \
             | sed 's/.*gradle-\(.*\)-bin.zip/\1/')
@@ -35,9 +35,7 @@ jobs:
           curl -fsSL "https://raw.githubusercontent.com/nicoulaj/gradle-wrapper-diff/master/gradle-wrappers/gradle-wrapper.jar" \
             -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || \
           curl -fsSL "https://github.com/gradle/gradle/raw/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || \
-          wget -q "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
-            -O gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
+            -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
           if ! java -jar gradle/wrapper/gradle-wrapper.jar --version &>/dev/null; then
             curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
               -o /tmp/gradle.zip
@@ -46,15 +44,17 @@ jobs:
             $GRADLE_BIN wrapper --gradle-version "$GRADLE_VERSION"
           fi
 
-      # Restaura a keystore fixa no lugar da debug keystore padrão do Android.
-      # Isso garante que todos os builds tenham a mesma assinatura, permitindo
-      # atualizar o APK instalado sem precisar desinstalar.
-      - name: Restore fixed debug keystore
+      - name: Setup keystore
         run: |
-          mkdir -p ~/.android
-          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > ~/.android/debug.keystore
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > ${{ github.workspace }}/release.jks
+          cat > ${{ github.workspace }}/keystore.properties << PROPS
+          storeFile=${{ github.workspace }}/release.jks
+          storePassword=${{ secrets.STORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          PROPS
 
-      - name: Build Debug APK
+      - name: Build APK
         run: |
           printf 'sdk.dir=/usr/local/lib/android/sdk\n' > local.properties
           printf 'PRODUCT_ID_X1=\nPRODUCT_ID_X2=\nPRODUCT_ID_X3=\nPRODUCT_ID_X4=\n' >> local.properties
