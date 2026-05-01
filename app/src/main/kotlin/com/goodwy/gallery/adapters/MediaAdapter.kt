@@ -1,6 +1,7 @@
 package com.goodwy.gallery.adapters
 
 import android.annotation.SuppressLint
+import androidx.recyclerview.widget.DiffUtil
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
@@ -622,8 +623,34 @@ class MediaAdapter(
         val thumbnailItems = newMedia.clone() as ArrayList<ThumbnailItem>
         if (thumbnailItems.hashCode() != currentMediaHash) {
             currentMediaHash = thumbnailItems.hashCode()
+            val oldMedia = media
             media = thumbnailItems
-            notifyDataSetChanged()
+
+            val diffResult = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = oldMedia.size
+                override fun getNewListSize() = thumbnailItems.size
+                override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean {
+                    val old = oldMedia.getOrNull(oldPos)
+                    val new = thumbnailItems.getOrNull(newPos)
+                    return when {
+                        old is Medium && new is Medium -> old.path == new.path
+                        old is ThumbnailSection && new is ThumbnailSection -> old.title == new.title
+                        else -> false
+                    }
+                }
+                override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
+                    val old = oldMedia.getOrNull(oldPos)
+                    val new = thumbnailItems.getOrNull(newPos)
+                    return when {
+                        old is Medium && new is Medium ->
+                            old.videoDuration == new.videoDuration &&
+                            old.size == new.size &&
+                            old.modified == new.modified
+                        else -> old == new
+                    }
+                }
+            })
+            diffResult.dispatchUpdatesTo(this)
             finishActMode()
         }
         keyToPositionCache.clear()

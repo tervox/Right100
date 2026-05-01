@@ -617,11 +617,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 binding.mediaGrid.addOnScrollListener(preloader)
             }
 
-            val viewType = config.getFolderViewType(if (mShowAll) SHOW_ALL else mPath)
-            if (viewType == VIEW_TYPE_LIST && areSystemAnimationsEnabled) {
-                binding.mediaGrid.scheduleLayoutAnimation()
-            }
-
+            // Remove animação de layout e item animator — reduz delay inicial de aparecimento
+            binding.mediaGrid.itemAnimator = null
             setupLayoutManager()
             handleGridSpacing()
         } else if (mLastSearchedText.isEmpty()) {
@@ -1504,10 +1501,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLoadedInitialPhotos = false
 //        binding.mediaGrid.adapter = null
         getMedia()
-
-        if (areSystemAnimationsEnabled) {
-            binding.mediaGrid.scheduleLayoutAnimation()
-        }
     }
 
     // Goodwy
