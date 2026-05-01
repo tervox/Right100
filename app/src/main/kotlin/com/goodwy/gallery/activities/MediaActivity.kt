@@ -22,7 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.ListPreloader
 import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
-import com.bumptech.glide.util.ViewPreloadSizeProvider
+import com.bumptech.glide.util.FixedPreloadSizeProvider
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.SimpleTarget
@@ -590,7 +590,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 binding.mediaGrid.adapter = this
 
                 // Preloader: pré-carrega thumbnails antes do scroll chegar
-                val sizeProvider = ViewPreloadSizeProvider<ThumbnailItem>()
+                // Tamanho fixo por célula do grid — garante que o cache key do preloader
+                // bata exatamente com o que o adapter vai pedir, maximizando cache hits no scroll
+                val screenWidth = resources.displayMetrics.widthPixels
+                val spanCount = config.mediaColumnCnt.coerceAtLeast(1)
+                val thumbSize = screenWidth / spanCount
+                val sizeProvider = FixedPreloadSizeProvider<ThumbnailItem>(thumbSize, thumbSize)
                 val preloader = RecyclerViewPreloader(
                     com.bumptech.glide.Glide.with(this@MediaActivity),
                     object : ListPreloader.PreloadModelProvider<ThumbnailItem> {
@@ -601,11 +606,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                             if (item !is Medium) return null
                             return com.bumptech.glide.Glide.with(this@MediaActivity)
                                 .load(item.path)
+                                .override(thumbSize, thumbSize)
                                 .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
+                                .format(com.bumptech.glide.load.DecodeFormat.PREFER_ARGB_8888)
                         }
                     },
                     sizeProvider,
-                    20 // pré-carrega 20 itens à frente
+                    20
                 )
                 binding.mediaGrid.addOnScrollListener(preloader)
             }
