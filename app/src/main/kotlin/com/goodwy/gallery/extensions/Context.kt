@@ -677,9 +677,6 @@ fun Context.loadImageBase(
         .load(path)
         .apply(options)
         .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
-        // Mostra versão em 33% imediatamente do cache de memória/disco enquanto o thumbnail completo decodifica
-        // Elimina o "grid vazio" ao entrar em pastas com muitos arquivos
-        .thumbnail(0.33f)
         .transition(getOptionalCrossFadeTransition(crossFadeDuration))
 
     builder = builder.listener(object : RequestListener<Drawable> {
