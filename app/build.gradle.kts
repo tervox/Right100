@@ -80,6 +80,9 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            if (keystorePropertiesFile.exists() || hasSigningVars()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         release {
             isMinifyEnabled = true
