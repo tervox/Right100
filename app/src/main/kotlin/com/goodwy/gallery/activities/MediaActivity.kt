@@ -183,7 +183,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mAllowPickingMultiple = getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
         }
 
-        binding.mediaRefreshLayout.setOnRefreshListener { getMedia() }
+        binding.mediaRefreshLayout.setOnRefreshListener {
+            // Limpa cache da pasta atual para forçar recarregamento completo
+            sMediaCache.remove(mPath)
+            ensureBackgroundThread { invalidateFolderCache(applicationContext, mPath) }
+            getMedia()
+        }
         try {
             mPath = intent.getStringExtra(DIRECTORY) ?: ""
         } catch (e: Exception) {

@@ -63,14 +63,15 @@
         app:showAsAction="ifRoom" />
     <item
         android:id="@+id/cab_copy_to"
-        android:showAsAction="never"
+        android:showAsAction="ifRoom"
         android:title="@string/copy_to"
-        app:showAsAction="never" />
+        app:showAsAction="ifRoom" />
     <item
         android:id="@+id/cab_move_to"
-        android:showAsAction="never"
+        android:icon="@drawable/ic_move_vector"
+        android:showAsAction="ifRoom"
         android:title="@string/move_to"
-        app:showAsAction="never" />
+        app:showAsAction="ifRoom" />
     <item
         android:id="@+id/cab_create_shortcut"
         android:showAsAction="never"
