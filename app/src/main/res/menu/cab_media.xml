@@ -63,6 +63,7 @@
         app:showAsAction="ifRoom" />
     <item
         android:id="@+id/cab_copy_to"
+        android:icon="@drawable/ic_copy_vector"
         android:showAsAction="ifRoom"
         android:title="@string/copy_to"
         app:showAsAction="ifRoom" />
