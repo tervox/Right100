@@ -53,6 +53,12 @@ import java.io.IOException
 import java.util.Objects
 import kotlin.math.abs
 
+// Cache de mídia por pasta — evita recarregar do zero ao voltar para pasta já visitada
+private data class MediaCacheEntry(val media: ArrayList<ThumbnailItem>, val timestamp: Long)
+private val sMediaCache = HashMap<String, MediaCacheEntry>()
+private const val MEDIA_CACHE_TTL = 5 * 60_000L // 5 minutos
+private const val MEDIA_CACHE_MAX = 50 // até 50 pastas
+
 class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override var isSearchBarEnabled = true
 
@@ -824,6 +830,19 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
+        // Cache multi-pasta: se essa pasta foi visitada nos últimos 30s, mostra instantâneo
+        val cached = sMediaCache[mPath]
+        if (cached != null && (System.currentTimeMillis() - cached.timestamp) < MEDIA_CACHE_TTL) {
+            mMedia = cached.media
+            mMediaPath = mPath
+            runOnUiThread { setupAdapter() }
+            mIsGettingMedia = false
+            mLoadedInitialPhotos = true
+            // Sincroniza em background sem bloquear a UI
+            startAsyncTask()
+            return
+        }
+
         // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
         // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
         if (mMedia.isNotEmpty() && mMediaPath == mPath) {
@@ -832,8 +851,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 mPath,
                 mIsGetVideoIntent && !mIsGetImageIntent,
                 mIsGetImageIntent && !mIsGetVideoIntent
-            ) { cached ->
-                if (cached.isNotEmpty()) gotMedia(cached, true)
+            ) { cachedMedia ->
+                if (cachedMedia.isNotEmpty()) gotMedia(cachedMedia, true)
                 startAsyncTask()
             }
             mLoadedInitialPhotos = true
@@ -845,11 +864,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mPath,
             mIsGetVideoIntent && !mIsGetImageIntent,
             mIsGetImageIntent && !mIsGetVideoIntent
-        ) { cached ->
-            if (cached.isEmpty()) {
+        ) { cachedMedia ->
+            if (cachedMedia.isEmpty()) {
                 runOnUiThread { binding.mediaRefreshLayout.isRefreshing = true }
             } else {
-                gotMedia(cached, true)
+                gotMedia(cachedMedia, true)
             }
             startAsyncTask()
         }
@@ -1219,6 +1238,16 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         checkLastMediaChanged()
         mMedia = media
         mMediaPath = mPath
+
+        // Salvar no cache multi-pasta para acesso instantâneo ao voltar
+        if (media.isNotEmpty() && mPath.isNotEmpty()) {
+            sMediaCache[mPath] = MediaCacheEntry(media, System.currentTimeMillis())
+            // Limitar cache a 50 pastas para não consumir muita memória
+            if (sMediaCache.size > MEDIA_CACHE_MAX) {
+                val oldest = sMediaCache.minByOrNull { it.value.timestamp }?.key
+                if (oldest != null) sMediaCache.remove(oldest)
+            }
+        }
 
         runOnUiThread {
             binding.loadingIndicator.hide()
