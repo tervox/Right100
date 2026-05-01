@@ -28,7 +28,10 @@ import com.goodwy.commons.interfaces.ItemTouchHelperContract
 import com.goodwy.commons.models.FileDirItem
 import com.goodwy.commons.views.MyRecyclerView
 import com.goodwy.gallery.R
+import com.goodwy.gallery.activities.MediaActivity
 import com.goodwy.gallery.activities.ViewPagerActivity
+import com.goodwy.gallery.activities.sMediaCache
+import com.goodwy.gallery.activities.saveFolderCacheToDisk
 import com.goodwy.gallery.databinding.*
 import com.goodwy.gallery.dialogs.BulkRenameDialog
 import com.goodwy.gallery.dialogs.DeleteWithRememberDialog
@@ -593,6 +596,17 @@ class MediaAdapter(
                 selectedItems.forEach { medium ->
                     fileDirItems.add(medium.toFileDirItem())
                     removeMedia.add(medium)
+                }
+
+                // Remove só as mídias deletadas do cache — pasta continua válida
+                val folderPath = selectedItems.firstOrNull()?.path?.getParentPath() ?: ""
+                if (folderPath.isNotEmpty()) {
+                    val deletedPaths = selectedItems.map { it.path }.toSet()
+                    val entry = sMediaCache[folderPath]
+                    if (entry != null) {
+                        entry.media.removeAll { it is com.goodwy.gallery.models.Medium && it.path in deletedPaths }
+                        ensureBackgroundThread { saveFolderCacheToDisk(activity.applicationContext, folderPath, entry.media) }
+                    }
                 }
 
                 media.removeAll(removeMedia)

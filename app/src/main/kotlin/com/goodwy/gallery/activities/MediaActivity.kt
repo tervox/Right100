@@ -52,12 +52,82 @@ import java.io.File
 import java.io.IOException
 import java.util.Objects
 import kotlin.math.abs
+import org.json.JSONArray
+import org.json.JSONObject
 
-// Cache de mídia por pasta — evita recarregar do zero ao voltar para pasta já visitada
-private data class MediaCacheEntry(val media: ArrayList<ThumbnailItem>, val timestamp: Long)
-private val sMediaCache = HashMap<String, MediaCacheEntry>()
-private const val MEDIA_CACHE_TTL = 5 * 60_000L // 5 minutos
-private const val MEDIA_CACHE_MAX = 50 // até 50 pastas
+// Cache de mídia por pasta persistido em disco
+// Sobrevive ao fechar/abrir o app e é invalidado por pasta ao deletar mídia
+internal data class MediaCacheEntry(val media: ArrayList<ThumbnailItem>, val timestamp: Long)
+internal val sMediaCache = HashMap<String, MediaCacheEntry>()
+private const val MEDIA_CACHE_TTL = 24 * 60 * 60_000L // 24 horas
+private const val MEDIA_CACHE_MAX = 100
+private const val PREFS_CACHE = "media_path_cache"
+private const val PREFS_CACHE_TIME = "media_path_cache_time"
+
+fun saveFolderCacheToDisk(context: android.content.Context, folderPath: String, media: ArrayList<ThumbnailItem>) {
+    try {
+        val prefs = context.getSharedPreferences("folder_media_cache", android.content.Context.MODE_PRIVATE)
+        val arr = JSONArray()
+        media.filterIsInstance<com.goodwy.gallery.models.Medium>().forEach { m ->
+            val obj = JSONObject()
+            obj.put("path", m.path)
+            obj.put("name", m.name)
+            obj.put("modified", m.modified)
+            obj.put("taken", m.taken)
+            obj.put("size", m.size)
+            obj.put("type", m.type)
+            obj.put("videoDuration", m.videoDuration)
+            obj.put("isFavorite", m.isFavorite)
+            obj.put("deletedTS", m.deletedTS)
+            obj.put("mediaStoreId", m.mediaStoreId)
+            arr.put(obj)
+        }
+        prefs.edit()
+            .putString("paths_${folderPath.hashCode()}", arr.toString())
+            .putLong("time_${folderPath.hashCode()}", System.currentTimeMillis())
+            .apply()
+    } catch (_: Exception) {}
+}
+
+fun loadFolderCacheFromDisk(context: android.content.Context, folderPath: String): ArrayList<ThumbnailItem>? {
+    return try {
+        val prefs = context.getSharedPreferences("folder_media_cache", android.content.Context.MODE_PRIVATE)
+        val time = prefs.getLong("time_${folderPath.hashCode()}", 0L)
+        if (System.currentTimeMillis() - time > MEDIA_CACHE_TTL) return null
+        val json = prefs.getString("paths_${folderPath.hashCode()}", null) ?: return null
+        val arr = JSONArray(json)
+        val result = ArrayList<ThumbnailItem>()
+        for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            result.add(com.goodwy.gallery.models.Medium(
+                id = null,
+                name = obj.getString("name"),
+                path = obj.getString("path"),
+                parentPath = folderPath,
+                modified = obj.getLong("modified"),
+                taken = obj.getLong("taken"),
+                size = obj.getLong("size"),
+                type = obj.getInt("type"),
+                videoDuration = obj.getInt("videoDuration"),
+                isFavorite = obj.getBoolean("isFavorite"),
+                deletedTS = obj.getLong("deletedTS"),
+                mediaStoreId = obj.getLong("mediaStoreId")
+            ))
+        }
+        result
+    } catch (_: Exception) { null }
+}
+
+fun invalidateFolderCache(context: android.content.Context, folderPath: String) {
+    try {
+        context.getSharedPreferences("folder_media_cache", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .remove("paths_${folderPath.hashCode()}")
+            .remove("time_${folderPath.hashCode()}")
+            .apply()
+        sMediaCache.remove(folderPath)
+    } catch (_: Exception) {}
+}
 
 class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override var isSearchBarEnabled = true
@@ -830,21 +900,32 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
-        // Cache multi-pasta: se essa pasta foi visitada nos últimos 30s, mostra instantâneo
-        val cached = sMediaCache[mPath]
-        if (cached != null && (System.currentTimeMillis() - cached.timestamp) < MEDIA_CACHE_TTL) {
-            mMedia = cached.media
+        // 1. Cache em memória (mais rápido, válido 5 min)
+        val memCached = sMediaCache[mPath]
+        if (memCached != null && (System.currentTimeMillis() - memCached.timestamp) < 5 * 60_000L) {
+            mMedia = memCached.media
             mMediaPath = mPath
             runOnUiThread { setupAdapter() }
             mIsGettingMedia = false
             mLoadedInitialPhotos = true
-            // Sincroniza em background sem bloquear a UI
             startAsyncTask()
             return
         }
 
-        // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
-        // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
+        // 2. Cache em disco (persiste entre sessões, válido 24h)
+        val diskCached = loadFolderCacheFromDisk(this, mPath)
+        if (diskCached != null && diskCached.isNotEmpty()) {
+            mMedia = diskCached
+            mMediaPath = mPath
+            sMediaCache[mPath] = MediaCacheEntry(diskCached, System.currentTimeMillis())
+            runOnUiThread { setupAdapter() }
+            mIsGettingMedia = false
+            mLoadedInitialPhotos = true
+            startAsyncTask()
+            return
+        }
+
+        // 3. companion object (mesma pasta)
         if (mMedia.isNotEmpty() && mMediaPath == mPath) {
             runOnUiThread { setupAdapter() }
             getCachedMedia(
@@ -859,7 +940,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             return
         }
 
-        // Primeira visita: banco de dados → async task
+        // 4. Primeira visita: banco Room → async task
         getCachedMedia(
             mPath,
             mIsGetVideoIntent && !mIsGetImageIntent,
@@ -1242,7 +1323,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Salvar no cache multi-pasta para acesso instantâneo ao voltar
         if (media.isNotEmpty() && mPath.isNotEmpty()) {
             sMediaCache[mPath] = MediaCacheEntry(media, System.currentTimeMillis())
-            // Limitar cache a 50 pastas para não consumir muita memória
+            // Salvar em disco para persistir entre sessões
+            ensureBackgroundThread { saveFolderCacheToDisk(applicationContext, mPath, media) }
+            // Limitar cache em memória a 100 pastas
             if (sMediaCache.size > MEDIA_CACHE_MAX) {
                 val oldest = sMediaCache.minByOrNull { it.value.timestamp }?.key
                 if (oldest != null) sMediaCache.remove(oldest)
