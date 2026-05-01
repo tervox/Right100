@@ -189,6 +189,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             ensureBackgroundThread { invalidateFolderCache(applicationContext, mPath) }
             getMedia()
         }
+
+        // Bottom bar de seleção
+        setupSelectionBottomBar()
+        binding.selectionSettings.setOnClickListener {
+            com.goodwy.gallery.dialogs.ManageSelectionBarDialog(this) {
+                setupSelectionBottomBar()
+            }
+        }
         try {
             mPath = intent.getStringExtra(DIRECTORY) ?: ""
         } catch (e: Exception) {
@@ -1431,7 +1439,42 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
-    override fun refreshItems() {
+    private fun setupSelectionBottomBar() {
+        val adapter = binding.mediaGrid.adapter as? com.goodwy.gallery.adapters.MediaAdapter
+        val idToView = mapOf(
+            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_COPY   to binding.selectionCopy,
+            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_MOVE   to binding.selectionMove,
+            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_DELETE to binding.selectionDelete,
+            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_SHARE  to binding.selectionShare
+        )
+        val container = binding.mediaSelectionBottomBar as android.widget.LinearLayout
+
+        // Reordenar views conforme ordem salva
+        val order = config.selectionBarOrder
+        if (order.isNotEmpty()) {
+            val ids = order.split(",").mapNotNull { it.trim().toIntOrNull() }
+            // Remove botões de ação do container (mantém o settings)
+            ids.forEach { id -> idToView[id]?.let { container.removeView(it) } }
+            ids.forEach { id -> idToView[id]?.let { container.addView(it, container.childCount - 1) } }
+        }
+
+        binding.selectionCopy.setOnClickListener { adapter?.copyMoveTo(true) }
+        binding.selectionMove.setOnClickListener { adapter?.copyMoveTo(false) }
+        binding.selectionDelete.setOnClickListener { adapter?.askConfirmDelete() }
+        binding.selectionShare.setOnClickListener { adapter?.shareFiles() }
+    }
+
+    override fun onActionModeCreated() {
+        binding.mediaSelectionBottomBar.animate().translationY(0f).alpha(1f).setDuration(180).withStartAction {
+            binding.mediaSelectionBottomBar.visibility = android.view.View.VISIBLE
+        }.start()
+    }
+
+    override fun onActionModeDestroyed() {
+        binding.mediaSelectionBottomBar.animate().translationY(binding.mediaSelectionBottomBar.height.toFloat()).alpha(0f).setDuration(180).withEndAction {
+            binding.mediaSelectionBottomBar.visibility = android.view.View.GONE
+        }.start()
+    }
         getMedia()
     }
 

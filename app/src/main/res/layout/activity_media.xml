@@ -154,4 +154,70 @@
                 app:tabSelectedTextColor="@android:color/white" />
         </RelativeLayout>
     </RelativeLayout>
+
+    <!-- Bottom bar de seleção — aparece quando arquivos estão selecionados -->
+    <LinearLayout
+        android:id="@+id/media_selection_bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="?attr/colorSurface"
+        android:elevation="8dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/selection_copy"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_copy_vector"
+            android:contentDescription="@string/copy_to"
+            android:padding="10dp" />
+
+        <ImageButton
+            android:id="@+id/selection_move"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_move_vector"
+            android:contentDescription="@string/move_to"
+            android:padding="10dp" />
+
+        <ImageButton
+            android:id="@+id/selection_delete"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_delete_outline"
+            android:contentDescription="@string/delete"
+            android:padding="10dp" />
+
+        <ImageButton
+            android:id="@+id/selection_share"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_share_vector"
+            android:contentDescription="@string/share"
+            android:padding="10dp" />
+
+        <ImageButton
+            android:id="@+id/selection_settings"
+            android:layout_width="40dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_settings_cog"
+            android:contentDescription="@string/settings"
+            android:padding="10dp" />
+
+    </LinearLayout>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

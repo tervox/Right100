@@ -465,6 +465,15 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getInt(VISIBLE_BOTTOM_ACTIONS, DEFAULT_BOTTOM_ACTIONS)
         set(visibleBottomActions) = prefs.edit { putInt(VISIBLE_BOTTOM_ACTIONS, visibleBottomActions) }
 
+    var bottomActionsOrder: String
+        get() = prefs.getString(BOTTOM_ACTIONS_ORDER, "") ?: ""
+        set(value) = prefs.edit { putString(BOTTOM_ACTIONS_ORDER, value) }
+
+    // Ordem dos botões da bottom bar de seleção (IDs separados por vírgula)
+    var selectionBarOrder: String
+        get() = prefs.getString("selection_bar_order", "") ?: ""
+        set(value) = prefs.edit { putString("selection_bar_order", value) }
+
     // if a user hides a folder, then enables temporary hidden folder displaying, make sure we show it properly
     var everShownFolders: Set<String>
         get() = prefs.getStringSet(EVER_SHOWN_FOLDERS, getEverShownFolders())!!
