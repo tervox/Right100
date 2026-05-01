@@ -875,6 +875,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 try {
                     gotMedia(newMedia, false)
 
+                    // Após mostrar os arquivos, busca duração dos vídeos com 0 em background
+                    // e atualiza só esses itens no adapter — sem re-render completo
+                    fillMissingVideoDurations(newMedia)
+
                     // remove cached files that are no longer valid for whatever reason
                     val newPaths = newMedia.mapNotNull { it as? Medium }.map { it.path }
                     oldMedia
@@ -894,6 +898,36 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         mCurrAsyncTask!!.execute()
+    }
+
+    private fun fillMissingVideoDurations(media: ArrayList<ThumbnailItem>) {
+        if (!config.showThumbnailVideoDuration) return
+        val videosWithout = media.filterIsInstance<Medium>()
+            .filter { it.isVideo() && it.videoDuration == 0 }
+        if (videosWithout.isEmpty()) return
+
+        Thread {
+            videosWithout.forEach { medium ->
+                try {
+                    val duration = android.media.MediaMetadataRetriever().use { r ->
+                        r.setDataSource(medium.path)
+                        r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                            ?.toLongOrNull()?.div(1000)?.toInt() ?: 0
+                    }
+                    if (duration > 0) {
+                        medium.videoDuration = duration
+                        try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
+                        // Atualiza só o item específico no adapter — sem re-render completo
+                        val pos = mMedia.indexOf(medium)
+                        if (pos >= 0) {
+                            runOnUiThread {
+                                getMediaAdapter()?.notifyItemChanged(pos)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }.start()
     }
 
     private fun isDirEmpty(): Boolean {
