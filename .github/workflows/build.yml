@@ -24,37 +24,27 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Fix gradlew line endings (CRLF → LF)
+      - name: Fix gradlew line endings
         run: sed -i 's/\r$//' gradlew && chmod +x gradlew
 
       - name: Fix gradle-wrapper.jar
         run: |
           GRADLE_VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties \
             | sed 's/.*gradle-\(.*\)-bin.zip/\1/')
-          echo "Gradle version: $GRADLE_VERSION"
           curl -fsSL "https://raw.githubusercontent.com/nicoulaj/gradle-wrapper-diff/master/gradle-wrappers/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || \
-          curl -fsSL "https://github.com/gradle/gradle/raw/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
             -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
-          if ! java -jar gradle/wrapper/gradle-wrapper.jar --version &>/dev/null; then
-            curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-              -o /tmp/gradle.zip
-            unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
-            GRADLE_BIN=$(find /tmp/gradle-dist -name "gradle" -type f | head -1)
-            $GRADLE_BIN wrapper --gradle-version "$GRADLE_VERSION"
-          fi
 
-      - name: Setup keystore
+      - name: Restore fixed keystore
         run: |
-          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > ${{ github.workspace }}/release.jks
-          cat > ${{ github.workspace }}/keystore.properties << PROPS
-          storeFile=${{ github.workspace }}/release.jks
-          storePassword=${{ secrets.STORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > keystore.jks
+          cat > keystore.properties << PROPS
+          storeFile=../../keystore.jks
+          storePassword=android
+          keyAlias=androiddebugkey
+          keyPassword=android
           PROPS
 
-      - name: Build APK
+      - name: Build Debug APK
         run: |
           printf 'sdk.dir=/usr/local/lib/android/sdk\n' > local.properties
           printf 'PRODUCT_ID_X1=\nPRODUCT_ID_X2=\nPRODUCT_ID_X3=\nPRODUCT_ID_X4=\n' >> local.properties
@@ -67,7 +57,6 @@ jobs:
         run: |
           APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          echo "apk_name=$(basename $APK_PATH)" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -75,11 +64,3 @@ jobs:
           name: debug-apk
           path: ${{ steps.find_apk.outputs.apk_path }}
           retention-days: 30
-
-      - name: Get version info
-        id: version
-        run: |
-          VERSION_NAME=$(grep "^VERSION_NAME" gradle.properties | cut -d'=' -f2)
-          VERSION_CODE=$(grep "^VERSION_CODE" gradle.properties | cut -d'=' -f2)
-          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
-          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT

@@ -52,82 +52,6 @@ import java.io.File
 import java.io.IOException
 import java.util.Objects
 import kotlin.math.abs
-import org.json.JSONArray
-import org.json.JSONObject
-
-// Cache de mídia por pasta persistido em disco
-// Sobrevive ao fechar/abrir o app e é invalidado por pasta ao deletar mídia
-internal data class MediaCacheEntry(val media: ArrayList<ThumbnailItem>, val timestamp: Long)
-internal val sMediaCache = HashMap<String, MediaCacheEntry>()
-private const val MEDIA_CACHE_TTL = 24 * 60 * 60_000L // 24 horas
-private const val MEDIA_CACHE_MAX = 100
-private const val PREFS_CACHE = "media_path_cache"
-private const val PREFS_CACHE_TIME = "media_path_cache_time"
-
-fun saveFolderCacheToDisk(context: android.content.Context, folderPath: String, media: ArrayList<ThumbnailItem>) {
-    try {
-        val prefs = context.getSharedPreferences("folder_media_cache", android.content.Context.MODE_PRIVATE)
-        val arr = JSONArray()
-        media.filterIsInstance<com.goodwy.gallery.models.Medium>().forEach { m ->
-            val obj = JSONObject()
-            obj.put("path", m.path)
-            obj.put("name", m.name)
-            obj.put("modified", m.modified)
-            obj.put("taken", m.taken)
-            obj.put("size", m.size)
-            obj.put("type", m.type)
-            obj.put("videoDuration", m.videoDuration)
-            obj.put("isFavorite", m.isFavorite)
-            obj.put("deletedTS", m.deletedTS)
-            obj.put("mediaStoreId", m.mediaStoreId)
-            arr.put(obj)
-        }
-        prefs.edit()
-            .putString("paths_${folderPath.hashCode()}", arr.toString())
-            .putLong("time_${folderPath.hashCode()}", System.currentTimeMillis())
-            .apply()
-    } catch (_: Exception) {}
-}
-
-fun loadFolderCacheFromDisk(context: android.content.Context, folderPath: String): ArrayList<ThumbnailItem>? {
-    return try {
-        val prefs = context.getSharedPreferences("folder_media_cache", android.content.Context.MODE_PRIVATE)
-        val time = prefs.getLong("time_${folderPath.hashCode()}", 0L)
-        if (System.currentTimeMillis() - time > MEDIA_CACHE_TTL) return null
-        val json = prefs.getString("paths_${folderPath.hashCode()}", null) ?: return null
-        val arr = JSONArray(json)
-        val result = ArrayList<ThumbnailItem>()
-        for (i in 0 until arr.length()) {
-            val obj = arr.getJSONObject(i)
-            result.add(com.goodwy.gallery.models.Medium(
-                id = null,
-                name = obj.getString("name"),
-                path = obj.getString("path"),
-                parentPath = folderPath,
-                modified = obj.getLong("modified"),
-                taken = obj.getLong("taken"),
-                size = obj.getLong("size"),
-                type = obj.getInt("type"),
-                videoDuration = obj.getInt("videoDuration"),
-                isFavorite = obj.getBoolean("isFavorite"),
-                deletedTS = obj.getLong("deletedTS"),
-                mediaStoreId = obj.getLong("mediaStoreId")
-            ))
-        }
-        result
-    } catch (_: Exception) { null }
-}
-
-fun invalidateFolderCache(context: android.content.Context, folderPath: String) {
-    try {
-        context.getSharedPreferences("folder_media_cache", android.content.Context.MODE_PRIVATE)
-            .edit()
-            .remove("paths_${folderPath.hashCode()}")
-            .remove("time_${folderPath.hashCode()}")
-            .apply()
-        sMediaCache.remove(folderPath)
-    } catch (_: Exception) {}
-}
 
 class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override var isSearchBarEnabled = true
@@ -183,20 +107,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mAllowPickingMultiple = getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
         }
 
-        binding.mediaRefreshLayout.setOnRefreshListener {
-            // Limpa cache da pasta atual para forçar recarregamento completo
-            sMediaCache.remove(mPath)
-            ensureBackgroundThread { invalidateFolderCache(applicationContext, mPath) }
-            getMedia()
-        }
-
-        // Bottom bar de seleção
-        setupSelectionBottomBar()
-        binding.selectionSettings.setOnClickListener {
-            com.goodwy.gallery.dialogs.ManageSelectionBarDialog(this) {
-                setupSelectionBottomBar()
-            }
-        }
+        binding.mediaRefreshLayout.setOnRefreshListener { getMedia() }
         try {
             mPath = intent.getStringExtra(DIRECTORY) ?: ""
         } catch (e: Exception) {
@@ -913,56 +824,32 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
-        // 1. Cache em memória (mais rápido, válido 5 min)
-        val memCached = sMediaCache[mPath]
-        if (memCached != null && (System.currentTimeMillis() - memCached.timestamp) < 5 * 60_000L) {
-            mMedia = memCached.media
-            mMediaPath = mPath
-            runOnUiThread { setupAdapter() }
-            mIsGettingMedia = false
-            mLoadedInitialPhotos = true
-            startAsyncTask()
-            return
-        }
-
-        // 2. Cache em disco (persiste entre sessões, válido 24h)
-        val diskCached = loadFolderCacheFromDisk(this, mPath)
-        if (diskCached != null && diskCached.isNotEmpty()) {
-            mMedia = diskCached
-            mMediaPath = mPath
-            sMediaCache[mPath] = MediaCacheEntry(diskCached, System.currentTimeMillis())
-            runOnUiThread { setupAdapter() }
-            mIsGettingMedia = false
-            mLoadedInitialPhotos = true
-            startAsyncTask()
-            return
-        }
-
-        // 3. companion object (mesma pasta)
+        // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
+        // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
         if (mMedia.isNotEmpty() && mMediaPath == mPath) {
             runOnUiThread { setupAdapter() }
             getCachedMedia(
                 mPath,
                 mIsGetVideoIntent && !mIsGetImageIntent,
                 mIsGetImageIntent && !mIsGetVideoIntent
-            ) { cachedMedia ->
-                if (cachedMedia.isNotEmpty()) gotMedia(cachedMedia, true)
+            ) { cached ->
+                if (cached.isNotEmpty()) gotMedia(cached, true)
                 startAsyncTask()
             }
             mLoadedInitialPhotos = true
             return
         }
 
-        // 4. Primeira visita: banco Room → async task
+        // Primeira visita: banco de dados → async task
         getCachedMedia(
             mPath,
             mIsGetVideoIntent && !mIsGetImageIntent,
             mIsGetImageIntent && !mIsGetVideoIntent
-        ) { cachedMedia ->
-            if (cachedMedia.isEmpty()) {
+        ) { cached ->
+            if (cached.isEmpty()) {
                 runOnUiThread { binding.mediaRefreshLayout.isRefreshing = true }
             } else {
-                gotMedia(cachedMedia, true)
+                gotMedia(cached, true)
             }
             startAsyncTask()
         }
@@ -1333,18 +1220,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mMedia = media
         mMediaPath = mPath
 
-        // Salvar no cache multi-pasta para acesso instantâneo ao voltar
-        if (media.isNotEmpty() && mPath.isNotEmpty()) {
-            sMediaCache[mPath] = MediaCacheEntry(media, System.currentTimeMillis())
-            // Salvar em disco para persistir entre sessões
-            ensureBackgroundThread { saveFolderCacheToDisk(applicationContext, mPath, media) }
-            // Limitar cache em memória a 100 pastas
-            if (sMediaCache.size > MEDIA_CACHE_MAX) {
-                val oldest = sMediaCache.minByOrNull { it.value.timestamp }?.key
-                if (oldest != null) sMediaCache.remove(oldest)
-            }
-        }
-
         runOnUiThread {
             binding.loadingIndicator.hide()
             binding.mediaRefreshLayout.isRefreshing = false
@@ -1439,42 +1314,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
-    private fun setupSelectionBottomBar() {
-        val adapter = binding.mediaGrid.adapter as? com.goodwy.gallery.adapters.MediaAdapter
-        val idToView = mapOf(
-            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_COPY   to binding.selectionCopy,
-            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_MOVE   to binding.selectionMove,
-            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_DELETE to binding.selectionDelete,
-            com.goodwy.gallery.dialogs.ManageSelectionBarDialog.ID_SHARE  to binding.selectionShare
-        )
-        val container = binding.mediaSelectionBottomBar as android.widget.LinearLayout
-
-        // Reordenar views conforme ordem salva
-        val order = config.selectionBarOrder
-        if (order.isNotEmpty()) {
-            val ids = order.split(",").mapNotNull { it.trim().toIntOrNull() }
-            // Remove botões de ação do container (mantém o settings)
-            ids.forEach { id -> idToView[id]?.let { container.removeView(it) } }
-            ids.forEach { id -> idToView[id]?.let { container.addView(it, container.childCount - 1) } }
-        }
-
-        binding.selectionCopy.setOnClickListener { adapter?.copyMoveTo(true) }
-        binding.selectionMove.setOnClickListener { adapter?.copyMoveTo(false) }
-        binding.selectionDelete.setOnClickListener { adapter?.askConfirmDelete() }
-        binding.selectionShare.setOnClickListener { adapter?.shareFiles() }
-    }
-
-    override fun onActionModeCreated() {
-        binding.mediaSelectionBottomBar.animate().translationY(0f).alpha(1f).setDuration(180).withStartAction {
-            binding.mediaSelectionBottomBar.visibility = android.view.View.VISIBLE
-        }.start()
-    }
-
-    override fun onActionModeDestroyed() {
-        binding.mediaSelectionBottomBar.animate().translationY(binding.mediaSelectionBottomBar.height.toFloat()).alpha(0f).setDuration(180).withEndAction {
-            binding.mediaSelectionBottomBar.visibility = android.view.View.GONE
-        }.start()
-    }
+    override fun refreshItems() {
         getMedia()
     }
 
