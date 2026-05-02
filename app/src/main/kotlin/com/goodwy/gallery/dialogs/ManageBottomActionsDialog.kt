@@ -1,11 +1,11 @@
 package com.goodwy.gallery.dialogs
 
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.ImageButton
-import android.widget.TextView
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -18,43 +18,45 @@ import com.goodwy.gallery.helpers.*
 
 class ManageBottomActionsDialog(val activity: BaseSimpleActivity, val callback: (result: Int) -> Unit) {
 
-    data class ActionItem(val id: Int, val labelRes: Int, var isChecked: Boolean)
+    data class ActionItem(val id: Int, val label: String, var isChecked: Boolean)
 
-    private val allActions = mutableListOf(
-        ActionItem(BOTTOM_ACTION_SHARE, com.goodwy.commons.R.string.share, false),
-        ActionItem(BOTTOM_ACTION_TOGGLE_FAVORITE, R.string.toggle_favorite, false),
-        ActionItem(BOTTOM_ACTION_PLAY_PAUSE, R.string.playpause, false),
-        ActionItem(BOTTOM_ACTION_MUTE, R.string.volume, false),
-        ActionItem(BOTTOM_ACTION_PROPERTIES, R.string.properties, false),
-        ActionItem(BOTTOM_ACTION_DELETE, com.goodwy.commons.R.string.delete, false),
-        ActionItem(BOTTOM_ACTION_EDIT, R.string.edit, false),
-        ActionItem(BOTTOM_ACTION_ROTATE, R.string.rotate, false),
-        ActionItem(BOTTOM_ACTION_CHANGE_ORIENTATION, R.string.change_orientation, false),
-        ActionItem(BOTTOM_ACTION_SLIDESHOW, R.string.slideshow, false),
-        ActionItem(BOTTOM_ACTION_SHOW_ON_MAP, R.string.show_on_map, false),
-        ActionItem(BOTTOM_ACTION_TOGGLE_VISIBILITY, R.string.toggle_file_visibility, false),
-        ActionItem(BOTTOM_ACTION_RENAME, R.string.rename, false),
-        ActionItem(BOTTOM_ACTION_SET_AS, R.string.set_as, false),
-        ActionItem(BOTTOM_ACTION_COPY, com.goodwy.commons.R.string.copy, false),
-        ActionItem(BOTTOM_ACTION_MOVE, com.goodwy.commons.R.string.move, false),
-        ActionItem(BOTTOM_ACTION_RESIZE, com.goodwy.commons.R.string.resize, false),
-    )
+    private val allActions: MutableList<ActionItem>
 
     init {
-        val actions = activity.config.visibleBottomActions
-        val savedOrder = activity.config.bottomActionsOrder
+        val ctx = activity
+        val actions = ctx.config.visibleBottomActions
+        val savedOrder = ctx.config.bottomActionsOrder
 
-        // Marca os ativos
-        allActions.forEach { it.isChecked = actions and it.id != 0 }
+        // Labels usando getString para evitar problemas de namespace R vs commons.R
+        val rawActions = mutableListOf(
+            ActionItem(BOTTOM_ACTION_SHARE, ctx.getString(com.goodwy.commons.R.string.share), actions and BOTTOM_ACTION_SHARE != 0),
+            ActionItem(BOTTOM_ACTION_TOGGLE_FAVORITE, ctx.getString(R.string.toggle_favorite), actions and BOTTOM_ACTION_TOGGLE_FAVORITE != 0),
+            ActionItem(BOTTOM_ACTION_PLAY_PAUSE, "Play / Pause", actions and BOTTOM_ACTION_PLAY_PAUSE != 0),
+            ActionItem(BOTTOM_ACTION_MUTE, "Mudo", actions and BOTTOM_ACTION_MUTE != 0),
+            ActionItem(BOTTOM_ACTION_PROPERTIES, ctx.getString(com.goodwy.commons.R.string.properties), actions and BOTTOM_ACTION_PROPERTIES != 0),
+            ActionItem(BOTTOM_ACTION_DELETE, ctx.getString(com.goodwy.commons.R.string.delete), actions and BOTTOM_ACTION_DELETE != 0),
+            ActionItem(BOTTOM_ACTION_EDIT, ctx.getString(R.string.edit), actions and BOTTOM_ACTION_EDIT != 0),
+            ActionItem(BOTTOM_ACTION_ROTATE, ctx.getString(R.string.rotate), actions and BOTTOM_ACTION_ROTATE != 0),
+            ActionItem(BOTTOM_ACTION_CHANGE_ORIENTATION, ctx.getString(R.string.change_orientation), actions and BOTTOM_ACTION_CHANGE_ORIENTATION != 0),
+            ActionItem(BOTTOM_ACTION_SLIDESHOW, ctx.getString(R.string.slideshow), actions and BOTTOM_ACTION_SLIDESHOW != 0),
+            ActionItem(BOTTOM_ACTION_SHOW_ON_MAP, ctx.getString(R.string.show_on_map), actions and BOTTOM_ACTION_SHOW_ON_MAP != 0),
+            ActionItem(BOTTOM_ACTION_TOGGLE_VISIBILITY, ctx.getString(R.string.toggle_file_visibility), actions and BOTTOM_ACTION_TOGGLE_VISIBILITY != 0),
+            ActionItem(BOTTOM_ACTION_RENAME, ctx.getString(com.goodwy.commons.R.string.rename), actions and BOTTOM_ACTION_RENAME != 0),
+            ActionItem(BOTTOM_ACTION_SET_AS, ctx.getString(com.goodwy.commons.R.string.set_as), actions and BOTTOM_ACTION_SET_AS != 0),
+            ActionItem(BOTTOM_ACTION_COPY, ctx.getString(com.goodwy.commons.R.string.copy), actions and BOTTOM_ACTION_COPY != 0),
+            ActionItem(BOTTOM_ACTION_MOVE, ctx.getString(com.goodwy.commons.R.string.move), actions and BOTTOM_ACTION_MOVE != 0),
+            ActionItem(BOTTOM_ACTION_RESIZE, ctx.getString(com.goodwy.commons.R.string.resize), actions and BOTTOM_ACTION_RESIZE != 0),
+        )
 
         // Reordena conforme ordem salva
         if (savedOrder.isNotBlank()) {
             val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
             val ordered = mutableListOf<ActionItem>()
-            orderIds.forEach { id -> allActions.find { it.id == id }?.let { ordered.add(it) } }
-            allActions.filter { item -> !ordered.any { it.id == item.id } }.forEach { ordered.add(it) }
-            allActions.clear()
-            allActions.addAll(ordered)
+            orderIds.forEach { id -> rawActions.find { it.id == id }?.let { ordered.add(it) } }
+            rawActions.filter { item -> !ordered.any { it.id == item.id } }.forEach { ordered.add(it) }
+            allActions = ordered
+        } else {
+            allActions = rawActions
         }
 
         val recyclerView = RecyclerView(activity)
@@ -62,13 +64,13 @@ class ManageBottomActionsDialog(val activity: BaseSimpleActivity, val callback: 
         val adapter = ActionAdapter(allActions)
         recyclerView.adapter = adapter
 
-        // Drag para reordenar
         val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
             ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
         ) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
                 val from = vh.adapterPosition
                 val to = target.adapterPosition
+                if (from < 0 || to < 0) return false
                 val item = allActions.removeAt(from)
                 allActions.add(to, item)
                 adapter.notifyItemMoved(from, to)
@@ -94,7 +96,6 @@ class ManageBottomActionsDialog(val activity: BaseSimpleActivity, val callback: 
         var result = 0
         allActions.forEach { if (it.isChecked) result += it.id }
         activity.config.visibleBottomActions = result
-        // Salva a ordem atual
         activity.config.bottomActionsOrder = allActions.joinToString(",") { it.id.toString() }
         callback(result)
     }
@@ -104,7 +105,8 @@ class ManageBottomActionsDialog(val activity: BaseSimpleActivity, val callback: 
 
         var touchHelper: ItemTouchHelper? = null
 
-        inner class ViewHolder(view: View, val checkbox: CheckBox, val dragHandle: ImageButton) : RecyclerView.ViewHolder(view)
+        inner class ViewHolder(view: View, val checkbox: CheckBox, val dragHandle: ImageButton) :
+            RecyclerView.ViewHolder(view)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
             val row = LayoutInflater.from(parent.context)
@@ -116,11 +118,11 @@ class ManageBottomActionsDialog(val activity: BaseSimpleActivity, val callback: 
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val item = items[position]
-            holder.checkbox.text = activity.getString(item.labelRes)
+            holder.checkbox.text = item.label
             holder.checkbox.isChecked = item.isChecked
             holder.checkbox.setOnCheckedChangeListener { _, checked -> item.isChecked = checked }
             holder.dragHandle.setOnTouchListener { _, event ->
-                if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                     touchHelper?.startDrag(holder)
                 }
                 false

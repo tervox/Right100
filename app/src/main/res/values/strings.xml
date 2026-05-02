@@ -267,6 +267,7 @@
     <!-- Bottom actions -->
     <string name="manage_bottom_actions">Manage visible bottom actions</string>
     <string name="drag_to_reorder">Drag to reorder</string>
+    <string name="selection_bar_order">Selection bar order</string>
     <string name="toggle_favorite">Toggle favorite</string>
     <string name="toggle_file_visibility">Toggle file visibility</string>
 
