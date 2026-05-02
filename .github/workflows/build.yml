@@ -24,23 +24,19 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
-
       - name: Fix gradlew permissions
         run: sed -i 's/\r$//' gradlew && chmod +x gradlew
+
+      - name: Download correct gradle-wrapper.jar
+        run: |
+          curl -fsSL "https://services.gradle.org/distributions/gradle-9.3.1-bin.zip" -o /tmp/gradle.zip
+          unzip -p /tmp/gradle.zip "gradle-9.3.1/lib/plugins/gradle-wrapper-main-9.3.1.jar" > gradle/wrapper/gradle-wrapper.jar
+          ls -lh gradle/wrapper/gradle-wrapper.jar
 
       - name: Restore fixed keystore
         run: |
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > keystore.jks
-          cat > keystore.properties << PROPS
-          storeFile=../../keystore.jks
-          storePassword=android
-          keyAlias=androiddebugkey
-          keyPassword=android
-          PROPS
+          printf 'storeFile=../../keystore.jks\nstorePassword=android\nkeyAlias=androiddebugkey\nkeyPassword=android\n' > keystore.properties
 
       - name: Build Debug APK
         run: |
