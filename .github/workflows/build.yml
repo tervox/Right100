@@ -31,8 +31,8 @@ jobs:
 
       - name: Restore fixed keystore
         run: |
-          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > keystore.jks
-          printf 'storeFile=../../keystore.jks\nstorePassword=android\nkeyAlias=androiddebugkey\nkeyPassword=android\n' > keystore.properties
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > app/keystore.jks
+          printf 'storeFile=keystore.jks\nstorePassword=android\nkeyAlias=androiddebugkey\nkeyPassword=android\n' > keystore.properties
 
       - name: Build Debug APK
         run: |
