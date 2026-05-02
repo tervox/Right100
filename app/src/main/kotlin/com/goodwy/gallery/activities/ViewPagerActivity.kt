@@ -1020,6 +1020,49 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             config.muteVideos = !config.muteVideos
             updatePlayerMuteState()
         }
+
+        // Reordena os botões conforme a ordem salva pelo usuário
+        reorderBottomActions()
+    }
+
+    private fun reorderBottomActions() {
+        val savedOrder = config.bottomActionsOrder
+        if (savedOrder.isBlank()) return
+
+        val inner = binding.bottomActions.bottomActionsInner ?: return
+        val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
+        if (orderIds.isEmpty()) return
+
+        // Mapeia action ID → View
+        val actionToView = mapOf(
+            BOTTOM_ACTION_SHARE to binding.bottomActions.bottomShare,
+            BOTTOM_ACTION_TOGGLE_FAVORITE to binding.bottomActions.bottomFavorite,
+            BOTTOM_ACTION_PLAY_PAUSE to binding.bottomActions.bottomPlayPause,
+            BOTTOM_ACTION_MUTE to binding.bottomActions.bottomMute,
+            BOTTOM_ACTION_PROPERTIES to binding.bottomActions.bottomProperties,
+            BOTTOM_ACTION_DELETE to binding.bottomActions.bottomDelete,
+            BOTTOM_ACTION_EDIT to binding.bottomActions.bottomEdit,
+            BOTTOM_ACTION_ROTATE to binding.bottomActions.bottomRotate,
+            BOTTOM_ACTION_CHANGE_ORIENTATION to binding.bottomActions.bottomChangeOrientation,
+            BOTTOM_ACTION_SLIDESHOW to binding.bottomActions.bottomSlideshow,
+            BOTTOM_ACTION_SHOW_ON_MAP to binding.bottomActions.bottomShowOnMap,
+            BOTTOM_ACTION_TOGGLE_VISIBILITY to binding.bottomActions.bottomToggleFileVisibility,
+            BOTTOM_ACTION_RENAME to binding.bottomActions.bottomRename,
+            BOTTOM_ACTION_SET_AS to binding.bottomActions.bottomSetAs,
+            BOTTOM_ACTION_COPY to binding.bottomActions.bottomCopy,
+            BOTTOM_ACTION_MOVE to binding.bottomActions.bottomMove,
+            BOTTOM_ACTION_RESIZE to binding.bottomActions.bottomResize
+        )
+
+        // Remove todas as views e re-adiciona na ordem salva
+        inner.removeAllViews()
+        orderIds.forEach { actionId ->
+            actionToView[actionId]?.let { inner.addView(it) }
+        }
+        // Adiciona views que não estavam na ordem salva (novas features)
+        actionToView.forEach { (actionId, view) ->
+            if (!orderIds.contains(actionId)) inner.addView(view)
+        }
     }
 
     private fun updatePlayerMuteState() {
