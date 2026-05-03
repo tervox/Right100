@@ -213,10 +213,12 @@ class MediaAdapter(
     override fun onActionModeCreated() {
         swipeRefreshLayout?.isRefreshing = false
         swipeRefreshLayout?.isEnabled = false
+        (activity as? MediaActivity)?.showSelectionFab(true)
     }
 
     override fun onActionModeDestroyed() {
         swipeRefreshLayout?.isEnabled = activity.config.enablePullToRefresh
+        (activity as? MediaActivity)?.showSelectionFab(false)
     }
 
     override fun onViewRecycled(holder: ViewHolder) {
@@ -435,13 +437,13 @@ class MediaAdapter(
         }
     }
 
-    private fun moveFilesTo() {
+    internal fun moveFilesTo() {
         activity.handleDeletePasswordProtection {
             checkMediaManagementAndCopy(false)
         }
     }
 
-    private fun checkMediaManagementAndCopy(isCopyOperation: Boolean) {
+    internal fun checkMediaManagementAndCopy(isCopyOperation: Boolean) {
         activity.handleMediaManagementPrompt {
             copyMoveTo(isCopyOperation)
         }

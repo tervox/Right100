@@ -927,6 +927,18 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }.start()
     }
 
+    fun showSelectionFab(show: Boolean) {
+        binding.mediaSelectionFab.beVisibleIf(show)
+        if (show) {
+            binding.fabCopy.setOnClickListener {
+                getMediaAdapter()?.checkMediaManagementAndCopy(true)
+            }
+            binding.fabMove.setOnClickListener {
+                getMediaAdapter()?.moveFilesTo()
+            }
+        }
+    }
+
     private fun isDirEmpty(): Boolean {
         return if (mMedia.isEmpty() && config.filterMedia > 0) {
             if (mPath != FAVORITES && mPath != RECYCLE_BIN) {

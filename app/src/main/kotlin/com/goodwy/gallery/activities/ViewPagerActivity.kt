@@ -1029,11 +1029,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val savedOrder = config.bottomActionsOrder
         if (savedOrder.isBlank()) return
 
-        val inner = binding.bottomActions.bottomActionsWrapper ?: return
+        val wrapper = binding.bottomActions.bottomActionsWrapper ?: return
         val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
         if (orderIds.isEmpty()) return
 
-        // Mapeia action ID → View
         val actionToView = mapOf(
             BOTTOM_ACTION_SHARE to binding.bottomActions.bottomShare,
             BOTTOM_ACTION_TOGGLE_FAVORITE to binding.bottomActions.bottomFavorite,
@@ -1054,15 +1053,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             BOTTOM_ACTION_RESIZE to binding.bottomActions.bottomResize
         )
 
-        // Remove todas as views e re-adiciona na ordem salva
-        inner.removeAllViews()
-        orderIds.forEach { actionId ->
-            actionToView[actionId]?.let { inner.addView(it) }
-        }
-        // Adiciona views que não estavam na ordem salva (novas features)
-        actionToView.forEach { (actionId, view) ->
-            if (!orderIds.contains(actionId)) inner.addView(view)
-        }
+        // Preserva visibilidade atual antes de remover
+        val visibilityMap = actionToView.mapValues { (_, v) -> v.visibility }
+
+        wrapper.removeAllViews()
+        orderIds.forEach { id -> actionToView[id]?.let { wrapper.addView(it) } }
+        actionToView.forEach { (id, view) -> if (!orderIds.contains(id)) wrapper.addView(view) }
+
+        // Restaura visibilidade preservada
+        visibilityMap.forEach { (id, vis) -> actionToView[id]?.visibility = vis }
     }
 
     private fun updatePlayerMuteState() {
