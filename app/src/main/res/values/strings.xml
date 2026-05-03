@@ -267,6 +267,16 @@
     <!-- Bottom actions -->
     <string name="manage_bottom_actions">Manage visible bottom actions</string>
     <string name="drag_to_reorder">Drag to reorder</string>
+    <string name="playpause">Play / Pause</string>
+    <string name="mute">Mudo</string>
+    <string name="properties">Propriedades</string>
+    <string name="delete">Excluir</string>
+    <string name="rename">Renomear</string>
+    <string name="set_as">Definir como</string>
+    <string name="copy">Copiar</string>
+    <string name="move">Mover</string>
+    <string name="resize">Redimensionar</string>
+    <string name="share">Compartilhar</string>
     <string name="selection_bar_order">Selection bar order</string>
     <string name="toggle_favorite">Toggle favorite</string>
     <string name="toggle_file_visibility">Toggle file visibility</string>
