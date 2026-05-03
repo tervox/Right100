@@ -1029,7 +1029,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val savedOrder = config.bottomActionsOrder
         if (savedOrder.isBlank()) return
 
-        val inner = binding.bottomActions.bottomActionsInner ?: return
+        val inner = binding.bottomActions.bottomActionsWrapper ?: return
         val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
         if (orderIds.isEmpty()) return
 
