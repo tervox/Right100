@@ -472,6 +472,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun initBottomActions() {
+        reorderBottomActions()
         initBottomActionButtons()
         initBottomActionsLayout()
     }
@@ -1020,9 +1021,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             config.muteVideos = !config.muteVideos
             updatePlayerMuteState()
         }
-
-        // Reordena os botões conforme a ordem salva pelo usuário
-        reorderBottomActions()
     }
 
     private fun reorderBottomActions() {
@@ -1053,15 +1051,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             BOTTOM_ACTION_RESIZE to binding.bottomActions.bottomResize
         )
 
-        // Preserva visibilidade atual antes de remover
-        val visibilityMap = actionToView.mapValues { (_, v) -> v.visibility }
-
+        // Reordena as views sem tocar na visibilidade — initBottomActionButtons cuida disso depois
         wrapper.removeAllViews()
         orderIds.forEach { id -> actionToView[id]?.let { wrapper.addView(it) } }
         actionToView.forEach { (id, view) -> if (!orderIds.contains(id)) wrapper.addView(view) }
-
-        // Restaura visibilidade preservada
-        visibilityMap.forEach { (id, vis) -> actionToView[id]?.visibility = vis }
     }
 
     private fun updatePlayerMuteState() {
