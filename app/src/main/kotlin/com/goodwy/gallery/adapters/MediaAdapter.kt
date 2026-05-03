@@ -28,6 +28,7 @@ import com.goodwy.commons.interfaces.ItemTouchHelperContract
 import com.goodwy.commons.models.FileDirItem
 import com.goodwy.commons.views.MyRecyclerView
 import com.goodwy.gallery.R
+import com.goodwy.gallery.activities.MediaActivity
 import com.goodwy.gallery.activities.ViewPagerActivity
 import com.goodwy.gallery.databinding.*
 import com.goodwy.gallery.dialogs.BulkRenameDialog
