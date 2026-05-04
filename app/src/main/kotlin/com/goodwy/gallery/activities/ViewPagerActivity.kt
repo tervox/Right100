@@ -472,7 +472,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun initBottomActions() {
-        reorderBottomActions()
         initBottomActionButtons()
         initBottomActionsLayout()
     }
@@ -1024,39 +1023,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
-    private fun reorderBottomActions() {
-        val savedOrder = config.bottomActionsOrder
-        if (savedOrder.isBlank()) return
-
-        val wrapper = binding.bottomActions.bottomActionsWrapper ?: return
-        val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
-        if (orderIds.isEmpty()) return
-
-        val actionToView = mapOf(
-            BOTTOM_ACTION_SHARE to binding.bottomActions.bottomShare,
-            BOTTOM_ACTION_TOGGLE_FAVORITE to binding.bottomActions.bottomFavorite,
-            BOTTOM_ACTION_PLAY_PAUSE to binding.bottomActions.bottomPlayPause,
-            BOTTOM_ACTION_MUTE to binding.bottomActions.bottomMute,
-            BOTTOM_ACTION_PROPERTIES to binding.bottomActions.bottomProperties,
-            BOTTOM_ACTION_DELETE to binding.bottomActions.bottomDelete,
-            BOTTOM_ACTION_EDIT to binding.bottomActions.bottomEdit,
-            BOTTOM_ACTION_ROTATE to binding.bottomActions.bottomRotate,
-            BOTTOM_ACTION_CHANGE_ORIENTATION to binding.bottomActions.bottomChangeOrientation,
-            BOTTOM_ACTION_SLIDESHOW to binding.bottomActions.bottomSlideshow,
-            BOTTOM_ACTION_SHOW_ON_MAP to binding.bottomActions.bottomShowOnMap,
-            BOTTOM_ACTION_TOGGLE_VISIBILITY to binding.bottomActions.bottomToggleFileVisibility,
-            BOTTOM_ACTION_RENAME to binding.bottomActions.bottomRename,
-            BOTTOM_ACTION_SET_AS to binding.bottomActions.bottomSetAs,
-            BOTTOM_ACTION_COPY to binding.bottomActions.bottomCopy,
-            BOTTOM_ACTION_MOVE to binding.bottomActions.bottomMove,
-            BOTTOM_ACTION_RESIZE to binding.bottomActions.bottomResize
-        )
-
-        // Reordena as views sem tocar na visibilidade — initBottomActionButtons cuida disso depois
-        wrapper.removeAllViews()
-        orderIds.forEach { id -> actionToView[id]?.let { wrapper.addView(it) } }
-        actionToView.forEach { (id, view) -> if (!orderIds.contains(id)) wrapper.addView(view) }
-    }
 
     private fun updatePlayerMuteState() {
         val isMuted = config.muteVideos
