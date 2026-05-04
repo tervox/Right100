@@ -1,5 +1,3 @@
-import com.goodwy.commons.extensions.getProperTextColor
-import com.goodwy.commons.extensions.applyColorFilter
 import android.widget.ImageView
 import android.widget.ImageView
 package com.goodwy.gallery.activities
@@ -102,11 +100,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val color = getProperTextColor()
-        findViewById<ImageView>(R.id.bottom_share)?.applyColorFilter(color)
-        findViewById<ImageView>(R.id.bottom_edit)?.applyColorFilter(color)
-        findViewById<ImageView>(R.id.bottom_delete)?.applyColorFilter(color)
-        val color = getProperTextColor()
+        val color = getResources().getColor(android.R.color.white)
+        findViewById<android.widget.ImageView>(R.id.bottom_share)?.setColorFilter(color)
+        findViewById<android.widget.ImageView>(R.id.bottom_edit)?.setColorFilter(color)
+        findViewById<android.widget.ImageView>(R.id.bottom_delete)?.setColorFilter(color)
         setContentView(binding.root)
 
         intent.apply {
@@ -204,8 +201,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             getMediaAdapter()?.updateShowFileTypes(config.showThumbnailFileTypes)
         }
 
-        if (mStoredTextColor != getProperTextColor()) {
-            getMediaAdapter()?.updateTextColor(getProperTextColor())
         }
 
         val primaryColor = getProperPrimaryColor()
@@ -237,7 +232,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         binding.loadingIndicator.setIndicatorColor(getProperPrimaryColor())
-        binding.mediaEmptyTextPlaceholder.setTextColor(getProperTextColor())
         binding.mediaEmptyTextPlaceholder2.setTextColor(getProperPrimaryColor())
         binding.mediaEmptyTextPlaceholder2.bringToFront()
 
@@ -479,7 +473,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun storeStateVariables() {
-        mStoredTextColor = getProperTextColor()
         mStoredPrimaryColor = getProperPrimaryColor()
         config.apply {
             mStoredAnimateGifs = animateGifs
@@ -1389,7 +1382,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val useSurfaceColor = isDynamicTheme() && !isSystemInDarkMode()
         val backgroundColor = if (useSurfaceColor) getSurfaceColor() else getProperBackgroundColor()
         binding.mainTopTabsHolder.setSelectedTabIndicatorColor(backgroundColor)
-        binding.mainTopTabsHolder.setTabTextColors(getProperTextColor(), getProperPrimaryColor())
     }
 
     private fun setupTabs() {
@@ -1404,17 +1396,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 val tab = binding.mainTopTabsHolder.newTab().setText(getTabLabel(index, tabType))
                 tab.contentDescription = getTabLabel(index, tabType)
                 binding.mainTopTabsHolder.addTab(tab, index)
-                binding.mainTopTabsHolder.setTabTextColors(getProperTextColor(),
                     getProperPrimaryColor())
             }
 
             binding.mainTopTabsHolder.onTabSelectionChanged(
                 tabUnselectedAction = {
-                    it.icon?.applyColorFilter(getProperTextColor())
                     it.icon?.alpha = 220 // max 255
                 },
                 tabSelectedAction = {
-                    it.icon?.applyColorFilter(getProperPrimaryColor())
                     it.icon?.alpha = 220 // max 255
                     getMediaAdapter()?.finishActMode()
                     toggleGroup(getTabGroupBy(it.position, tabType), pathToUse, currGrouping)
