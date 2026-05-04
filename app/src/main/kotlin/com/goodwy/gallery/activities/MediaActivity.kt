@@ -1,3 +1,6 @@
+import com.goodwy.commons.extensions.getProperTextColor
+import com.goodwy.commons.extensions.applyColorFilter
+import android.widget.ImageView
 import android.widget.ImageView
 package com.goodwy.gallery.activities
 
@@ -100,9 +103,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val color = getProperTextColor()
-        findViewById<ImageView>(R.id.bottom_share)?.setColorFilter(color)
-        findViewById<ImageView>(R.id.bottom_edit)?.setColorFilter(color)
-        findViewById<ImageView>(R.id.bottom_delete)?.setColorFilter(color)
+        findViewById<ImageView>(R.id.bottom_share)?.applyColorFilter(color)
+        findViewById<ImageView>(R.id.bottom_edit)?.applyColorFilter(color)
+        findViewById<ImageView>(R.id.bottom_delete)?.applyColorFilter(color)
+        val color = getProperTextColor()
         setContentView(binding.root)
 
         intent.apply {
@@ -1381,7 +1385,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
         binding.mainTopTabsBackground.backgroundTintList = ColorStateList.valueOf(tabBackground)
         binding.groupButton.backgroundTintList = ColorStateList.valueOf(tabBackground)
-        binding.groupButton.setColorFilter(getProperTextColor())
 
         val useSurfaceColor = isDynamicTheme() && !isSystemInDarkMode()
         val backgroundColor = if (useSurfaceColor) getSurfaceColor() else getProperBackgroundColor()
