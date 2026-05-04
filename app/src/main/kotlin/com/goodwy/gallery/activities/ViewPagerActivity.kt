@@ -1025,54 +1025,37 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun reorderBottomActions() {
-        try {
-            val savedOrder = config.bottomActionsOrder
-            if (savedOrder.isBlank()) return
+        val savedOrder = config.bottomActionsOrder
+        if (savedOrder.isBlank()) return
 
-            val wrapper = binding.bottomActions.bottomActionsWrapper ?: return
-            val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
-            if (orderIds.isEmpty()) return
+        val wrapper = binding.bottomActions.bottomActionsWrapper ?: return
+        val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
+        if (orderIds.isEmpty()) return
 
-            val actionToView = mapOf(
-                BOTTOM_ACTION_SHARE to binding.bottomActions.bottomShare,
-                BOTTOM_ACTION_TOGGLE_FAVORITE to binding.bottomActions.bottomFavorite,
-                BOTTOM_ACTION_PLAY_PAUSE to binding.bottomActions.bottomPlayPause,
-                BOTTOM_ACTION_MUTE to binding.bottomActions.bottomMute,
-                BOTTOM_ACTION_PROPERTIES to binding.bottomActions.bottomProperties,
-                BOTTOM_ACTION_DELETE to binding.bottomActions.bottomDelete,
-                BOTTOM_ACTION_EDIT to binding.bottomActions.bottomEdit,
-                BOTTOM_ACTION_ROTATE to binding.bottomActions.bottomRotate,
-                BOTTOM_ACTION_CHANGE_ORIENTATION to binding.bottomActions.bottomChangeOrientation,
-                BOTTOM_ACTION_SLIDESHOW to binding.bottomActions.bottomSlideshow,
-                BOTTOM_ACTION_SHOW_ON_MAP to binding.bottomActions.bottomShowOnMap,
-                BOTTOM_ACTION_TOGGLE_VISIBILITY to binding.bottomActions.bottomToggleFileVisibility,
-                BOTTOM_ACTION_RENAME to binding.bottomActions.bottomRename,
-                BOTTOM_ACTION_SET_AS to binding.bottomActions.bottomSetAs,
-                BOTTOM_ACTION_COPY to binding.bottomActions.bottomCopy,
-                BOTTOM_ACTION_MOVE to binding.bottomActions.bottomMove,
-                BOTTOM_ACTION_RESIZE to binding.bottomActions.bottomResize
-            )
+        val actionToView = mapOf(
+            BOTTOM_ACTION_SHARE to binding.bottomActions.bottomShare,
+            BOTTOM_ACTION_TOGGLE_FAVORITE to binding.bottomActions.bottomFavorite,
+            BOTTOM_ACTION_PLAY_PAUSE to binding.bottomActions.bottomPlayPause,
+            BOTTOM_ACTION_MUTE to binding.bottomActions.bottomMute,
+            BOTTOM_ACTION_PROPERTIES to binding.bottomActions.bottomProperties,
+            BOTTOM_ACTION_DELETE to binding.bottomActions.bottomDelete,
+            BOTTOM_ACTION_EDIT to binding.bottomActions.bottomEdit,
+            BOTTOM_ACTION_ROTATE to binding.bottomActions.bottomRotate,
+            BOTTOM_ACTION_CHANGE_ORIENTATION to binding.bottomActions.bottomChangeOrientation,
+            BOTTOM_ACTION_SLIDESHOW to binding.bottomActions.bottomSlideshow,
+            BOTTOM_ACTION_SHOW_ON_MAP to binding.bottomActions.bottomShowOnMap,
+            BOTTOM_ACTION_TOGGLE_VISIBILITY to binding.bottomActions.bottomToggleFileVisibility,
+            BOTTOM_ACTION_RENAME to binding.bottomActions.bottomRename,
+            BOTTOM_ACTION_SET_AS to binding.bottomActions.bottomSetAs,
+            BOTTOM_ACTION_COPY to binding.bottomActions.bottomCopy,
+            BOTTOM_ACTION_MOVE to binding.bottomActions.bottomMove,
+            BOTTOM_ACTION_RESIZE to binding.bottomActions.bottomResize
+        )
 
-            // Garante que todas as views estão no wrapper antes de reordenar
-            actionToView.values.forEach { view ->
-                if (view.parent == null) wrapper.addView(view)
-            }
-
-            // Reordena sem removeAllViews — preserva os LayoutParams de peso/tamanho
-            val allViews = ArrayList<android.view.View>()
-            orderIds.forEach { id -> actionToView[id]?.let { allViews.add(it) } }
-            actionToView.forEach { (id, view) -> if (!orderIds.contains(id)) allViews.add(view) }
-
-            allViews.forEachIndexed { index, view ->
-                val currentIndex = wrapper.indexOfChild(view)
-                if (currentIndex >= 0 && currentIndex != index) {
-                    wrapper.removeView(view)
-                    wrapper.addView(view, minOf(index, wrapper.childCount))
-                }
-            }
-        } catch (_: Exception) {
-            // Se algo der errado na reordenação, ícones continuam na ordem padrão
-        }
+        // Reordena as views sem tocar na visibilidade — initBottomActionButtons cuida disso depois
+        wrapper.removeAllViews()
+        orderIds.forEach { id -> actionToView[id]?.let { wrapper.addView(it) } }
+        actionToView.forEach { (id, view) -> if (!orderIds.contains(id)) wrapper.addView(view) }
     }
 
     private fun updatePlayerMuteState() {

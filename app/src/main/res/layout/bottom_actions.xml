@@ -15,7 +15,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/share"
         android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_share_vector" />
+        android:src="@drawable/ic_ios_share" />
 
     <ImageView
         android:id="@+id/bottom_favorite"
@@ -48,7 +48,7 @@
         android:src="@drawable/ic_vector_speaker_off" />
 
     <ImageView
-        android:id="@+id/bottom_properties"
+        android:id="@+id/bottomProperties"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
