@@ -896,9 +896,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val iconColor = if (baseConfig.topAppBarColorIcon) getProperPrimaryColor() else Color.WHITE
 
         // Setar ícones que não estão definidos no XML (vêm da biblioteca commons via merge de recursos)
-        binding.bottomActions.bottomShare.setImageResource(R.drawable.ic_share_vector)
+        binding.bottomActions.bottomShare.setImageResource(com.goodwy.commons.R.drawable.ic_share_vector)
         binding.bottomActions.bottomFavorite.setImageResource(com.goodwy.commons.R.drawable.ic_star_outline_vector)
-        binding.bottomActions.bottomProperties.setImageResource(R.drawable.ic_info_vector)
+        binding.bottomActions.bottomProperties.setImageResource(com.goodwy.commons.R.drawable.ic_info_vector)
         binding.bottomActions.bottomDelete.setImageResource(com.goodwy.commons.R.drawable.ic_delete_outline)
         binding.bottomActions.bottomEdit.setImageResource(com.goodwy.commons.R.drawable.ic_edit_vector)
         binding.bottomActions.bottomRename.setImageResource(com.goodwy.commons.R.drawable.ic_rename_vector)
