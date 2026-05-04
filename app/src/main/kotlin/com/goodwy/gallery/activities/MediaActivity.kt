@@ -1,3 +1,4 @@
+import android.widget.ImageView
 package com.goodwy.gallery.activities
 
 import android.app.WallpaperManager
