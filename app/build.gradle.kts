@@ -79,7 +79,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
+            // Sem applicationIdSuffix para manter o mesmo ID que o release
+            // e permitir atualização sem desinstalar
             if (keystorePropertiesFile.exists() || hasSigningVars()) {
                 signingConfig = signingConfigs.getByName("release")
             }
