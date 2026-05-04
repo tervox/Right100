@@ -474,6 +474,68 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun initBottomActions() {
         initBottomActionButtons()
         initBottomActionsLayout()
+        reorderBottomActions()
+    }
+
+    private fun reorderBottomActions() {
+        val savedOrder = config.bottomActionsOrder
+        if (savedOrder.isBlank()) return
+
+        val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
+        if (orderIds.isEmpty()) return
+
+        val actionToViewId = mapOf(
+            BOTTOM_ACTION_SHARE to R.id.bottom_share,
+            BOTTOM_ACTION_TOGGLE_FAVORITE to R.id.bottom_favorite,
+            BOTTOM_ACTION_PLAY_PAUSE to R.id.bottom_play_pause,
+            BOTTOM_ACTION_MUTE to R.id.bottom_mute,
+            BOTTOM_ACTION_PROPERTIES to R.id.bottomProperties,
+            BOTTOM_ACTION_DELETE to R.id.bottom_delete,
+            BOTTOM_ACTION_EDIT to R.id.bottom_edit,
+            BOTTOM_ACTION_ROTATE to R.id.bottom_rotate,
+            BOTTOM_ACTION_CHANGE_ORIENTATION to R.id.bottom_change_orientation,
+            BOTTOM_ACTION_SLIDESHOW to R.id.bottom_slideshow,
+            BOTTOM_ACTION_SHOW_ON_MAP to R.id.bottom_show_on_map,
+            BOTTOM_ACTION_TOGGLE_VISIBILITY to R.id.bottom_toggle_file_visibility,
+            BOTTOM_ACTION_RENAME to R.id.bottom_rename,
+            BOTTOM_ACTION_SET_AS to R.id.bottom_set_as,
+            BOTTOM_ACTION_COPY to R.id.bottom_copy,
+            BOTTOM_ACTION_MOVE to R.id.bottom_move,
+            BOTTOM_ACTION_RESIZE to R.id.bottom_resize
+        )
+
+        val wrapper = binding.bottomActions.bottomActionsWrapper
+        // Obtém apenas os view IDs visíveis na ordem salva
+        val visibleIds = orderIds
+            .mapNotNull { actionToViewId[it] }
+            .filter { wrapper.findViewById<android.view.View>(it)?.visibility == android.view.View.VISIBLE }
+
+        // Adiciona IDs visíveis não incluídos na ordem salva ao final
+        val allVisibleIds = visibleIds.toMutableList()
+        actionToViewId.forEach { (_, viewId) ->
+            if (!allVisibleIds.contains(viewId) &&
+                wrapper.findViewById<android.view.View>(viewId)?.visibility == android.view.View.VISIBLE) {
+                allVisibleIds.add(viewId)
+            }
+        }
+
+        if (allVisibleIds.size < 2) return
+
+        // Reconstrói o horizontal chain com ConstraintSet
+        val cs = androidx.constraintlayout.widget.ConstraintSet()
+        cs.clone(wrapper)
+
+        allVisibleIds.forEachIndexed { index, viewId ->
+            val prevId = if (index == 0) androidx.constraintlayout.widget.ConstraintSet.PARENT_ID else allVisibleIds[index - 1]
+            val nextId = if (index == allVisibleIds.lastIndex) androidx.constraintlayout.widget.ConstraintSet.PARENT_ID else allVisibleIds[index + 1]
+            val startSide = if (index == 0) androidx.constraintlayout.widget.ConstraintSet.START else androidx.constraintlayout.widget.ConstraintSet.END
+            val endSide = if (index == allVisibleIds.lastIndex) androidx.constraintlayout.widget.ConstraintSet.END else androidx.constraintlayout.widget.ConstraintSet.START
+
+            cs.connect(viewId, androidx.constraintlayout.widget.ConstraintSet.START, prevId, startSide)
+            cs.connect(viewId, androidx.constraintlayout.widget.ConstraintSet.END, nextId, endSide)
+        }
+
+        cs.applyTo(wrapper)
     }
 
     private fun initFavorites() {
