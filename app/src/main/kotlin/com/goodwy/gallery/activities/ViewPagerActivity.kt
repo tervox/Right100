@@ -1052,10 +1052,18 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             BOTTOM_ACTION_RESIZE to binding.bottomActions.bottomResize
         )
 
-        // Reordena as views sem tocar na visibilidade — initBottomActionButtons cuida disso depois
-        wrapper.removeAllViews()
-        orderIds.forEach { id -> actionToView[id]?.let { wrapper.addView(it) } }
-        actionToView.forEach { (id, view) -> if (!orderIds.contains(id)) wrapper.addView(view) }
+        // Reordena sem removeAllViews — preserva os LayoutParams de peso/tamanho
+        val allViews = ArrayList<android.view.View>()
+        orderIds.forEach { id -> actionToView[id]?.let { allViews.add(it) } }
+        actionToView.forEach { (id, view) -> if (!orderIds.contains(id)) allViews.add(view) }
+
+        allViews.forEachIndexed { index, view ->
+            val currentIndex = wrapper.indexOfChild(view)
+            if (currentIndex != index) {
+                wrapper.removeView(view)
+                wrapper.addView(view, index)
+            }
+        }
     }
 
     private fun updatePlayerMuteState() {
