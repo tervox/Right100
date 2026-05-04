@@ -1,5 +1,3 @@
-import android.widget.ImageView
-import android.widget.ImageView
 package com.goodwy.gallery.activities
 
 import android.app.WallpaperManager
@@ -101,10 +99,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        val color = androidx.core.content.ContextCompat.getColor(this, android.R.color.white)
-        findViewById<android.widget.ImageView>(R.id.bottom_share)?.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
-        findViewById<android.widget.ImageView>(R.id.bottom_edit)?.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
-        findViewById<android.widget.ImageView>(R.id.bottom_delete)?.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
 
         intent.apply {
             mIsGetImageIntent = getBooleanExtra(GET_IMAGE_INTENT, false)
@@ -201,6 +195,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             getMediaAdapter()?.updateShowFileTypes(config.showThumbnailFileTypes)
         }
 
+        if (mStoredTextColor != getProperTextColor()) {
+            getMediaAdapter()?.updateTextColor(getProperTextColor())
         }
 
         val primaryColor = getProperPrimaryColor()
@@ -232,6 +228,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         binding.loadingIndicator.setIndicatorColor(getProperPrimaryColor())
+        binding.mediaEmptyTextPlaceholder.setTextColor(getProperTextColor())
         binding.mediaEmptyTextPlaceholder2.setTextColor(getProperPrimaryColor())
         binding.mediaEmptyTextPlaceholder2.bringToFront()
 
@@ -382,6 +379,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaMenu.requireToolbar().inflateMenu(R.menu.menu_media)
         if (!mShowAll) {
             binding.mediaMenu.requireToolbar().navigationIcon =
+                resources.getColoredDrawableWithColor(this, com.goodwy.commons.R.drawable.ic_chevron_left_vector, Color.WHITE)
             binding.mediaMenu.requireToolbar().setNavigationOnClickListener {
                 super.onBackPressed()
             }
@@ -472,6 +470,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun storeStateVariables() {
+        mStoredTextColor = getProperTextColor()
         mStoredPrimaryColor = getProperPrimaryColor()
         config.apply {
             mStoredAnimateGifs = animateGifs
@@ -1369,14 +1368,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun setupTabsColor() {
         val tabBackground = when {
             isDynamicTheme() && !isSystemInDarkMode() -> getProperBackgroundColor()
+            isLightTheme() -> resources.getColor(R.color.tab_background_light)
+            isGrayTheme() -> resources.getColor(R.color.tab_background_gray)
+            isDarkTheme() -> resources.getColor(R.color.tab_background_dark)
+            isBlackTheme() -> resources.getColor(R.color.tab_background_black)
             else -> getSurfaceColor().adjustAlpha(0.95f)
         }
         binding.mainTopTabsBackground.backgroundTintList = ColorStateList.valueOf(tabBackground)
         binding.groupButton.backgroundTintList = ColorStateList.valueOf(tabBackground)
+        binding.groupButton.setColorFilter(getProperTextColor())
 
         val useSurfaceColor = isDynamicTheme() && !isSystemInDarkMode()
         val backgroundColor = if (useSurfaceColor) getSurfaceColor() else getProperBackgroundColor()
         binding.mainTopTabsHolder.setSelectedTabIndicatorColor(backgroundColor)
+        binding.mainTopTabsHolder.setTabTextColors(getProperTextColor(), getProperPrimaryColor())
     }
 
     private fun setupTabs() {
@@ -1391,14 +1396,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 val tab = binding.mainTopTabsHolder.newTab().setText(getTabLabel(index, tabType))
                 tab.contentDescription = getTabLabel(index, tabType)
                 binding.mainTopTabsHolder.addTab(tab, index)
+                binding.mainTopTabsHolder.setTabTextColors(getProperTextColor(),
                     getProperPrimaryColor())
             }
 
             binding.mainTopTabsHolder.onTabSelectionChanged(
                 tabUnselectedAction = {
+                    it.icon?.applyColorFilter(getProperTextColor())
                     it.icon?.alpha = 220 // max 255
                 },
                 tabSelectedAction = {
+                    it.icon?.applyColorFilter(getProperPrimaryColor())
                     it.icon?.alpha = 220 // max 255
                     getMediaAdapter()?.finishActMode()
                     toggleGroup(getTabGroupBy(it.position, tabType), pathToUse, currGrouping)
