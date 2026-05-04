@@ -14,8 +14,7 @@
         android:layout_weight="1"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/share"
-        android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_ios_share" />
+        android:padding="@dimen/normal_margin" />
 
     <ImageView
         android:id="@+id/bottom_favorite"
@@ -24,8 +23,7 @@
         android:layout_weight="1"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/toggle_favorite"
-        android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_star_outline_vector" />
+        android:padding="@dimen/normal_margin" />
 
     <ImageView
         android:id="@+id/bottom_play_pause"
@@ -54,8 +52,7 @@
         android:layout_weight="1"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/properties"
-        android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_info_vector" />
+        android:padding="@dimen/normal_margin" />
 
     <ImageView
         android:id="@+id/bottom_delete"
@@ -64,8 +61,7 @@
         android:layout_weight="1"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/delete"
-        android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_delete_outline" />
+        android:padding="@dimen/normal_margin" />
 
     <ImageView
         android:id="@+id/bottom_edit"
@@ -74,8 +70,7 @@
         android:layout_weight="1"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/edit"
-        android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_edit_vector" />
+        android:padding="@dimen/normal_margin" />
 
     <ImageView
         android:id="@+id/bottom_rotate"
@@ -134,8 +129,7 @@
         android:layout_weight="1"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/rename"
-        android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_rename_vector" />
+        android:padding="@dimen/normal_margin" />
 
     <ImageView
         android:id="@+id/bottom_set_as"
