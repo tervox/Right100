@@ -98,6 +98,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val color = getProperTextColor()
+        findViewById<ImageView>(R.id.bottom_share)?.setColorFilter(color)
+        findViewById<ImageView>(R.id.bottom_edit)?.setColorFilter(color)
+        findViewById<ImageView>(R.id.bottom_delete)?.setColorFilter(color)
         setContentView(binding.root)
 
         intent.apply {
