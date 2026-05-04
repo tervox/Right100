@@ -100,11 +100,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val color = getResources().getColor(android.R.color.white)
-        findViewById<android.widget.ImageView>(R.id.bottom_share)?.setColorFilter(color)
-        findViewById<android.widget.ImageView>(R.id.bottom_edit)?.setColorFilter(color)
-        findViewById<android.widget.ImageView>(R.id.bottom_delete)?.setColorFilter(color)
         setContentView(binding.root)
+        val color = androidx.core.content.ContextCompat.getColor(this, android.R.color.white)
+        findViewById<android.widget.ImageView>(R.id.bottom_share)?.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
+        findViewById<android.widget.ImageView>(R.id.bottom_edit)?.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
+        findViewById<android.widget.ImageView>(R.id.bottom_delete)?.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
 
         intent.apply {
             mIsGetImageIntent = getBooleanExtra(GET_IMAGE_INTENT, false)
@@ -382,7 +382,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaMenu.requireToolbar().inflateMenu(R.menu.menu_media)
         if (!mShowAll) {
             binding.mediaMenu.requireToolbar().navigationIcon =
-                resources.getColoredDrawableWithColor(this, com.goodwy.commons.R.drawable.ic_chevron_left_vector, Color.WHITE)
             binding.mediaMenu.requireToolbar().setNavigationOnClickListener {
                 super.onBackPressed()
             }
@@ -1370,10 +1369,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun setupTabsColor() {
         val tabBackground = when {
             isDynamicTheme() && !isSystemInDarkMode() -> getProperBackgroundColor()
-            isLightTheme() -> resources.getColor(R.color.tab_background_light)
-            isGrayTheme() -> resources.getColor(R.color.tab_background_gray)
-            isDarkTheme() -> resources.getColor(R.color.tab_background_dark)
-            isBlackTheme() -> resources.getColor(R.color.tab_background_black)
             else -> getSurfaceColor().adjustAlpha(0.95f)
         }
         binding.mainTopTabsBackground.backgroundTintList = ColorStateList.valueOf(tabBackground)
