@@ -936,6 +936,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             binding.fabMove.setOnClickListener {
                 getMediaAdapter()?.moveFilesTo()
             }
+            binding.fabDelete.setOnClickListener {
+                getMediaAdapter()?.askConfirmDelete()
+            }
         }
     }
 
