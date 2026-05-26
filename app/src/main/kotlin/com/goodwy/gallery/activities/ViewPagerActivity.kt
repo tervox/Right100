@@ -1,5 +1,6 @@
 package com.goodwy.gallery.activities
 
+import android.graphics.BitmapFactory
 import android.animation.Animator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
@@ -205,6 +206,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 findItem(R.id.menu_rename).isVisible = visibleBottomActions and BOTTOM_ACTION_RENAME == 0 && !currentMedium.getIsInRecycleBin()
                 findItem(R.id.menu_rotate).isVisible = currentMedium.isImage() && visibleBottomActions and BOTTOM_ACTION_ROTATE == 0
                 findItem(R.id.menu_set_as).isVisible = visibleBottomActions and BOTTOM_ACTION_SET_AS == 0
+                findItem(R.id.menu_extract_text).isVisible = currentMedium.isImage()
                 findItem(R.id.menu_copy_to_clipboard).isVisible = currentMedium.isImage()
                 findItem(R.id.menu_copy_to).isVisible = visibleBottomActions and BOTTOM_ACTION_COPY == 0
                 findItem(R.id.menu_move_to).isVisible = visibleBottomActions and BOTTOM_ACTION_MOVE == 0
@@ -270,6 +272,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 R.id.menu_share -> shareMediumPath(getCurrentPath())
                 R.id.menu_delete -> checkDeleteConfirmation()
                 R.id.menu_rename -> checkMediaManagementAndRename()
+                R.id.menu_extract_text -> extractTextFromImage()
                 R.id.menu_print -> printFile()
                 R.id.menu_edit -> openEditor(getCurrentPath())
                 R.id.menu_properties -> showProperties()
@@ -1598,4 +1601,89 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             binding.bottomActions.bottomPlayPause.setImageResource(R.drawable.ic_pause_vector)
         }
     }
+    private fun extractTextFromImage() {
+        val path = getCurrentMedium()?.path ?: return
+        val ctx = this
+
+        // Mostra progresso enquanto processa
+        val progressDialog = android.app.ProgressDialog(ctx).apply {
+            setMessage(getString(R.string.extracting_text))
+            setCancelable(false)
+            show()
+        }
+
+        ensureBackgroundThread {
+            try {
+                val bitmap = BitmapFactory.decodeFile(path)
+                if (bitmap == null) {
+                    runOnUiThread {
+                        progressDialog.dismiss()
+                        toast(R.string.unknown_error_occurred)
+                    }
+                    return@ensureBackgroundThread
+                }
+
+                // Cria o InputImage e o recognizer localmente — nunca como campo estático
+                val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                )
+
+                recognizer.process(image)
+                    .addOnSuccessListener { result ->
+                        recognizer.close()
+                        bitmap.recycle()
+                        val extractedText = result.text.trim()
+                        runOnUiThread {
+                            progressDialog.dismiss()
+                            showExtractedTextDialog(extractedText)
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        recognizer.close()
+                        bitmap.recycle()
+                        runOnUiThread {
+                            progressDialog.dismiss()
+                            toast(R.string.unknown_error_occurred)
+                        }
+                    }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    progressDialog.dismiss()
+                    toast(R.string.unknown_error_occurred)
+                }
+            }
+        }
+    }
+
+    private fun showExtractedTextDialog(text: String) {
+        if (text.isEmpty()) {
+            toast(R.string.no_text_found)
+            return
+        }
+
+        val builder = getAlertDialogBuilder()
+        builder.setTitle(R.string.extracted_text)
+
+        val textView = android.widget.TextView(this).apply {
+            this.text = text
+            setPadding(60, 40, 60, 20)
+            setTextIsSelectable(true)
+            textSize = 16f
+        }
+
+        val scrollView = android.widget.ScrollView(this).apply {
+            addView(textView)
+        }
+
+        builder.setView(scrollView)
+        builder.setPositiveButton(com.goodwy.commons.R.string.copy) { _, _ ->
+            val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("text", text))
+            toast(com.goodwy.commons.R.string.value_copied_to_clipboard)
+        }
+        builder.setNegativeButton(com.goodwy.commons.R.string.cancel, null)
+        builder.create().show()
+    }
+
 }
