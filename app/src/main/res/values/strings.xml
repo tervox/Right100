@@ -330,8 +330,8 @@
     <string name="faq_18_text">Our apps have no ads whatsoever. If you see them during video playback, you must be using some other apps video player. Try finding your default video player in the device settings, then do a \"Clear defaults\" on it. The next time you invoke some video intent you will see an app picker prompt, where you can select what app you want to use.</string>
     <string name="stretch">Esticar vídeo</string>
     <string name="show_folder_size">Mostrar tamanho das pastas</string>
-</resources>
     <string name="extract_text">Extrair texto</string>
     <string name="extracting_text">Extraindo texto...</string>
     <string name="no_text_found">Nenhum texto encontrado na imagem</string>
     <string name="extracted_text">Texto extraído</string>
+</resources>
