@@ -351,7 +351,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
 
         if (mPath.isEmpty()) {
-            toast(com.goodwy.commons.com.goodwy.commons.R.string.unknown_error_occurred)
+            toast(com.goodwy.commons.R.string.unknown_error_occurred)
             finish()
             return
         }
@@ -1148,7 +1148,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         try {
             val resolution = path.getImageResolution(this)
             if (resolution == null) {
-                toast(com.goodwy.commons.com.goodwy.commons.R.string.unknown_error_occurred)
+                toast(com.goodwy.commons.R.string.unknown_error_occurred)
                 return
             }
 
@@ -1292,7 +1292,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                             }
                         }
                     } else {
-                        toast(com.goodwy.commons.com.goodwy.commons.R.string.unknown_error_occurred)
+                        toast(com.goodwy.commons.R.string.unknown_error_occurred)
                     }
                 }
             }
