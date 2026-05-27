@@ -1603,37 +1603,53 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
     private fun extractTextFromImage() {
         val medium = getCurrentMedium() ?: return
-        val ctx = this
 
-        val progressDialog = android.app.ProgressDialog(ctx).apply {
+        val progressDialog = android.app.ProgressDialog(this).apply {
             setMessage(getString(R.string.extracting_text))
             setCancelable(false)
             show()
         }
 
-        try {
-            // InputImage.fromFilePath funciona corretamente no Android 11+
-            val uri = android.net.Uri.fromFile(java.io.File(medium.path))
-            val image = com.google.mlkit.vision.common.InputImage.fromFilePath(ctx, uri)
-            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-            )
+        ensureBackgroundThread {
+            try {
+                val bitmap = BitmapFactory.decodeFile(medium.path)
+                if (bitmap == null) {
+                    runOnUiThread {
+                        progressDialog.dismiss()
+                        toast("Nao foi possivel ler a imagem")
+                    }
+                    return@ensureBackgroundThread
+                }
 
-            recognizer.process(image)
-                .addOnSuccessListener { result ->
-                    recognizer.close()
-                    val extractedText = result.text.trim()
+                val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                )
+
+                recognizer.process(image)
+                    .addOnSuccessListener { result ->
+                        recognizer.close()
+                        bitmap.recycle()
+                        val text = result.text.trim()
+                        runOnUiThread {
+                            progressDialog.dismiss()
+                            showExtractedTextDialog(text)
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        recognizer.close()
+                        bitmap.recycle()
+                        runOnUiThread {
+                            progressDialog.dismiss()
+                            toast("Erro: ${e.javaClass.simpleName}: ${e.message}")
+                        }
+                    }
+            } catch (e: Exception) {
+                runOnUiThread {
                     progressDialog.dismiss()
-                    showExtractedTextDialog(extractedText)
+                    toast("Excecao: ${e.javaClass.simpleName}: ${e.message}")
                 }
-                .addOnFailureListener { e ->
-                    recognizer.close()
-                    progressDialog.dismiss()
-                    toast(com.goodwy.commons.R.string.unknown_error_occurred)
-                }
-        } catch (e: Exception) {
-            progressDialog.dismiss()
-            toast(com.goodwy.commons.R.string.unknown_error_occurred)
+            }
         }
     }
 
