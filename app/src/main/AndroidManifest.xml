@@ -336,6 +336,10 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
+
         <receiver
             android:name=".receivers.RefreshMediaReceiver"
             android:exported="true">
