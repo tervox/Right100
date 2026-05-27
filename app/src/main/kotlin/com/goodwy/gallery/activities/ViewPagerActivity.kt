@@ -1630,7 +1630,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     .addOnSuccessListener { result ->
                         recognizer.close()
                         bitmap.recycle()
-                        val text = result.text.trim()
+                        val text = result?.text?.trim() ?: ""
                         runOnUiThread {
                             progressDialog.dismiss()
                             showExtractedTextDialog(text)
