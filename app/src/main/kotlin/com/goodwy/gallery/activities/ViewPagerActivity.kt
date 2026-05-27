@@ -1602,57 +1602,38 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
     private fun extractTextFromImage() {
-        val path = getCurrentMedium()?.path ?: return
+        val medium = getCurrentMedium() ?: return
         val ctx = this
 
-        // Mostra progresso enquanto processa
         val progressDialog = android.app.ProgressDialog(ctx).apply {
             setMessage(getString(R.string.extracting_text))
             setCancelable(false)
             show()
         }
 
-        ensureBackgroundThread {
-            try {
-                val bitmap = BitmapFactory.decodeFile(path)
-                if (bitmap == null) {
-                    runOnUiThread {
-                        progressDialog.dismiss()
-                        toast(com.goodwy.commons.R.string.unknown_error_occurred)
-                    }
-                    return@ensureBackgroundThread
+        try {
+            // InputImage.fromFilePath funciona corretamente no Android 11+
+            val uri = android.net.Uri.fromFile(java.io.File(medium.path))
+            val image = com.google.mlkit.vision.common.InputImage.fromFilePath(ctx, uri)
+            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+            )
+
+            recognizer.process(image)
+                .addOnSuccessListener { result ->
+                    recognizer.close()
+                    val extractedText = result.text.trim()
+                    progressDialog.dismiss()
+                    showExtractedTextDialog(extractedText)
                 }
-
-                // Cria o InputImage e o recognizer localmente — nunca como campo estático
-                val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-                val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
-                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-                )
-
-                recognizer.process(image)
-                    .addOnSuccessListener { result ->
-                        recognizer.close()
-                        bitmap.recycle()
-                        val extractedText = result.text.trim()
-                        runOnUiThread {
-                            progressDialog.dismiss()
-                            showExtractedTextDialog(extractedText)
-                        }
-                    }
-                    .addOnFailureListener { e ->
-                        recognizer.close()
-                        bitmap.recycle()
-                        runOnUiThread {
-                            progressDialog.dismiss()
-                            toast(com.goodwy.commons.R.string.unknown_error_occurred)
-                        }
-                    }
-            } catch (e: Exception) {
-                runOnUiThread {
+                .addOnFailureListener { e ->
+                    recognizer.close()
                     progressDialog.dismiss()
                     toast(com.goodwy.commons.R.string.unknown_error_occurred)
                 }
-            }
+        } catch (e: Exception) {
+            progressDialog.dismiss()
+            toast(com.goodwy.commons.R.string.unknown_error_occurred)
         }
     }
 
