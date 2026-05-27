@@ -533,7 +533,7 @@ class MediaAdapter(
         }
     }
 
-    private fun askConfirmDelete() {
+    internal fun askConfirmDelete() {
         val itemsCnt = selectedKeys.size
         val selectedMedia = getSelectedItems()
         val firstPath = selectedMedia.first().path
