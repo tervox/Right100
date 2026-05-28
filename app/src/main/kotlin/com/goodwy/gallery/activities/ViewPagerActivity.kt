@@ -1601,33 +1601,49 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             binding.bottomActions.bottomPlayPause.setImageResource(R.drawable.ic_pause_vector)
         }
     }
+    }
+
     private fun extractTextFromImage() {
         val path = getCurrentMedium()?.path ?: return
-        toast(R.string.extracting_text)
+        val file = java.io.File(path)
+        if (!file.exists()) { toast("Arquivo não encontrado"); return }
+
+        val uri = try {
+            androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+        } catch (e: Exception) {
+            android.net.Uri.fromFile(file)
+        }
+
+        // Tenta Google Lens primeiro (extrai texto nativo)
+        val lensIntent = android.content.Intent("com.google.android.googlequicksearchbox.GOOGLE_SEARCH_ACTIVITY").apply {
+            action = "com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
+        }
+
+        // Intent padrão para OCR via apps instalados
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "image/*"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        // Usa ML Kit de forma segura
         try {
-            val bitmap = BitmapFactory.decodeFile(path) ?: run {
-                toast("Nao foi possivel ler a imagem")
-                return
-            }
-            val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build()
-            )
-            recognizer.process(image)
-                .addOnSuccessListener { result ->
-                    bitmap.recycle()
-                    recognizer.close()
-                    showExtractedTextDialog(result?.text?.trim() ?: "")
+            val opts = com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build()
+            val client = com.google.mlkit.vision.text.TextRecognition.getClient(opts)
+            val bmp = android.provider.MediaStore.Images.Media.getBitmap(contentResolver, uri)
+            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+            client.process(img)
+                .addOnSuccessListener { r ->
+                    bmp.recycle(); client.close()
+                    showExtractedTextDialog(r?.text?.trim() ?: "")
                 }
-                .addOnFailureListener { ex ->
-                    bitmap.recycle()
-                    recognizer.close()
-                    toast("Erro: ${ex?.message?.take(100)}")
-                }
-        } catch (ex: Throwable) {
-            toast("${ex.javaClass.simpleName}: ${ex.message?.take(80)}")
+                .addOnFailureListener { client.close(); bmp?.recycle()
+                    toast("Sem resultado") }
+        } catch (e: Throwable) {
+            toast("${e.javaClass.simpleName}")
         }
     }
+
 
     private fun showExtractedTextDialog(text: String) {
         if (text.isEmpty()) {
