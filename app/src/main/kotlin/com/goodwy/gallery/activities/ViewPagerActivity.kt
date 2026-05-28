@@ -1602,54 +1602,30 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
     private fun extractTextFromImage() {
-        val medium = getCurrentMedium() ?: return
-
-        val progressDialog = android.app.ProgressDialog(this).apply {
-            setMessage(getString(R.string.extracting_text))
-            setCancelable(false)
-            show()
-        }
-
-        ensureBackgroundThread {
-            try {
-                val bitmap = BitmapFactory.decodeFile(medium.path)
-                if (bitmap == null) {
-                    runOnUiThread {
-                        progressDialog.dismiss()
-                        toast("Nao foi possivel ler a imagem")
-                    }
-                    return@ensureBackgroundThread
-                }
-
-                val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-                val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
-                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-                )
-
-                recognizer.process(image)
-                    .addOnSuccessListener { result ->
-                        recognizer.close()
-                        bitmap.recycle()
-                        val text = result?.text?.trim() ?: ""
-                        runOnUiThread {
-                            progressDialog.dismiss()
-                            showExtractedTextDialog(text)
-                        }
-                    }
-                    .addOnFailureListener { e ->
-                        recognizer.close()
-                        bitmap.recycle()
-                        runOnUiThread {
-                            progressDialog.dismiss()
-                            toast("Erro: ${e.javaClass.simpleName}: ${e.message}")
-                        }
-                    }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    progressDialog.dismiss()
-                    toast("Excecao: ${e.javaClass.simpleName}: ${e.message}")
-                }
+        val path = getCurrentMedium()?.path ?: return
+        toast(R.string.extracting_text)
+        try {
+            val bitmap = BitmapFactory.decodeFile(path) ?: run {
+                toast("Nao foi possivel ler a imagem")
+                return
             }
+            val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build()
+            )
+            recognizer.process(image)
+                .addOnSuccessListener { result ->
+                    bitmap.recycle()
+                    recognizer.close()
+                    showExtractedTextDialog(result?.text?.trim() ?: "")
+                }
+                .addOnFailureListener { ex ->
+                    bitmap.recycle()
+                    recognizer.close()
+                    toast("Erro: ${ex?.message?.take(100)}")
+                }
+        } catch (ex: Throwable) {
+            toast("${ex.javaClass.simpleName}: ${ex.message?.take(80)}")
         }
     }
 
