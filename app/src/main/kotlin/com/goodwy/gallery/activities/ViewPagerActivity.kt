@@ -1605,22 +1605,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun extractTextFromImage() {
         val path = getCurrentMedium()?.path ?: return
         try {
-            val bmp = BitmapFactory.decodeFile(path) ?: run { toast("Erro ao ler imagem"); return }
-            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
-            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build()
-            )
-            client.process(img)
-                .addOnSuccessListener { r ->
-                    bmp.recycle(); client.close()
-                    showExtractedTextDialog(r?.text?.trim() ?: "")
+            val file = java.io.File(path)
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "image/*")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                setPackage("com.google.ar.lens")
+            }
+            if (packageManager.resolveActivity(intent, 0) != null) {
+                startActivity(intent)
+            } else {
+                intent.setPackage("com.google.android.googlequicksearchbox")
+                if (packageManager.resolveActivity(intent, 0) != null) {
+                    startActivity(intent)
+                } else {
+                    intent.setPackage(null)
+                    startActivity(android.content.Intent.createChooser(intent, getString(R.string.extract_text)))
                 }
-                .addOnFailureListener { e ->
-                    bmp.recycle(); client.close()
-                    toast("Erro: ${e.message}")
-                }
-        } catch (e: Throwable) {
-            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
+            }
+        } catch (e: Exception) {
+            toast(com.goodwy.commons.R.string.unknown_error_occurred)
         }
     }
 
