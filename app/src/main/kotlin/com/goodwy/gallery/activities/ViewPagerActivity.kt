@@ -1601,78 +1601,44 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             binding.bottomActions.bottomPlayPause.setImageResource(R.drawable.ic_pause_vector)
         }
     }
-    }
-
+    
     private fun extractTextFromImage() {
         val path = getCurrentMedium()?.path ?: return
-        val file = java.io.File(path)
-        if (!file.exists()) { toast("Arquivo não encontrado"); return }
-
-        val uri = try {
-            androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
-        } catch (e: Exception) {
-            android.net.Uri.fromFile(file)
-        }
-
-        // Tenta Google Lens primeiro (extrai texto nativo)
-        val lensIntent = android.content.Intent("com.google.android.googlequicksearchbox.GOOGLE_SEARCH_ACTIVITY").apply {
-            action = "com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
-        }
-
-        // Intent padrão para OCR via apps instalados
-        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = "image/*"
-            putExtra(android.content.Intent.EXTRA_STREAM, uri)
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        // Usa ML Kit de forma segura
         try {
-            val opts = com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build()
-            val client = com.google.mlkit.vision.text.TextRecognition.getClient(opts)
-            val bmp = android.provider.MediaStore.Images.Media.getBitmap(contentResolver, uri)
+            val bmp = BitmapFactory.decodeFile(path) ?: run { toast("Erro ao ler imagem"); return }
             val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
+                com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build()
+            )
             client.process(img)
                 .addOnSuccessListener { r ->
                     bmp.recycle(); client.close()
                     showExtractedTextDialog(r?.text?.trim() ?: "")
                 }
-                .addOnFailureListener { client.close(); bmp?.recycle()
-                    toast("Sem resultado") }
+                .addOnFailureListener { e ->
+                    bmp.recycle(); client.close()
+                    toast("Erro: ${e.message}")
+                }
         } catch (e: Throwable) {
-            toast("${e.javaClass.simpleName}")
+            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
         }
     }
-
 
     private fun showExtractedTextDialog(text: String) {
-        if (text.isEmpty()) {
-            toast(R.string.no_text_found)
-            return
+        if (text.isEmpty()) { toast(R.string.no_text_found); return }
+        val tv = android.widget.TextView(this).apply {
+            this.text = text; setPadding(60,40,60,20)
+            setTextIsSelectable(true); textSize = 16f
         }
-
-        val builder = getAlertDialogBuilder()
-        builder.setTitle(R.string.extracted_text)
-
-        val textView = android.widget.TextView(this).apply {
-            this.text = text
-            setPadding(60, 40, 60, 20)
-            setTextIsSelectable(true)
-            textSize = 16f
-        }
-
-        val scrollView = android.widget.ScrollView(this).apply {
-            addView(textView)
-        }
-
-        builder.setView(scrollView)
-        builder.setPositiveButton(com.goodwy.commons.R.string.copy) { _, _ ->
-            val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("text", text))
-            toast(com.goodwy.commons.R.string.value_copied_to_clipboard)
-        }
-        builder.setNegativeButton(com.goodwy.commons.R.string.cancel, null)
-        builder.create().show()
+        getAlertDialogBuilder()
+            .setTitle(R.string.extracted_text)
+            .setView(android.widget.ScrollView(this).apply { addView(tv) })
+            .setPositiveButton(com.goodwy.commons.R.string.copy) { _,_ ->
+                val cb = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cb.setPrimaryClip(android.content.ClipData.newPlainText("text", text))
+                toast(com.goodwy.commons.R.string.value_copied_to_clipboard)
+            }
+            .setNegativeButton(com.goodwy.commons.R.string.cancel, null)
+            .create().show()
     }
-
 }
