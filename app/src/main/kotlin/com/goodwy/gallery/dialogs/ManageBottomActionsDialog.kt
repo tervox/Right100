@@ -45,6 +45,7 @@ class ManageBottomActionsDialog(val activity: BaseSimpleActivity, val callback: 
             ActionItem(BOTTOM_ACTION_SET_AS, ctx.getString(com.goodwy.commons.R.string.set_as), actions and BOTTOM_ACTION_SET_AS != 0),
             ActionItem(BOTTOM_ACTION_COPY, ctx.getString(com.goodwy.commons.R.string.copy), actions and BOTTOM_ACTION_COPY != 0),
             ActionItem(BOTTOM_ACTION_MOVE, ctx.getString(com.goodwy.commons.R.string.move), actions and BOTTOM_ACTION_MOVE != 0),
+            ActionItem(BOTTOM_ACTION_EXTRACT_TEXT, "Extrair texto", actions and BOTTOM_ACTION_EXTRACT_TEXT != 0),
             ActionItem(BOTTOM_ACTION_RESIZE, ctx.getString(com.goodwy.commons.R.string.resize), actions and BOTTOM_ACTION_RESIZE != 0),
         )
 

@@ -504,7 +504,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             BOTTOM_ACTION_SET_AS to R.id.bottom_set_as,
             BOTTOM_ACTION_COPY to R.id.bottom_copy,
             BOTTOM_ACTION_MOVE to R.id.bottom_move,
-            BOTTOM_ACTION_RESIZE to R.id.bottom_resize
+            BOTTOM_ACTION_RESIZE to R.id.bottom_resize,
+            BOTTOM_ACTION_EXTRACT_TEXT to R.id.bottom_extract_text
         )
 
         val wrapper = binding.bottomActions.bottomActionsWrapper
@@ -965,7 +966,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             binding.bottomActions.bottomEdit, binding.bottomActions.bottomRotate, binding.bottomActions.bottomChangeOrientation,
             binding.bottomActions.bottomSlideshow, binding.bottomActions.bottomShowOnMap, binding.bottomActions.bottomToggleFileVisibility,
             binding.bottomActions.bottomRename, binding.bottomActions.bottomSetAs, binding.bottomActions.bottomCopy,
-            binding.bottomActions.bottomMove, binding.bottomActions.bottomResize
+            binding.bottomActions.bottomMove, binding.bottomActions.bottomResize,
+            binding.bottomActions.bottomExtractText
         ).forEach {
             it.applyColorFilter(iconColor)
         }
@@ -1071,6 +1073,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.bottomActions.bottomMove.setOnClickListener {
             moveFileTo()
         }
+
+        binding.bottomActions.bottomExtractText.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_EXTRACT_TEXT != 0 && currentMedium?.isImage() == true)
+        binding.bottomActions.bottomExtractText.setOnLongClickListener { toast(R.string.extract_text); true }
+        binding.bottomActions.bottomExtractText.setOnClickListener { extractTextFromImage() }
 
         binding.bottomActions.bottomResize.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_RESIZE != 0 && currentMedium?.isImage() == true)
         binding.bottomActions.bottomResize.setOnLongClickListener { toast(com.goodwy.commons.R.string.resize); true }

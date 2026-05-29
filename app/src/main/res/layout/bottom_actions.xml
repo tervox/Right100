@@ -266,6 +266,20 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0" />
 
+
+    <ImageView
+        android:id="@+id/bottom_extract_text"
+        android:layout_width="@dimen/bottom_actions_height"
+        android:layout_height="@dimen/bottom_actions_height"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/extract_text"
+        android:padding="@dimen/normal_margin"
+        android:src="@drawable/ic_label_vector"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/bottom_resize"
+        app:layout_constraintStart_toEndOf="@+id/bottom_move"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <ImageView
         android:id="@+id/bottom_resize"
         android:layout_width="@dimen/list_touch_target_min"
