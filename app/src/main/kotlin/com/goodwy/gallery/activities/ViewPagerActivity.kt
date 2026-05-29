@@ -1604,27 +1604,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     
     private fun extractTextFromImage() {
         val path = getCurrentMedium()?.path ?: return
+        toast(R.string.extracting_text)
         try {
-            val file = java.io.File(path)
-            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
-            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "image/*")
-                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                setPackage("com.google.ar.lens")
+            val bmp = BitmapFactory.decodeFile(path) ?: run {
+                toast("Erro ao ler imagem"); return
             }
-            if (packageManager.resolveActivity(intent, 0) != null) {
-                startActivity(intent)
-            } else {
-                intent.setPackage("com.google.android.googlequicksearchbox")
-                if (packageManager.resolveActivity(intent, 0) != null) {
-                    startActivity(intent)
-                } else {
-                    intent.setPackage(null)
-                    startActivity(android.content.Intent.createChooser(intent, getString(R.string.extract_text)))
+            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
+                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+            )
+            client.process(img)
+                .addOnSuccessListener { r ->
+                    bmp.recycle(); client.close()
+                    showExtractedTextDialog(r?.text?.trim() ?: "")
                 }
-            }
-        } catch (e: Exception) {
-            toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                .addOnFailureListener { e ->
+                    bmp.recycle(); client.close()
+                    toast("Erro: ${e.message}")
+                }
+        } catch (e: Throwable) {
+            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
         }
     }
 
