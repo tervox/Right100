@@ -1616,6 +1616,22 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
         val path = medium.path
 
+        val path = getCurrentMedium()?.path ?: return
+
+        val medium = getCurrentMedium() ?: return
+        if (medium.isVideo()) {
+            extractTextFromVideoFrame()
+            return
+        }
+        val path = medium.path
+
+        val medium = getCurrentMedium() ?: return
+        if (medium.isVideo()) {
+            extractTextFromVideoFrame()
+            return
+        }
+        val path = medium.path
+
         val medium = getCurrentMedium() ?: return
         if (medium.isVideo()) {
             extractTextFromVideoFrame()
@@ -1666,99 +1682,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             toast("Pause o vídeo primeiro"); return
         }
         try {
-            val textureView = fragment.getTextureView() ?: run {
-                toast("Erro ao capturar frame"); return
-            }
-            val bmp = textureView.getBitmap() ?: run {
-                toast("Pause o vídeo e tente novamente"); return
-            }
-            toast(R.string.extracting_text)
-            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
-            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-            )
-            client.process(img)
-                .addOnSuccessListener { r ->
-                    bmp.recycle(); client.close()
-                    showExtractedTextDialog(r?.text?.trim() ?: "")
-                }
-                .addOnFailureListener { e ->
-                    bmp.recycle(); client.close()
-                    toast("Erro: ${e.message}")
-                }
-        } catch (e: Throwable) {
-            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
-        }
-    }
-
-
-    private fun extractTextFromVideoFrame() {
-        val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
-            toast("Pause o vídeo primeiro"); return
-        }
-        try {
-            val textureView = fragment.getTextureView() ?: run {
-                toast("Erro ao capturar frame"); return
-            }
-            val bmp = textureView.getBitmap() ?: run {
-                toast("Pause o vídeo e tente novamente"); return
-            }
-            toast(R.string.extracting_text)
-            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
-            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-            )
-            client.process(img)
-                .addOnSuccessListener { r ->
-                    bmp.recycle(); client.close()
-                    showExtractedTextDialog(r?.text?.trim() ?: "")
-                }
-                .addOnFailureListener { e ->
-                    bmp.recycle(); client.close()
-                    toast("Erro: ${e.message}")
-                }
-        } catch (e: Throwable) {
-            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
-        }
-    }
-
-
-    private fun extractTextFromVideoFrame() {
-        val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
-            toast("Pause o vídeo primeiro"); return
-        }
-        try {
-            val textureView = fragment.binding.videoTextureView ?: run {
-                toast("Erro ao capturar frame"); return
-            }
-            val bmp = textureView.getBitmap() ?: run {
-                toast("Pause o vídeo e tente novamente"); return
-            }
-            toast(com.goodwy.gallery.R.string.extracting_text)
-            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
-            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-            )
-            client.process(img)
-                .addOnSuccessListener { r ->
-                    bmp.recycle(); client.close()
-                    showExtractedTextDialog(r?.text?.trim() ?: "")
-                }
-                .addOnFailureListener { e ->
-                    bmp.recycle(); client.close()
-                    toast("Erro: ${e.message}")
-                }
-        } catch (e: Throwable) {
-            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
-        }
-    }
-
-    private fun extractTextFromVideoFrame() {
-        val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
-            toast("Pause o vídeo primeiro"); return
-        }
-        try {
-            // Buscando o TextureView diretamente pela árvore de Views do fragmento
             val viewGroup = fragment.view as? android.view.ViewGroup ?: run {
                 toast("Erro ao carregar tela do vídeo"); return
             }
