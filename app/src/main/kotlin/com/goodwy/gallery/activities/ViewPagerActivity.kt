@@ -1615,58 +1615,19 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
         val path = medium.path
-        val medium = getCurrentMedium() ?: return
-        if (medium.isVideo()) {
-            extractTextFromVideoFrame()
-            return
-        }
-        val path = medium.path
-
-        val medium = getCurrentMedium() ?: return
-        if (medium.isVideo()) {
-            extractTextFromVideoFrame()
-            return
-        }
-        val path = medium.path
-
-        val medium = getCurrentMedium() ?: return
-        if (medium.isVideo()) {
-            extractTextFromVideoFrame()
-            return
-        }
-        val path = medium.path
-
-        val medium = getCurrentMedium() ?: return
-        if (medium.isVideo()) {
-            extractTextFromVideoFrame()
-            return
-        }
-        val path = medium.path
-
-        
-        toast(R.string.extracting_text)
-        try {
-            val bmp = BitmapFactory.decodeFile(path) ?: run {
-                toast("Erro ao ler imagem"); return
+        toast(com.goodwy.gallery.R.string.extracting_text)
+        val img = com.google.mlkit.vision.common.InputImage.fromFilePath(this, android.net.Uri.fromFile(java.io.File(path)))
+        val client = com.google.mlkit.vision.text.TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
+        client.process(img)
+            .addOnSuccessListener { r ->
+                client.close()
+                showExtractedTextDialog(r?.text?.trim() ?: "")
             }
-            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
-            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-            )
-            client.process(img)
-                .addOnSuccessListener { r ->
-                    bmp.recycle(); client.close()
-                    showExtractedTextDialog(r?.text?.trim() ?: "")
-                }
-                .addOnFailureListener { e ->
-                    bmp.recycle(); client.close()
-                    toast("Erro: ${e.message}")
-                }
-        } catch (e: Throwable) {
-            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
-        }
+            .addOnFailureListener { e ->
+                client.close()
+                toast("Erro: ${e.message}")
+            }
     }
-
 
     private fun extractTextFromVideoFrame() {
         val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
