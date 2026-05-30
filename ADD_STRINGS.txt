@@ -1,0 +1,9 @@
+Adicione estas 4 linhas no arquivo:
+~/Right100/app/src/main/res/values/strings.xml
+
+Antes de </resources>:
+
+    <string name="extract_text">Extrair texto</string>
+    <string name="extracting_text">Extraindo texto...</string>
+    <string name="no_text_found">Nenhum texto encontrado na imagem</string>
+    <string name="extracted_text">Texto extraído</string>
