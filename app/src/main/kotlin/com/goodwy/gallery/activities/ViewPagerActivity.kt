@@ -1074,7 +1074,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             moveFileTo()
         }
 
-        binding.bottomActions.bottomExtractText.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_EXTRACT_TEXT != 0 && (currentMedium?.isImage() == true || currentMedium?.isVideo() == true))
+        binding.bottomActions.bottomExtractText.apply { layoutParams.width = 120; layoutParams.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT }; binding.bottomActions.bottomExtractText.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_EXTRACT_TEXT != 0 && (currentMedium?.isImage() == true || currentMedium?.isVideo() == true))
         binding.bottomActions.bottomExtractText.setOnLongClickListener { toast(R.string.extract_text); true }
         binding.bottomActions.bottomExtractText.setOnClickListener { extractTextFromImage() }
 
