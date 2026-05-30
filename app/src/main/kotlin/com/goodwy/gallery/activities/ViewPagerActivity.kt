@@ -1643,7 +1643,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
         val path = medium.path
 
-        val path = getCurrentMedium()?.path ?: return
+        
         toast(R.string.extracting_text)
         try {
             val bmp = BitmapFactory.decodeFile(path) ?: run {
