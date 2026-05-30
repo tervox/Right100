@@ -1615,16 +1615,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
         val path = medium.path
-
-        val path = getCurrentMedium()?.path ?: return
-
-        val medium = getCurrentMedium() ?: return
-        if (medium.isVideo()) {
-            extractTextFromVideoFrame()
-            return
-        }
-        val path = medium.path
-
         val medium = getCurrentMedium() ?: return
         if (medium.isVideo()) {
             extractTextFromVideoFrame()
@@ -1676,6 +1666,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
         }
     }
+
 
     private fun extractTextFromVideoFrame() {
         val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
