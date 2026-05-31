@@ -233,7 +233,10 @@ class MediaAdapter(
         }
     }
 
-    fun selectAllItems() = selectAll()
+    fun selectAllItems() {
+        if (selectedKeys.isEmpty()) activity.startActionMode(actModeCallback)
+        selectAll()
+    }
 
     fun isASectionTitle(position: Int) = media.getOrNull(position) is ThumbnailSection
 

@@ -1074,7 +1074,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             moveFileTo()
         }
 
-        binding.bottomActions.bottomExtractText.apply { layoutParams.width = 120; layoutParams.height = android.view.ViewGroup.LayoutParams.MATCH_PARENT }; binding.bottomActions.bottomExtractText.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_EXTRACT_TEXT != 0 && (currentMedium?.isImage() == true || currentMedium?.isVideo() == true))
+        binding.bottomActions.bottomExtractText.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_EXTRACT_TEXT != 0 && (currentMedium?.isImage() == true || currentMedium?.isVideo() == true))
         binding.bottomActions.bottomExtractText.setOnLongClickListener { toast(R.string.extract_text); true }
         binding.bottomActions.bottomExtractText.setOnClickListener { extractTextFromImage() }
 
@@ -1684,26 +1684,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
-    /** Escala imagens pequenas e aumenta contraste para melhor precisao do OCR */
-    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap {
-        val minDim = 800
-        val w = src.width; val h = src.height
-        val scaled = if (w < minDim || h < minDim) {
-            val scale = (minDim.toFloat() / minOf(w, h)).coerceAtMost(3f)
-            android.graphics.Bitmap.createScaledBitmap(src, (w * scale).toInt(), (h * scale).toInt(), true)
-        } else src
-        val result = android.graphics.Bitmap.createBitmap(scaled.width, scaled.height, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(result)
-        val cm = android.graphics.ColorMatrix(floatArrayOf(
-            1.5f, 0f, 0f, 0f, -25f,
-            0f, 1.5f, 0f, 0f, -25f,
-            0f, 0f, 1.5f, 0f, -25f,
-            0f, 0f, 0f, 1f, 0f
-        ))
-        val paint = android.graphics.Paint().apply { colorFilter = android.graphics.ColorMatrixColorFilter(cm) }
-        canvas.drawBitmap(scaled, 0f, 0f, paint)
-        return result
-    }
+    /** Retorna o bitmap original — ML Kit funciona melhor sem pre-processamento manual */
+    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap = src
 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
     private fun cleanOcrText(raw: String): String = raw
