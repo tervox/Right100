@@ -749,6 +749,18 @@
                     </RelativeLayout>
 
                     <RelativeLayout
+                        android:id="@+id/settings_video_fill_screen_holder"
+                        style="@style/SettingsHolderSwitchStyle">
+
+                        <com.goodwy.commons.views.MyMaterialSwitch
+                            android:id="@+id/settings_video_fill_screen"
+                            style="@style/SettingsSwitchStyle"
+                            android:text="@string/video_fill_screen"
+                            app:switchPadding="@dimen/bigger_margin" />
+
+                    </RelativeLayout>
+
+                    <RelativeLayout
                         android:id="@+id/settings_hide_system_ui_holder"
                         style="@style/SettingsHolderSwitchStyle">
 

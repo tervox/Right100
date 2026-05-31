@@ -5,6 +5,9 @@ package com.goodwy.gallery.fragments
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.os.Build
 import android.media.MediaMetadataRetriever
 import android.graphics.Point
 import android.graphics.SurfaceTexture
@@ -107,14 +110,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
-    private var mBlurHandler = Handler()
-    private var mBlurBusy = false
-    private val mBlurRunnable = object : Runnable {
-        override fun run() {
-            if (isAdded && mIsPlaying && !mConfig.blackBackground && mConfig.blurBackgroundVideo) liveBlurBackground()
-            if (mIsPlaying) mBlurHandler.postDelayed(this, 500)
-        }
-    }
+    private var mBlurPlayer: ExoPlayer? = null
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -529,44 +525,61 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun loadBlurBackground() {
         if (mConfig.blackBackground || !mConfig.blurBackgroundVideo) {
             binding.videoBlurBg.beGone()
+            binding.videoBlurSurface.beGone()
             binding.videoBlurOverlay.beGone()
             return
         }
-        binding.videoBlurBg.beVisible()
         binding.videoBlurOverlay.beVisible()
-        val target: Any = if (mMedium.path.startsWith("content://"))
-            mMedium.path.toUri() else File(mMedium.path)
-        Glide.with(this)
-            .load(target)
-            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
-            .into(binding.videoBlurBg)
-    }
-
-    private fun liveBlurBackground() {
-        if (mBlurBusy || mExoPlayer == null) return
-        mBlurBusy = true
-        val posMs = mExoPlayer!!.currentPosition
-        val path = mMedium.path
-        val ctx = context ?: run { mBlurBusy = false; return }
-        ensureBackgroundThread {
-            try {
-                val r = MediaMetadataRetriever()
-                if (path.startsWith("content://")) r.setDataSource(ctx, path.toUri())
-                else r.setDataSource(path)
-                val bmp = r.getFrameAtTime(posMs * 1000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                r.release()
-                if (bmp != null && isAdded) {
-                    activity?.runOnUiThread {
-                        if (!isAdded) { bmp.recycle(); mBlurBusy = false; return@runOnUiThread }
-                        Glide.with(requireContext()).load(bmp)
-                            .transform(MultiTransformation(CenterCrop(), BlurTransformation(20, 2)))
-                            .into(binding.videoBlurBg)
-                        mBlurBusy = false
-                    }
-                } else mBlurBusy = false
-            } catch (e: Exception) { mBlurBusy = false }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            binding.videoBlurBg.beGone()
+            binding.videoBlurSurface.beVisible()
+            initBlurPlayer()
+        } else {
+            binding.videoBlurSurface.beGone()
+            binding.videoBlurBg.beVisible()
+            val target: Any = if (mMedium.path.startsWith("content://"))
+                mMedium.path.toUri() else File(mMedium.path)
+            Glide.with(this)
+                .load(target)
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+                .into(binding.videoBlurBg)
         }
     }
+
+    private fun initBlurPlayer() {
+        val path = mMedium.path
+        val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
+        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
+            setMediaItem(MediaItem.fromUri(uri))
+            volume = 0f
+            repeatMode = Player.REPEAT_MODE_ONE
+            prepare()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            binding.videoBlurSurface.setRenderEffect(
+                RenderEffect.createBlurEffect(60f, 60f, Shader.TileMode.CLAMP)
+            )
+        }
+        binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                mBlurPlayer?.setVideoSurface(Surface(st))
+                mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
+                mBlurPlayer?.playWhenReady = mIsPlaying
+            }
+            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
+            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                mBlurPlayer?.clearVideoSurface()
+                return true
+            }
+            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+        }
+    }
+
+    private fun releaseBlurPlayer() {
+        mBlurPlayer?.apply { stop(); release() }
+        mBlurPlayer = null
+    }
+
 
     private fun initExoPlayer() {
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
@@ -930,8 +943,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsPlaying = true
         }
         mExoPlayer?.playWhenReady = true
-        mBlurHandler.removeCallbacks(mBlurRunnable)
-        mBlurHandler.post(mBlurRunnable)
+        mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
+        mBlurPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -943,7 +956,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         listener?.updatePlayPause(true)
 
         mIsPlaying = false
-        mBlurHandler.removeCallbacks(mBlurRunnable)
+        mBlurPlayer?.playWhenReady = false
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
         }
@@ -1063,7 +1076,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mCurrTimeView.text = 0.getFormattedDuration()
             mSeekBar.progress = 0
             mTimerHandler.removeCallbacksAndMessages(null)
-            mBlurHandler.removeCallbacksAndMessages(null)
+            releaseBlurPlayer()
         }
     }
 
@@ -1102,12 +1115,24 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
 
         mTextureView.layoutParams.apply {
-            if (videoProportion > screenProportion) {
-                width = screenWidth
-                height = (screenWidth.toFloat() / videoProportion).toInt()
+            if (mConfig.videoFillScreen) {
+                // Preencher tela: mantém proporção, pode cortar bordas
+                if (videoProportion > screenProportion) {
+                    width = (videoProportion * screenHeight.toFloat()).toInt()
+                    height = screenHeight
+                } else {
+                    width = screenWidth
+                    height = (screenWidth.toFloat() / videoProportion).toInt()
+                }
             } else {
-                width = (videoProportion * screenHeight.toFloat()).toInt()
-                height = screenHeight
+                // Ajustar ao enquadramento: mostra tudo, pode ter barras
+                if (videoProportion > screenProportion) {
+                    width = screenWidth
+                    height = (screenWidth.toFloat() / videoProportion).toInt()
+                } else {
+                    width = (videoProportion * screenHeight.toFloat()).toInt()
+                    height = screenHeight
+                }
             }
             mTextureView.layoutParams = this
         }

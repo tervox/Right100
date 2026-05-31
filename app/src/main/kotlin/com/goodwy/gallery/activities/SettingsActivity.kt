@@ -133,6 +133,7 @@ class SettingsActivity : SimpleActivity() {
         setupDarkBackground()
         setupBlurBackgroundPhoto()
         setupBlurBackgroundVideo()
+        setupVideoFillScreen()
         setupScreenRotation()
         setupHideSystemUI()
         setupFileDeletionPasswordProtection()
@@ -607,6 +608,14 @@ class SettingsActivity : SimpleActivity() {
         binding.settingsBlurBackgroundVideoHolder.setOnClickListener {
             binding.settingsBlurBackgroundVideo.toggle()
             config.blurBackgroundVideo = binding.settingsBlurBackgroundVideo.isChecked
+        }
+    }
+
+    private fun setupVideoFillScreen() {
+        binding.settingsVideoFillScreen.isChecked = config.videoFillScreen
+        binding.settingsVideoFillScreenHolder.setOnClickListener {
+            binding.settingsVideoFillScreen.toggle()
+            config.videoFillScreen = binding.settingsVideoFillScreen.isChecked
         }
     }
 

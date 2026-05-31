@@ -251,6 +251,10 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(BLUR_BACKGROUND_VIDEO, true)
         set(v) = prefs.edit { putBoolean(BLUR_BACKGROUND_VIDEO, v) }
 
+    var videoFillScreen: Boolean
+        get() = prefs.getBoolean(VIDEO_FILL_SCREEN, false)
+        set(v) = prefs.edit { putBoolean(VIDEO_FILL_SCREEN, v) }
+
     var filterMedia: Int
         get() = prefs.getInt(FILTER_MEDIA, getDefaultFileFilter())
         set(filterMedia) = prefs.edit { putInt(FILTER_MEDIA, filterMedia) }

@@ -26,7 +26,13 @@
         android:visibility="gone"
         tools:visibility="visible" />
 
-    <!-- Blur background igual ao das fotos -->
+    <!-- Blur background: TextureView+RenderEffect para API 31+, ImageView estatico para API<31 -->
+    <TextureView
+        android:id="@+id/video_blur_surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <ImageView
         android:id="@+id/video_blur_bg"
         android:layout_width="match_parent"
