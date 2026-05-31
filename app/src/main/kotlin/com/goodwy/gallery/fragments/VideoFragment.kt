@@ -543,7 +543,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val bmp = try {
             binding.videoSurface.getBitmap(maxOf(w / 6, 64), maxOf(h / 6, 48))
         } catch (e: Exception) { mBlurBusy = false; return }
-        if (bmp.width == 0) { bmp.recycle(); mBlurBusy = false; return }
+        if (bmp == null || bmp.width == 0) { bmp?.recycle(); mBlurBusy = false; return }
         Glide.with(this).load(bmp)
             .transform(MultiTransformation(CenterCrop(), BlurTransformation(8, 1)))
             .into(binding.videoBlurBg)
