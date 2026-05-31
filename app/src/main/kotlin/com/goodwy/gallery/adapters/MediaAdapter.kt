@@ -473,13 +473,17 @@ class MediaAdapter(
             activity.applicationContext.rescanFolderMedia(fileDirItems.first().getParentPath())
 
             val newPaths = fileDirItems.map { "$destinationPath/${it.name}" }.toMutableList() as ArrayList<String>
-            activity.rescanPaths(newPaths) {
-                activity.fixDateTaken(newPaths, false)
-            }
 
             if (!isCopyOperation) {
-                listener?.refreshItems()
+                // Refresh imediato: itens somem da tela sem esperar MediaStore
+                activity.runOnUiThread { listener?.refreshItems() }
                 activity.updateFavoritePaths(fileDirItems, destinationPath)
+            }
+
+            activity.rescanPaths(newPaths) {
+                activity.fixDateTaken(newPaths, false)
+                // Segundo refresh apos MediaStore atualizar
+                if (!isCopyOperation) activity.runOnUiThread { listener?.refreshItems() }
             }
         }
     }

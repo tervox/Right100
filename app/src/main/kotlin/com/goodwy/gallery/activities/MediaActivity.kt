@@ -108,6 +108,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         binding.mediaRefreshLayout.setOnRefreshListener { getMedia() }
+        setupSelectAllFab()
         try {
             mPath = intent.getStringExtra(DIRECTORY) ?: ""
         } catch (e: Exception) {
@@ -925,6 +926,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 } catch (_: Exception) {}
             }
         }.start()
+    }
+
+    private fun setupSelectAllFab() {
+        binding.fabSelectAll.beVisibleIf(config.showSelectAllFab)
+        if (config.showSelectAllFab) {
+            binding.fabSelectAll.setOnClickListener { getMediaAdapter()?.selectAll() }
+        }
     }
 
     fun showSelectionFab(show: Boolean) {

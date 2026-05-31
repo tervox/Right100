@@ -641,4 +641,8 @@ class Config(context: Context) : BaseConfig(context) {
     var fontSizeDir: Int
         get() = prefs.getInt(FONT_SIZE_DIR, FONT_SIZE_MEDIUM)
         set(size) = prefs.edit { putInt(FONT_SIZE_DIR, size) }
+
+    var showSelectAllFab: Boolean
+        get() = prefs.getBoolean(SHOW_SELECT_ALL_FAB, false)
+        set(v) = prefs.edit { putBoolean(SHOW_SELECT_ALL_FAB, v) }
 }

@@ -150,6 +150,7 @@ class SettingsActivity : SimpleActivity() {
         setupAllowInstantChange()
 
         setupBottomActions()
+        setupSelectAllFab()
         setupManageBottomActions()
 
         setupHiddenItemPasswordProtection()
@@ -956,6 +957,14 @@ class SettingsActivity : SimpleActivity() {
             else -> R.string.screen_rotation_aspect_ratio
         }
     )
+
+    private fun setupSelectAllFab() {
+        binding.settingsSelectAllFab.isChecked = config.showSelectAllFab
+        binding.settingsSelectAllFabHolder.setOnClickListener {
+            binding.settingsSelectAllFab.toggle()
+            config.showSelectAllFab = binding.settingsSelectAllFab.isChecked
+        }
+    }
 
     private fun setupBottomActions() {
         binding.settingsBottomActionsCheckbox.isChecked = config.bottomActions

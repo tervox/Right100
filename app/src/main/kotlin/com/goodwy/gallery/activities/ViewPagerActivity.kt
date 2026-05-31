@@ -206,7 +206,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 findItem(R.id.menu_rename).isVisible = visibleBottomActions and BOTTOM_ACTION_RENAME == 0 && !currentMedium.getIsInRecycleBin()
                 findItem(R.id.menu_rotate).isVisible = currentMedium.isImage() && visibleBottomActions and BOTTOM_ACTION_ROTATE == 0
                 findItem(R.id.menu_set_as).isVisible = visibleBottomActions and BOTTOM_ACTION_SET_AS == 0
-                findItem(R.id.menu_extract_text).isVisible = currentMedium.isImage()
+                findItem(R.id.menu_extract_text).isVisible = currentMedium.isImage() || currentMedium.isVideo()
                 findItem(R.id.menu_copy_to_clipboard).isVisible = currentMedium.isImage()
                 findItem(R.id.menu_copy_to).isVisible = visibleBottomActions and BOTTOM_ACTION_COPY == 0
                 findItem(R.id.menu_move_to).isVisible = visibleBottomActions and BOTTOM_ACTION_MOVE == 0
@@ -1610,53 +1610,59 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     
     private fun extractTextFromImage() {
         val medium = getCurrentMedium() ?: return
-        if (medium.isVideo()) {
-            extractTextFromVideoFrame()
-            return
-        }
-        val path = medium.path
+        if (medium.isVideo()) { extractTextFromVideoFrame(); return }
         toast(com.goodwy.gallery.R.string.extracting_text)
-        val img = com.google.mlkit.vision.common.InputImage.fromFilePath(this, android.net.Uri.fromFile(java.io.File(path)))
-        val client = com.google.mlkit.vision.text.TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
-        client.process(img)
-            .addOnSuccessListener { r ->
-                client.close()
-                showExtractedTextDialog(r?.text?.trim() ?: "")
+        ensureBackgroundThread {
+            try {
+                val raw = android.graphics.BitmapFactory.decodeFile(medium.path)
+                    ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
+                val bmp = preprocessForOcr(raw)
+                val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+                val client = com.google.mlkit.vision.text.TextRecognition.getClient(
+                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                )
+                client.process(img)
+                    .addOnSuccessListener { r ->
+                        if (bmp !== raw) bmp.recycle()
+                        client.close()
+                        runOnUiThread { showExtractedTextDialog(cleanOcrText(r?.text ?: "")) }
+                    }
+                    .addOnFailureListener { e ->
+                        if (bmp !== raw) bmp.recycle()
+                        client.close()
+                        runOnUiThread { toast("Erro OCR: " + (e.localizedMessage?.take(80) ?: "")) }
+                    }
+            } catch (e: Throwable) {
+                runOnUiThread { toast("Erro: " + (e.localizedMessage?.take(80) ?: "")) }
             }
-            .addOnFailureListener { e ->
-                client.close()
-                toast("Erro: ${e.message}")
-            }
+        }
     }
 
     private fun extractTextFromVideoFrame() {
         val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
-            toast("Pause o vídeo primeiro"); return
+            toast("Pause o video primeiro"); return
         }
         try {
             val viewGroup = fragment.view as? android.view.ViewGroup ?: run {
-                toast("Erro ao carregar tela do vídeo"); return
+                toast("Erro ao carregar tela do video"); return
             }
-            
             fun findTextureView(view: android.view.View): android.view.TextureView? {
                 if (view is android.view.TextureView) return view
                 if (view is android.view.ViewGroup) {
                     for (i in 0 until view.childCount) {
-                        val bound = findTextureView(view.getChildAt(i))
-                        if (bound != null) return bound
+                        val r = findTextureView(view.getChildAt(i))
+                        if (r != null) return r
                     }
                 }
                 return null
             }
-            
             val textureView = findTextureView(viewGroup) ?: run {
-                toast("Abra ou pause o vídeo para capturar"); return
+                toast("Abra ou pause o video para capturar"); return
             }
-            
-            val bmp = textureView.getBitmap() ?: run {
-                toast("Erro ao capturar frame atual"); return
+            val raw = textureView.getBitmap() ?: run {
+                toast("Erro ao capturar frame do video"); return
             }
-            
+            val bmp = preprocessForOcr(raw)
             toast(com.goodwy.gallery.R.string.extracting_text)
             val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
             val client = com.google.mlkit.vision.text.TextRecognition.getClient(
@@ -1664,28 +1670,58 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             )
             client.process(img)
                 .addOnSuccessListener { r ->
-                    bmp.recycle(); client.close()
-                    showExtractedTextDialog(r?.text?.trim() ?: "")
+                    if (bmp !== raw) bmp.recycle()
+                    raw.recycle(); client.close()
+                    showExtractedTextDialog(cleanOcrText(r?.text ?: ""))
                 }
                 .addOnFailureListener { e ->
-                    bmp.recycle(); client.close()
-                    toast("Erro: ${e.message}")
+                    if (bmp !== raw) bmp.recycle()
+                    raw.recycle(); client.close()
+                    toast("Erro OCR video: " + (e.localizedMessage?.take(80) ?: ""))
                 }
         } catch (e: Throwable) {
-            toast("${e.javaClass.simpleName}: ${e.message?.take(80)}")
+            toast(e.javaClass.simpleName + ": " + (e.localizedMessage?.take(80) ?: ""))
         }
     }
+
+    /** Escala imagens pequenas e aumenta contraste para melhor precisao do OCR */
+    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap {
+        val minDim = 800
+        val w = src.width; val h = src.height
+        val scaled = if (w < minDim || h < minDim) {
+            val scale = (minDim.toFloat() / minOf(w, h)).coerceAtMost(3f)
+            android.graphics.Bitmap.createScaledBitmap(src, (w * scale).toInt(), (h * scale).toInt(), true)
+        } else src
+        val result = android.graphics.Bitmap.createBitmap(scaled.width, scaled.height, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(result)
+        val cm = android.graphics.ColorMatrix(floatArrayOf(
+            1.5f, 0f, 0f, 0f, -25f,
+            0f, 1.5f, 0f, 0f, -25f,
+            0f, 0f, 1.5f, 0f, -25f,
+            0f, 0f, 0f, 1f, 0f
+        ))
+        val paint = android.graphics.Paint().apply { colorFilter = android.graphics.ColorMatrixColorFilter(cm) }
+        canvas.drawBitmap(scaled, 0f, 0f, paint)
+        return result
+    }
+
+    /** Remove linhas vazias e normaliza espacos no texto OCR */
+    private fun cleanOcrText(raw: String): String = raw
+        .lines().map { it.trim() }.filter { it.isNotBlank() }
+        .joinToString("\n")
+        .replace(Regex("  +"), " ")
+        .trim()
 
     private fun showExtractedTextDialog(text: String) {
         if (text.isEmpty()) { toast(R.string.no_text_found); return }
         val tv = android.widget.TextView(this).apply {
-            this.text = text; setPadding(60,40,60,20)
+            this.text = text; setPadding(60, 40, 60, 20)
             setTextIsSelectable(true); textSize = 16f
         }
         getAlertDialogBuilder()
             .setTitle(R.string.extracted_text)
             .setView(android.widget.ScrollView(this).apply { addView(tv) })
-            .setPositiveButton(com.goodwy.commons.R.string.copy) { _,_ ->
+            .setPositiveButton(com.goodwy.commons.R.string.copy) { _, _ ->
                 val cb = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 cb.setPrimaryClip(android.content.ClipData.newPlainText("text", text))
                 toast(com.goodwy.commons.R.string.value_copied_to_clipboard)

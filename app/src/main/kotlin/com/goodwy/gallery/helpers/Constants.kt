@@ -303,6 +303,8 @@ fun getPermissionsToRequest(): Collection<Int> {
     return permissions
 }
 
+const val SHOW_SELECT_ALL_FAB = "show_select_all_fab"
+
 const val TAB_ONE = 0
 const val TAB_TWO = 2
 const val TAB_THREE = 4

@@ -334,4 +334,5 @@
     <string name="extracting_text">Extraindo texto...</string>
     <string name="no_text_found">Nenhum texto encontrado na imagem</string>
     <string name="extracted_text">Texto extraído</string>
+    <string name="select_all_fab_setting">Botao flutuante de selecionar todos</string>
 </resources>
