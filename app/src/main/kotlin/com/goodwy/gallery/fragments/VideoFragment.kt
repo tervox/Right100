@@ -106,13 +106,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
-    private var mBlurHandler = Handler()
-    private val mBlurRunnable: Runnable = object : Runnable {
-        override fun run() {
-            if (isAdded && !mConfig.blackBackground && mConfig.blurBackgroundVideo) updateBlurBackground()
-            if (mIsPlaying) mBlurHandler.postDelayed(this, 800)
-        }
-    }
+    private var mBlurFrameCount = 0
+    private var mBlurBusy = false
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -541,14 +536,18 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun updateBlurBackground() {
-        if (!isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
+        if (!isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) { mBlurBusy = false; return }
+        val w = binding.videoSurface.width
+        val h = binding.videoSurface.height
+        if (w <= 0 || h <= 0) { mBlurBusy = false; return }
         val bmp = try {
-            val b = binding.videoSurface.getBitmap()
-            if (b == null || b.width == 0) null else b
-        } catch (e: Exception) { null } ?: return
+            binding.videoSurface.getBitmap(maxOf(w / 6, 64), maxOf(h / 6, 48))
+        } catch (e: Exception) { mBlurBusy = false; return }
+        if (bmp.width == 0) { bmp.recycle(); mBlurBusy = false; return }
         Glide.with(this).load(bmp)
-            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(8, 1)))
             .into(binding.videoBlurBg)
+        mBlurBusy = false
     }
 
     private fun initExoPlayer() {
@@ -913,8 +912,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsPlaying = true
         }
         mExoPlayer?.playWhenReady = true
-        mBlurHandler.removeCallbacks(mBlurRunnable)
-        mBlurHandler.post(mBlurRunnable)
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -926,7 +923,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         listener?.updatePlayPause(true)
 
         mIsPlaying = false
-        mBlurHandler.removeCallbacks(mBlurRunnable)
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
         }
@@ -1046,7 +1042,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mCurrTimeView.text = 0.getFormattedDuration()
             mSeekBar.progress = 0
             mTimerHandler.removeCallbacksAndMessages(null)
-            mBlurHandler.removeCallbacksAndMessages(null)
         }
     }
 
@@ -1061,7 +1056,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        if (mBlurBusy || mConfig.blackBackground || !mConfig.blurBackgroundVideo || !mIsPlaying) return
+        if (++mBlurFrameCount % 12 != 0) return
+        mBlurBusy = true
+        mBlurFrameCount = 0
+        updateBlurBackground()
+    }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture) = false
 
