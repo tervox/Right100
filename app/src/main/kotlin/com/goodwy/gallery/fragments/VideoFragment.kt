@@ -184,6 +184,23 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 setOnClickListener { toggleVideoStretch() }
             }
 
+            bottomVideoTimeHolder.videoFillScreen.apply {
+                beVisible()
+                setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
+                setOnClickListener {
+                    mConfig.videoFillScreen = !mConfig.videoFillScreen
+                    // Se ativar preencher, desativa modo esticado
+                    if (mConfig.videoFillScreen && mVideoFillMode != 0) {
+                        mVideoFillMode = 0
+                        binding.bottomVideoTimeHolder.videoStretch.setImageResource(R.drawable.ic_maximize_vector)
+                    }
+                    binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(
+                        if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free
+                    )
+                    setVideoSize()
+                }
+            }
+
             videoSurfaceFrame.controller.settings.swallowDoubleTaps = true
 
             videoPlayOutline.setOnClickListener {
@@ -660,6 +677,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
                     mSeekBar.progress = 0
                     mCurrTimeView.text = 0.getFormattedDuration()
+                } else {
+                    // Usuário avançou/voltou: sincroniza o blur player
+                    mBlurPlayer?.seekTo(newPosition.positionMs)
                 }
             }
 
@@ -1065,6 +1085,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 else -> R.drawable.ic_maximize_vector
             }
         )
+        // Modo esticado e preencher são exclusivos
+        if (mVideoFillMode == 1 && mConfig.videoFillScreen) {
+            mConfig.videoFillScreen = false
+            binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(R.drawable.ic_crop_free)
+        }
     }
 
     private fun cleanup() {
@@ -1135,6 +1160,19 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 }
             }
             mTextureView.layoutParams = this
+        }
+        // Dimensiona blur surface com CENTER_CROP: mantém proporção, ocupa toda a tela
+        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            binding.videoBlurSurface.layoutParams.apply {
+                if (videoProportion > screenProportion) {
+                    width = (videoProportion * screenHeight.toFloat()).toInt()
+                    height = screenHeight
+                } else {
+                    width = screenWidth
+                    height = (screenWidth.toFloat() / videoProportion).toInt()
+                }
+                binding.videoBlurSurface.layoutParams = this
+            }
         }
     }
 

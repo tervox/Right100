@@ -86,6 +86,20 @@
             android:padding="@dimen/medium_margin"
             android:src="@drawable/ic_vector_speaker_on"
             android:visibility="visible"
+            app:layout_constraintEnd_toStartOf="@+id/videoFillScreen"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/videoFillScreen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/ripple_all_corners_56dp"
+            android:contentDescription="@string/video_fill_screen"
+            android:gravity="center"
+            android:padding="@dimen/medium_margin"
+            android:src="@drawable/ic_crop_free"
+            android:visibility="visible"
             app:layout_constraintEnd_toStartOf="@+id/videoStretch"
             app:layout_constraintTop_toTopOf="parent"
             tools:visibility="visible" />
