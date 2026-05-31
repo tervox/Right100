@@ -48,6 +48,10 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.MultiTransformation
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import jp.wasabeef.glide.transformations.BlurTransformation
+import java.io.File
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
 import com.goodwy.commons.helpers.ensureBackgroundThread
@@ -103,6 +107,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
+    private var mBlurHandler = Handler()
+    private val mBlurRunnable: Runnable = object : Runnable {
+        override fun run() {
+            if (isAdded && !mConfig.blackBackground && mConfig.blurBackgroundVideo) updateBlurBackground()
+            if (mIsPlaying) mBlurHandler.postDelayed(this, 800)
+        }
+    }
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -384,6 +395,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         checkExtendedDetails()
         initTimeHolder()
+        loadBlurBackground()
         storeStateVariables()
         context?.let { (mSeekBar as MySeekBar?)!!.setColors(
             it.getProperTextColor(),
@@ -511,6 +523,33 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 mTimerHandler.postDelayed(this, UPDATE_INTERVAL_MS)
             }
         })
+    }
+
+    private fun loadBlurBackground() {
+        if (mConfig.blackBackground || !mConfig.blurBackgroundVideo) {
+            binding.videoBlurBg.beGone()
+            binding.videoBlurOverlay.beGone()
+            return
+        }
+        binding.videoBlurBg.beVisible()
+        binding.videoBlurOverlay.beVisible()
+        val target: Any = if (mMedium.path.startsWith("content://"))
+            mMedium.path.toUri() else File(mMedium.path)
+        Glide.with(this)
+            .load(target)
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+            .into(binding.videoBlurBg)
+    }
+
+    private fun updateBlurBackground() {
+        if (!isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
+        val bmp = try {
+            val b = binding.videoSurface.getBitmap()
+            if (b == null || b.width == 0) null else b
+        } catch (e: Exception) { null } ?: return
+        Glide.with(this).load(bmp)
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+            .into(binding.videoBlurBg)
     }
 
     private fun initExoPlayer() {
@@ -875,6 +914,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsPlaying = true
         }
         mExoPlayer?.playWhenReady = true
+        mBlurHandler.removeCallbacks(mBlurRunnable)
+        mBlurHandler.post(mBlurRunnable)
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -886,6 +927,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         listener?.updatePlayPause(true)
 
         mIsPlaying = false
+        mBlurHandler.removeCallbacks(mBlurRunnable)
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
         }
@@ -1005,6 +1047,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mCurrTimeView.text = 0.getFormattedDuration()
             mSeekBar.progress = 0
             mTimerHandler.removeCallbacksAndMessages(null)
+            mBlurHandler.removeCallbacksAndMessages(null)
         }
     }
 
