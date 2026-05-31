@@ -233,6 +233,8 @@ class MediaAdapter(
         }
     }
 
+    fun selectAllItems() = selectAll()
+
     fun isASectionTitle(position: Int) = media.getOrNull(position) is ThumbnailSection
 
     private fun checkHideBtnVisibility(menu: Menu, selectedItems: ArrayList<Medium>) {
