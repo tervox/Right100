@@ -725,6 +725,30 @@
                     </RelativeLayout>
 
                     <RelativeLayout
+                        android:id="@+id/settings_blur_background_photo_holder"
+                        style="@style/SettingsHolderSwitchStyle">
+
+                        <com.goodwy.commons.views.MyMaterialSwitch
+                            android:id="@+id/settings_blur_background_photo"
+                            style="@style/SettingsSwitchStyle"
+                            android:text="@string/blur_background_photo"
+                            app:switchPadding="@dimen/bigger_margin" />
+
+                    </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_blur_background_video_holder"
+                        style="@style/SettingsHolderSwitchStyle">
+
+                        <com.goodwy.commons.views.MyMaterialSwitch
+                            android:id="@+id/settings_blur_background_video"
+                            style="@style/SettingsSwitchStyle"
+                            android:text="@string/blur_background_video"
+                            app:switchPadding="@dimen/bigger_margin" />
+
+                    </RelativeLayout>
+
+                    <RelativeLayout
                         android:id="@+id/settings_hide_system_ui_holder"
                         style="@style/SettingsHolderSwitchStyle">
 
