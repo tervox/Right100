@@ -750,6 +750,7 @@
 
                     <RelativeLayout
                         android:id="@+id/settings_video_fill_screen_holder"
+                        android:visibility="gone"
                         style="@style/SettingsHolderSwitchStyle">
 
                         <com.goodwy.commons.views.MyMaterialSwitch

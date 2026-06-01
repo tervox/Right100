@@ -28,8 +28,7 @@
             android:src="@drawable/ic_previous_vector"
             android:visibility="gone"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:visibility="visible" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/videoTogglePlayPause"
@@ -41,8 +40,7 @@
             android:src="@drawable/ic_play_vector"
             android:visibility="visible"
             app:layout_constraintStart_toEndOf="@+id/videoPrevFile"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:visibility="visible" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/videoNextFile"
@@ -54,8 +52,7 @@
             android:src="@drawable/ic_next_vector"
             android:visibility="gone"
             app:layout_constraintStart_toEndOf="@+id/videoTogglePlayPause"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:visibility="visible" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/videoPlaybackSpeed"
@@ -73,8 +70,7 @@
             android:visibility="visible"
             app:layout_constraintEnd_toStartOf="@+id/videoToggleMute"
             app:layout_constraintTop_toTopOf="parent"
-            tools:text="1x"
-            tools:visibility="visible" />
+            tools:text="1x" />
 
         <ImageView
             android:id="@+id/videoToggleMute"
@@ -87,8 +83,7 @@
             android:src="@drawable/ic_vector_speaker_on"
             android:visibility="visible"
             app:layout_constraintEnd_toStartOf="@+id/videoFillScreen"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:visibility="visible" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/videoFillScreen"
@@ -99,10 +94,9 @@
             android:gravity="center"
             android:padding="@dimen/medium_margin"
             android:src="@drawable/ic_crop_free"
-            android:visibility="visible"
+            android:visibility="gone"
             app:layout_constraintEnd_toStartOf="@+id/videoStretch"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:visibility="visible" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/videoStretch"
@@ -113,10 +107,9 @@
             android:gravity="center"
             android:padding="@dimen/medium_margin"
             android:src="@drawable/ic_maximize_vector"
-            android:visibility="visible"
+            android:visibility="gone"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:visibility="visible" />
+            app:layout_constraintTop_toTopOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <TextView

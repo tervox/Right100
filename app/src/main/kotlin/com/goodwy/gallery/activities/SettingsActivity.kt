@@ -133,7 +133,7 @@ class SettingsActivity : SimpleActivity() {
         setupDarkBackground()
         setupBlurBackgroundPhoto()
         setupBlurBackgroundVideo()
-        setupVideoFillScreen()
+        // setupVideoFillScreen()
         setupScreenRotation()
         setupHideSystemUI()
         setupFileDeletionPasswordProtection()
