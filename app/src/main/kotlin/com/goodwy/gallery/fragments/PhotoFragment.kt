@@ -430,8 +430,9 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
+            // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(BlurTransformation(20, 2))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
                 .load(mMedium.path)
                 .apply(options)
@@ -510,6 +511,22 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadWithGlide(path: String, addZoomableView: Boolean) {
         if (!::mMedium.isInitialized) {
+            return
+        }
+
+        if (path.isGif()) {
+            binding.gesturesView.beGone()
+            binding.subsamplingView.beGone()
+            binding.gifViewFrame.beVisible()
+            
+            val priority = if (mIsFragmentVisible) Priority.IMMEDIATE else Priority.NORMAL
+            Glide.with(this)
+                .asGif()
+                .load(path)
+                .priority(priority)
+                .diskCacheStrategy(DiskCacheStrategy.NONE) // GIFs travam menos sem cache agressivo
+                .override(mScreenWidth / 2, mScreenHeight / 2) // Otimiza para o Samsung A05
+                .into(binding.gifView)
             return
         }
 

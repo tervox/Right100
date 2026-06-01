@@ -557,17 +557,24 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             return
         }
 
-        binding.videoBlurOverlay.beVisible()
-        binding.videoBlurSurface.beGone()
-        binding.videoBlurBg.beVisible()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            binding.videoBlurOverlay.beVisible()
+            binding.videoBlurSurface.beVisible()
+            binding.videoBlurBg.beGone()
+            initBlurPlayer()
+        } else {
+            binding.videoBlurOverlay.beVisible()
+            binding.videoBlurSurface.beGone()
+            binding.videoBlurBg.beVisible()
 
-        val target: Any = if (mMedium.path.startsWith("content://"))
-            mMedium.path.toUri() else File(mMedium.path)
+            val target: Any = if (mMedium.path.startsWith("content://"))
+                mMedium.path.toUri() else File(mMedium.path)
 
-        Glide.with(this)
-            .load(target)
-            .transform(BlurTransformation(20, 2))
-            .into(binding.videoBlurBg)
+            Glide.with(this)
+                .load(target)
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
+                .into(binding.videoBlurBg)
+        }
     }
 
     private fun initBlurPlayer() {
