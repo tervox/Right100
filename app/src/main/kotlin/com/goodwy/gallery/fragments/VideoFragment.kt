@@ -556,17 +556,25 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             binding.videoBlurOverlay.beGone()
             return
         }
-        binding.videoBlurOverlay.beVisible()
-        binding.videoBlurSurface.beGone()
-        binding.videoBlurBg.beVisible()
         
-        val target: Any = if (mMedium.path.startsWith("content://"))
-            mMedium.path.toUri() else File(mMedium.path)
-            
-        Glide.with(this)
-            .load(target)
-            .transform(MultiTransformation(CenterCrop(), BlurTransformation(20, 2)))
-            .into(binding.videoBlurBg)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            binding.videoBlurOverlay.beVisible()
+            binding.videoBlurSurface.beVisible()
+            binding.videoBlurBg.beGone()
+            initBlurPlayer()
+        } else {
+            binding.videoBlurOverlay.beVisible()
+            binding.videoBlurSurface.beGone()
+            binding.videoBlurBg.beVisible()
+
+            val target: Any = if (mMedium.path.startsWith("content://"))
+                mMedium.path.toUri() else File(mMedium.path)
+
+            Glide.with(this)
+                .load(target)
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(20, 2)))
+                .into(binding.videoBlurBg)
+        }
     }
 
     private fun initBlurPlayer() {
@@ -897,6 +905,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             return
         }
 
+        mBlurPlayer?.playWhenReady = true
+
         listener?.updatePlayPause(false)
 
         if (binding.videoPreview.isVisible()) {
@@ -944,6 +954,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         listener?.updatePlayPause(true)
 
         mIsPlaying = false
+        mExoPlayer?.playWhenReady = false
         mBlurPlayer?.playWhenReady = false
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
@@ -1092,6 +1103,18 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
         mExoPlayer?.setVideoSurface(Surface(surface))
+    }
+
+    fun captureFrame(): Bitmap? {
+        return try {
+            if (mTextureView.isAvailable) {
+                mTextureView.getBitmap(mTextureView.width, mTextureView.height)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun setVideoSize() {
