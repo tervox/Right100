@@ -444,19 +444,24 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun loadGif() {
-        if (context == null) return
-        val path = getPathToLoad(mMedium)
-        binding.apply {
-            gesturesView.beVisible()
-            gifViewFrame.beGone()
-        }
+        try {
+            val pathToLoad = getPathToLoad(mMedium)
+            val source = if (pathToLoad.startsWith("content://") || pathToLoad.startsWith("file://")) {
+                InputSource.UriSource(requireContext().contentResolver, pathToLoad.toUri())
+            } else {
+                InputSource.FileSource(pathToLoad)
+            }
 
-        Glide.with(requireContext())
-            .asGif()
-            .load(path)
-            .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-            .priority(Priority.IMMEDIATE)
-            .into(binding.gesturesView)
+            binding.apply {
+                gesturesView.beGone()
+                gifViewFrame.beVisible()
+                gifView.setInputSource(source)
+            }
+        } catch (_: Exception) {
+            loadBitmap()
+        } catch (_: OutOfMemoryError) {
+            loadBitmap()
+        }
     }
 
     private fun loadSVG() {
