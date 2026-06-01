@@ -404,6 +404,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         super.onResume()
         mConfig =
             requireContext().config      // make sure we get a new config, in case the user changed something in the app settings
+        mVideoFillMode = mConfig.videoFillMode
         requireActivity().updateTextColors(binding.videoHolder)
         val allowVideoGestures = mConfig.allowVideoGestures
         mTextureView.beGoneIf(mConfig.gestureVideoPlayer || mIsPanorama)
@@ -446,6 +447,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 }
             }
         }
+
+        if (mIsFragmentVisible) {
+            initExoPlayer()
+            initBlurPlayer()
+        }
     }
 
     override fun onPause() {
@@ -471,14 +477,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        mVideoFillMode = mConfig.videoFillMode
-        if (mIsFragmentVisible) {
-            initExoPlayer()
-            initBlurPlayer()
-        }
-    }
 
     override fun setMenuVisibility(menuVisible: Boolean) {
         super.setMenuVisibility(menuVisible)
