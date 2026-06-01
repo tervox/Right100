@@ -192,11 +192,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 setOnClickListener {
                     mConfig.videoFillScreen = !mConfig.videoFillScreen
                     // Se ativar preencher, desativa modo esticado
-                    if (mConfig.videoFillScreen && mVideoFillMode != 0) {
-                        mVideoFillMode = 0
-                        mConfig.videoFillMode = 0
-                        binding.bottomVideoTimeHolder.videoStretch.setImageResource(R.drawable.ic_maximize_vector)
-                    }
+        if (mConfig.videoFillScreen && mVideoFillMode != 0) {
+            mVideoFillMode = 0
+            mConfig.videoFillMode = 0
+            if (::binding.isInitialized) {
+                binding.bottomVideoTimeHolder.videoStretch.setImageResource(R.drawable.ic_maximize_vector)
+            }
+        }
                     binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(
                         if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free
                     )
@@ -453,6 +455,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mStoredRememberLastVideoPosition && mIsFragmentVisible && mWasVideoStarted) {
             saveVideoProgress()
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
         cleanup()
     }
 
@@ -481,7 +487,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             initExoPlayer()
             initBlurPlayer()
         } else {
-            cleanup()
+            pauseVideo()
         }
     }
         mIsFragmentVisible = menuVisible
@@ -579,7 +585,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun initBlurPlayer() {
-        if (!::mMedium.isInitialized || !::mConfig.isInitialized) return
+        if (context == null || !::mMedium.isInitialized || !::mConfig.isInitialized || !isAdded) return
         val ctx = context ?: return
         val path = mMedium.path
         val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
@@ -620,7 +626,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
 
     private fun initExoPlayer() {
-        if (!::mMedium.isInitialized || !::mConfig.isInitialized) return
+        if (context == null || !::mMedium.isInitialized || !::mConfig.isInitialized || !isAdded) return
         mVideoFillMode = mConfig.videoFillMode
         val ctx = context ?: return
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
@@ -1098,16 +1104,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mConfig.videoFillMode = mVideoFillMode
         setVideoSize()
 
-        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
-            when (mVideoFillMode) {
-                1 -> R.drawable.ic_minimize_vector
-                else -> R.drawable.ic_maximize_vector
-            }
-        )
+        if (::binding.isInitialized) {
+            binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+                when (mVideoFillMode) {
+                    1 -> R.drawable.ic_minimize_vector
+                    else -> R.drawable.ic_maximize_vector
+                }
+            )
+        }
+
         // Modo esticado e preencher são exclusivos
         if (mVideoFillMode == 1 && mConfig.videoFillScreen) {
             mConfig.videoFillScreen = false
-            binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(R.drawable.ic_crop_free)
+            if (::binding.isInitialized) {
+                binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(R.drawable.ic_crop_free)
+            }
         }
     }
 
@@ -1147,10 +1158,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setVideoSize() {
-        if (activity == null || mConfig.gestureVideoPlayer || !::mTextureView.isInitialized) return
+        val currentActivity = activity ?: return
+        if (mConfig.gestureVideoPlayer || !::mTextureView.isInitialized) return
 
         val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-        val display = requireActivity().windowManager.defaultDisplay
+        val display = currentActivity.windowManager.defaultDisplay
         val screenWidth: Int
         val screenHeight: Int
 
