@@ -580,24 +580,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun initBlurPlayer() {
-        if (!mConfig.blurBackgroundVideo || mIsPanorama || mExoPlayer == null) {
-            return
-        }
-
-        val ctx = context ?: return
-        val uri = if (mMedium.path.startsWith("content://")) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
-
-        mBlurPlayer = ExoPlayer.Builder(ctx).build().apply {
-            repeatMode = Player.REPEAT_MODE_ONE
-            volume = 0f
-            if (binding.videoBlurSurface.surfaceTexture != null) {
-                setVideoSurface(Surface(binding.videoBlurSurface.surfaceTexture))
-            }
-            setMediaItem(MediaItem.fromUri(uri))
-            prepare()
-            playWhenReady = mExoPlayer?.playWhenReady ?: false
-            seekTo(mExoPlayer?.currentPosition ?: 0L)
-        }
     }
 
 
@@ -1161,57 +1143,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
             mTextureView.layoutParams = this
         }
-        // Dimensiona blur surface com CENTER_CROP: mantém proporção, ocupa toda a tela
-        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.layoutParams.apply {
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                }
-                binding.videoBlurSurface.layoutParams = this
-            }
-        }
     }
 
     private fun handleTouchHoldEvent(event: MotionEvent) {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                if (mIsPlaying && event.pointerCount == 1) {
-                    mInitialX = event.x
-                    mInitialY = event.y
-                    mTimerHandler.postDelayed(mTouchHoldRunnable, TOUCH_HOLD_DURATION_MS)
-                }
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                val deltaX = abs(event.x - mInitialX)
-                val deltaY = abs(event.y - mInitialY)
-                if (!mIsLongPressActive && (deltaX > mTouchSlop || deltaY > mTouchSlop)) {
-                    mTimerHandler.removeCallbacks(mTouchHoldRunnable)
-                }
-            }
-
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                if (!mIsLongPressActive) {
-                    mTimerHandler.removeCallbacks(mTouchHoldRunnable)
-                }
-            }
-
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                mTimerHandler.removeCallbacks(mTouchHoldRunnable)
-                stopHoldSpeedMultiplierGesture()
-            }
-        }
     }
 
     private fun stopHoldSpeedMultiplierGesture() {
-        if (mIsLongPressActive) {
-            updatePlaybackSpeed(mOriginalPlaybackSpeed)
-            mIsLongPressActive = false
-            mPlaybackSpeedPill.fadeOut()
-        }
     }
 }
