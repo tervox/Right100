@@ -5,11 +5,8 @@ package com.goodwy.gallery.fragments
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.graphics.Color
-import android.graphics.RenderEffect
-import android.graphics.Shader
-import android.os.Build
-import android.media.MediaMetadataRetriever
 import android.graphics.Point
+import android.os.Build
 import android.graphics.SurfaceTexture
 import android.net.Uri
 import android.os.Bundle
@@ -110,7 +107,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
-    private var mBlurPlayer: ExoPlayer? = null
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -485,11 +481,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mIsFragmentVisible = menuVisible
         if (menuVisible) {
             initExoPlayer()
-            initBlurPlayer()
             val shouldPlayVideo = mWasFragmentInit && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer
             if (shouldPlayVideo) playVideo()
         } else {
             pauseVideo()
+            releaseExoPlayer()
         }
     }
 
@@ -565,61 +561,22 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             return
         }
         binding.videoBlurOverlay.beVisible()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurBg.beGone()
-            binding.videoBlurSurface.beVisible()
-            initBlurPlayer()
-        } else {
-            binding.videoBlurSurface.beGone()
-            binding.videoBlurBg.beVisible()
-            val target: Any = if (mMedium.path.startsWith("content://"))
-                mMedium.path.toUri() else File(mMedium.path)
-            Glide.with(this)
-                .load(target)
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
-                .into(binding.videoBlurBg)
-        }
+        binding.videoBlurSurface.beGone()
+        binding.videoBlurBg.beVisible()
+        
+        val target: Any = if (mMedium.path.startsWith("content://"))
+            mMedium.path.toUri() else File(mMedium.path)
+            
+        Glide.with(this)
+            .load(target)
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(20, 2)))
+            .into(binding.videoBlurBg)
     }
 
     private fun initBlurPlayer() {
-        if (context == null || !::mMedium.isInitialized || !::mConfig.isInitialized || !isAdded) return
-        val ctx = context ?: return
-        val path = mMedium.path
-        val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
-        
-        // Evita recriar se já existir
-        if (mBlurPlayer != null) return
-        
-        mBlurPlayer = ExoPlayer.Builder(ctx).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            volume = 0f
-            repeatMode = Player.REPEAT_MODE_ONE
-            prepare()
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(30f, 30f, Shader.TileMode.CLAMP)
-            )
-        }
-        binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
-                mBlurPlayer?.setVideoSurface(Surface(st))
-                mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-                mBlurPlayer?.playWhenReady = mIsPlaying
-            }
-            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
-            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-                mBlurPlayer?.clearVideoSurface()
-                return true
-            }
-            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
-        }
+        // Desativado para economizar recursos
     }
 
-    private fun releaseBlurPlayer() {
-        mBlurPlayer?.apply { stop(); release() }
-        mBlurPlayer = null
-    }
 
 
     private fun initExoPlayer() {
@@ -666,7 +623,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         mExoPlayer = ExoPlayer.Builder(ctx)
             .setMediaSourceFactory(DefaultMediaSourceFactory(ctx))
-            .setSeekParameters(SeekParameters.EXACT)
+            .setSeekParameters(SeekParameters.DEFAULT)
             .setLoadControl(loadControl)
             .build()
             .apply {
@@ -692,7 +649,53 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     setVideoSurface(Surface(mTextureView.surfaceTexture))
                 }
 
-                initListeners()
+                addListener(object : Player.Listener {
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        @Player.DiscontinuityReason reason: Int,
+                    ) {
+                        // Reset progress views when video loops.
+                        if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                            mSeekBar.progress = 0
+                            mCurrTimeView.text = 0.getFormattedDuration()
+                        }
+                    }
+
+                    override fun onPlaybackStateChanged(@Player.State playbackState: Int) {
+                        when (playbackState) {
+                            Player.STATE_READY -> videoPrepared()
+                            Player.STATE_ENDED -> videoCompleted()
+                        }
+                    }
+
+                    override fun onVideoSizeChanged(videoSize: VideoSize) {
+                        mVideoSize.x = videoSize.width
+                        mVideoSize.y = (videoSize.height / videoSize.pixelWidthHeightRatio).toInt()
+                        setVideoSize()
+                    }
+
+                    override fun onPlayerErrorChanged(error: PlaybackException?) {
+                        binding.errorMessageHolder.errorMessage.apply {
+                            if (error != null) {
+                                binding.videoPreview.beGone()
+                                binding.videoPlayOutline.beGone()
+                                text = error.getFriendlyMessage(context)
+                                setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
+                                fadeIn()
+                            } else {
+                                beGone()
+                                binding.videoPlayOutline.beVisible()
+                            }
+                        }
+                    }
+
+                    override fun onTracksChanged(tracks: Tracks) {
+                        super.onTracksChanged(tracks)
+                        mHasAudio = tracks.containsType(C.TRACK_TYPE_AUDIO)
+                        updatePlayerMuteState()
+                    }
+                })
             }
 
         if (mConfig.videoFillScreen || mVideoFillMode != 0) {
@@ -701,58 +704,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         updatePlayerMuteState()
     }
 
-    private fun ExoPlayer.initListeners() {
-        addListener(object : Player.Listener {
-            override fun onPositionDiscontinuity(
-                oldPosition: Player.PositionInfo,
-                newPosition: Player.PositionInfo,
-                @Player.DiscontinuityReason reason: Int,
-            ) {
-                // Reset progress views when video loops.
-                if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
-                    mSeekBar.progress = 0
-                    mCurrTimeView.text = 0.getFormattedDuration()
-                } else {
-                    // Usuário avançou/voltou: sincroniza o blur player
-                    mBlurPlayer?.seekTo(newPosition.positionMs)
-                }
-            }
-
-            override fun onPlaybackStateChanged(@Player.State playbackState: Int) {
-                when (playbackState) {
-                    Player.STATE_READY -> videoPrepared()
-                    Player.STATE_ENDED -> videoCompleted()
-                }
-            }
-
-            override fun onVideoSizeChanged(videoSize: VideoSize) {
-                mVideoSize.x = videoSize.width
-                mVideoSize.y = (videoSize.height / videoSize.pixelWidthHeightRatio).toInt()
-                setVideoSize()
-            }
-
-            override fun onPlayerErrorChanged(error: PlaybackException?) {
-                binding.errorMessageHolder.errorMessage.apply {
-                    if (error != null) {
-                        binding.videoPreview.beGone()
-                        binding.videoPlayOutline.beGone()
-                        text = error.getFriendlyMessage(context)
-                        setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
-                        fadeIn()
-                    } else {
-                        beGone()
-                        binding.videoPlayOutline.beVisible()
-                    }
-                }
-            }
-
-            override fun onTracksChanged(tracks: Tracks) {
-                super.onTracksChanged(tracks)
-                mHasAudio = tracks.containsType(C.TRACK_TYPE_AUDIO)
-                updatePlayerMuteState()
-            }
-        })
-    }
 
     private fun toggleFullscreen() {
         listener?.fragmentClicked()
@@ -923,10 +874,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
-            mBlurPlayer?.playWhenReady = true
         }
 
-        mBlurPlayer?.seekTo(mExoPlayer!!.currentPosition)
         mIsDragged = false
     }
 
@@ -1001,8 +950,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsPlaying = true
         }
         mExoPlayer?.playWhenReady = true
-        mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-        mBlurPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -1014,7 +961,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         listener?.updatePlayPause(true)
 
         mIsPlaying = false
-        mBlurPlayer?.playWhenReady = false
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
         }
@@ -1057,7 +1003,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mDuration = mExoPlayer!!.duration
             setupTimeHolder()
             setPosition(mCurrTime)
-            mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
 
             if (mIsFragmentVisible && (mConfig.autoplayVideos)) {
                 playVideo()
@@ -1130,7 +1075,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mCurrTimeView.text = 0.getFormattedDuration()
             mSeekBar.progress = 0
             mTimerHandler.removeCallbacksAndMessages(null)
-            releaseBlurPlayer()
         }
     }
 
@@ -1138,6 +1082,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mIsPlayerPrepared = false
         mExoPlayer?.apply {
             stop()
+            clearVideoSurface()
             release()
         }
         mExoPlayer = null
@@ -1147,17 +1092,18 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
 
-    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture) = false
+    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+        mExoPlayer?.setVideoSurface(null)
+        return true
+    }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        if (::mTextureView.isInitialized) {
-            mExoPlayer?.setVideoSurface(Surface(mTextureView.surfaceTexture))
-        }
+        mExoPlayer?.setVideoSurface(Surface(surface))
     }
 
     private fun setVideoSize() {
         val currentActivity = activity ?: return
-        if (mConfig.gestureVideoPlayer || !::mTextureView.isInitialized) return
+        if (mConfig.gestureVideoPlayer || !::mTextureView.isInitialized || mVideoSize.x <= 0 || mVideoSize.y <= 0) return
 
         val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
         val display = currentActivity.windowManager.defaultDisplay

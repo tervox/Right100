@@ -28,6 +28,7 @@ import androidx.core.view.updateLayoutParams
 import androidx.exifinterface.media.ExifInterface.*
 import com.alexvasilkov.gestures.GestureController
 import com.alexvasilkov.gestures.State
+import com.goodwy.commons.helpers.ensureBackgroundThread
 import com.bumptech.glide.Glide
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
@@ -50,7 +51,6 @@ import com.github.penfeizhou.animation.avif.AVIFDrawable
 import com.github.penfeizhou.animation.webp.WebPDrawable
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
-import com.goodwy.commons.helpers.ensureBackgroundThread
 import com.goodwy.commons.helpers.isRPlus
 import com.goodwy.gallery.R
 import com.goodwy.gallery.activities.BaseViewerActivity
@@ -432,7 +432,7 @@ class PhotoFragment : ViewPagerFragment() {
             binding.photoBlurOverlay.beVisible()
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 2)))
             Glide.with(ctx)
                 .load(mMedium.path)
                 .apply(options)
@@ -455,9 +455,7 @@ class PhotoFragment : ViewPagerFragment() {
             binding.apply {
                 gesturesView.beGone()
                 gifViewFrame.beVisible()
-                ensureBackgroundThread {
-                    gifView.setInputSource(source)
-                }
+                gifView.setInputSource(source)
             }
         } catch (_: Exception) {
             loadBitmap()
