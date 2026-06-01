@@ -168,7 +168,7 @@ class Config(context: Context) : BaseConfig(context) {
         set(autoplayVideos) = prefs.edit { putBoolean(AUTOPLAY_VIDEOS, autoplayVideos) }
 
     var animateGifs: Boolean
-        get() = prefs.getBoolean(ANIMATE_GIFS, false)
+        get() = prefs.getBoolean(ANIMATE_GIFS, true)
         set(animateGifs) = prefs.edit { putBoolean(ANIMATE_GIFS, animateGifs) }
 
     var showFolderSize: Boolean

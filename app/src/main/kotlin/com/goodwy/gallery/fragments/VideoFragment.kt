@@ -564,9 +564,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun initBlurPlayer() {
+        val ctx = context ?: return
         val path = mMedium.path
         val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
-        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
+        mBlurPlayer = ExoPlayer.Builder(ctx).build().apply {
             setMediaItem(MediaItem.fromUri(uri))
             volume = 0f
             repeatMode = Player.REPEAT_MODE_ONE
@@ -574,7 +575,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(60f, 60f, Shader.TileMode.CLAMP)
+                RenderEffect.createBlurEffect(30f, 30f, Shader.TileMode.CLAMP)
             )
         }
         binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
@@ -887,8 +888,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
+            mBlurPlayer?.playWhenReady = true
         }
 
+        mBlurPlayer?.seekTo(mExoPlayer!!.currentPosition)
         mIsDragged = false
     }
 
@@ -1018,6 +1021,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mDuration = mExoPlayer!!.duration
             setupTimeHolder()
             setPosition(mCurrTime)
+            mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
 
             if (mIsFragmentVisible && (mConfig.autoplayVideos)) {
                 playVideo()
