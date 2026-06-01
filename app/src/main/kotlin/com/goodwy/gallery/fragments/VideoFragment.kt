@@ -99,7 +99,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     var mIsPlaying = false
 
     private var mExoPlayer: ExoPlayer? = null
-    private var mBlurPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
 
@@ -889,7 +888,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             return
         }
 
-        mBlurPlayer?.playWhenReady = true
 
         listener?.updatePlayPause(false)
 
@@ -926,7 +924,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsPlaying = true
         }
         mExoPlayer?.playWhenReady = true
-        mBlurPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -939,7 +936,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         mIsPlaying = false
         mExoPlayer?.playWhenReady = false
-        mBlurPlayer?.playWhenReady = false
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
         }
@@ -957,7 +953,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun setPosition(milliseconds: Long) {
         mExoPlayer?.seekTo(milliseconds)
-        mBlurPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
 
@@ -983,7 +978,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mDuration = mExoPlayer!!.duration
             setupTimeHolder()
             setPosition(mCurrTime)
-            mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
 
             if (mIsFragmentVisible && (mConfig.autoplayVideos)) {
                 playVideo()
@@ -1061,9 +1055,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun releaseBlurPlayer() {
-        mBlurPlayer?.stop()
-        mBlurPlayer?.release()
-        mBlurPlayer = null
     }
 
     private fun releaseExoPlayer() {
