@@ -42,6 +42,7 @@ import androidx.media3.exoplayer.SeekParameters
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.MultiTransformation
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import jp.wasabeef.glide.transformations.BlurTransformation
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.goodwy.commons.extensions.*
