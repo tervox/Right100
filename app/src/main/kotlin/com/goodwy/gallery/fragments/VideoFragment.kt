@@ -44,7 +44,6 @@ import com.bumptech.glide.load.MultiTransformation
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import jp.wasabeef.glide.transformations.BlurTransformation
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
 import com.goodwy.commons.helpers.ensureBackgroundThread
