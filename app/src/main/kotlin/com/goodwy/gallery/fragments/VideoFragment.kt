@@ -453,25 +453,36 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mStoredRememberLastVideoPosition && mIsFragmentVisible && mWasVideoStarted) {
             saveVideoProgress()
         }
+        cleanup()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (activity?.isChangingConfigurations == false) {
-            cleanup()
-        }
+        cleanup()
 
         if (::mVolumeSideScroll.isInitialized) {
             mVolumeSideScroll.cleanup()
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (mIsFragmentVisible) {
+            initExoPlayer()
+            initBlurPlayer()
+        }
+    }
+
     override fun setMenuVisibility(menuVisible: Boolean) {
         super.setMenuVisibility(menuVisible)
-        if (mIsFragmentVisible && !menuVisible) {
-            pauseVideo()
+        mIsFragmentVisible = menuVisible
+        if (menuVisible) {
+            initExoPlayer()
+            initBlurPlayer()
+        } else {
+            cleanup()
         }
-
+    }
         mIsFragmentVisible = menuVisible
         val shouldPlayVideo = mWasFragmentInit && menuVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer
         if (shouldPlayVideo) playVideo()
