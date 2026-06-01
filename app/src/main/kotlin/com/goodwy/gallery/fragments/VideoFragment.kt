@@ -86,6 +86,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
+        private const val EXOPLAYER_MIN_BUFFER_MS = 2000
+        private const val EXOPLAYER_MAX_BUFFER_MS = 5000
     }
 
     private var mIsFullscreen = false
@@ -448,7 +450,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (mIsFragmentVisible) {
             initExoPlayer()
-            initBlurPlayer()
         }
     }
 
@@ -586,29 +587,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
         if (shouldSkipInit) return
 
-        val isContentUri = mMedium.path.startsWith("content://")
-        val uri = if (isContentUri) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
-        val dataSpec = DataSpec(uri)
-        val fileDataSource = if (isContentUri) {
-            ContentDataSource(ctx)
-        } else {
-            FileDataSource()
-        }
-
-        try {
-            fileDataSource.open(dataSpec)
-        } catch (e: Exception) {
-            fileDataSource.close()
-            activity?.showErrorToast(e)
-            return
-        }
-
-        val factory = DataSource.Factory { fileDataSource }
-        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
-            .createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
-
-        fileDataSource.close()
-
+        val uri = if (mMedium.path.startsWith("content://")) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
         mPlayOnPrepared = true
 
         val loadControl = DefaultLoadControl.Builder()
@@ -631,7 +610,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     repeatMode = Player.REPEAT_MODE_ONE
                 }
                 setPlaybackSpeed(mConfig.playbackSpeed)
-                setMediaSource(mediaSource)
+                setMediaItem(MediaItem.fromUri(uri))
                 setAudioAttributes(
                     AudioAttributes
                         .Builder()
@@ -642,7 +621,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
                 val lastPos = mConfig.getLastVideoPosition(mMedium.path)
                 if (lastPos > 0) {
-                    seekTo(lastPos.toLong())
+                    seekTo(lastPos * 1000L)
                 }
 
                 if (::mTextureView.isInitialized && mTextureView.surfaceTexture != null) {
