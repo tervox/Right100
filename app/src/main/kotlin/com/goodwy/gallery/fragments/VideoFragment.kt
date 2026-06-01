@@ -567,6 +567,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val ctx = context ?: return
         val path = mMedium.path
         val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
+        
+        // Evita recriar se já existir
+        if (mBlurPlayer != null) return
+        
         mBlurPlayer = ExoPlayer.Builder(ctx).build().apply {
             setMediaItem(MediaItem.fromUri(uri))
             volume = 0f
@@ -600,6 +604,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
 
     private fun initExoPlayer() {
+        val ctx = context ?: return
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
         if (shouldSkipInit) return
 
@@ -607,7 +612,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val uri = if (isContentUri) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
         val dataSpec = DataSpec(uri)
         val fileDataSource = if (isContentUri) {
-            ContentDataSource(requireContext())
+            ContentDataSource(ctx)
         } else {
             FileDataSource()
         }
@@ -638,8 +643,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        mExoPlayer = ExoPlayer.Builder(requireContext())
-            .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
+        mExoPlayer = ExoPlayer.Builder(ctx)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx))
             .setSeekParameters(SeekParameters.EXACT)
             .setLoadControl(loadControl)
             .build()
@@ -664,6 +669,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 initListeners()
             }
 
+        if (mConfig.videoFillScreen) {
+            setVideoSize()
+        }
         updatePlayerMuteState()
     }
 
@@ -1006,8 +1014,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setupVideoDuration() {
+        val ctx = context ?: return
         ensureBackgroundThread {
-            mDuration = context?.getDuration(mMedium.path)?.times(1000L)?.coerceAtLeast(0L) ?: 0L
+            mDuration = ctx.getDuration(mMedium.path)?.times(1000L)?.coerceAtLeast(0L) ?: 0L
 
             activity?.runOnUiThread {
                 setupTimeHolder()
