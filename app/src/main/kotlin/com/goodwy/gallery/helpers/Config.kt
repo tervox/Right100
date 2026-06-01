@@ -168,7 +168,7 @@ class Config(context: Context) : BaseConfig(context) {
         set(autoplayVideos) = prefs.edit { putBoolean(AUTOPLAY_VIDEOS, autoplayVideos) }
 
     var animateGifs: Boolean
-        get() = prefs.getBoolean(ANIMATE_GIFS, true)
+        get() = prefs.getBoolean(ANIMATE_GIFS, false)
         set(animateGifs) = prefs.edit { putBoolean(ANIMATE_GIFS, animateGifs) }
 
     var showFolderSize: Boolean
@@ -254,6 +254,10 @@ class Config(context: Context) : BaseConfig(context) {
     var videoFillScreen: Boolean
         get() = prefs.getBoolean(VIDEO_FILL_SCREEN, false)
         set(v) = prefs.edit { putBoolean(VIDEO_FILL_SCREEN, v) }
+
+    var videoFillMode: Int
+        get() = prefs.getInt("video_fill_mode", 0)
+        set(v) = prefs.edit { putInt("video_fill_mode", v) }
 
     var filterMedia: Int
         get() = prefs.getInt(FILTER_MEDIA, getDefaultFileFilter())

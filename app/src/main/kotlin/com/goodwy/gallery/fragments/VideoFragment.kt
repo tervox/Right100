@@ -166,6 +166,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         mMedium = arguments.getSerializable(MEDIUM) as Medium
         mConfig = context.config
+        mVideoFillMode = mConfig.videoFillMode
         mTouchSlop = (ViewConfiguration.get(context).scaledTouchSlop) / TOUCH_SLOP_DIVIDER
         binding = PagerVideoItemBinding.inflate(inflater, container, false).apply {
             panoramaOutline.setOnClickListener { openPanorama() }
@@ -181,6 +182,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
             bottomVideoTimeHolder.videoStretch.apply {
                 beVisible()
+                setImageResource(if (mVideoFillMode == 1) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector)
                 setOnClickListener { toggleVideoStretch() }
             }
 
@@ -192,6 +194,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     // Se ativar preencher, desativa modo esticado
                     if (mConfig.videoFillScreen && mVideoFillMode != 0) {
                         mVideoFillMode = 0
+                        mConfig.videoFillMode = 0
                         binding.bottomVideoTimeHolder.videoStretch.setImageResource(R.drawable.ic_maximize_vector)
                     }
                     binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(
@@ -1072,25 +1075,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun toggleVideoStretch() {
         mVideoFillMode = (mVideoFillMode + 1) % 2
-        val displayMetrics = DisplayMetrics()
-        requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-
-        when (mVideoFillMode) {
-            0 -> {
-                // Fit: proporcional com barras pretas
-                setVideoSize()
-            }
-            1 -> {
-                // Stretch: estica para preencher tudo
-                mTextureView.layoutParams.apply {
-                    width = screenWidth
-                    height = screenHeight
-                    mTextureView.layoutParams = this
-                }
-            }
-        }
+        mConfig.videoFillMode = mVideoFillMode
+        setVideoSize()
 
         binding.bottomVideoTimeHolder.videoStretch.setImageResource(
             when (mVideoFillMode) {
@@ -1153,7 +1139,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
 
         mTextureView.layoutParams.apply {
-            if (mConfig.videoFillScreen) {
+            if (mVideoFillMode == 1) {
+                // Modo Esticado (Stretch)
+                width = screenWidth
+                height = screenHeight
+            } else if (mConfig.videoFillScreen) {
                 // Preencher tela: mantém proporção, pode cortar bordas
                 if (videoProportion > screenProportion) {
                     width = (videoProportion * screenHeight.toFloat()).toInt()

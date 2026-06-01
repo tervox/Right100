@@ -432,7 +432,7 @@ class PhotoFragment : ViewPagerFragment() {
             binding.photoBlurOverlay.beVisible()
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(30, 3)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
                 .load(mMedium.path)
                 .apply(options)
