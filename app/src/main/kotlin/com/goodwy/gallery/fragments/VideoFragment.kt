@@ -579,7 +579,25 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun initBlurPlayer() {
-        // Desativado para economizar recursos
+        if (!mConfig.blurVideoBackground || mIsPanorama || mExoPlayer == null) {
+            return
+        }
+
+        val ctx = context ?: return
+        val uri = if (mMedium.path.startsWith("content://")) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
+
+        mBlurPlayer = ExoPlayer.Builder(ctx)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx))
+            .build()
+            .apply {
+                repeatMode = Player.REPEAT_MODE_ONE
+                setVideoSurface(Surface(mTextureView.surfaceTexture))
+                setMediaItem(MediaItem.fromUri(uri))
+                volume = 0f
+                prepare()
+                playWhenReady = mExoPlayer?.playWhenReady ?: false
+                seekTo(mExoPlayer?.currentPosition ?: 0L)
+            }
     }
 
 
