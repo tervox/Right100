@@ -37,17 +37,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.ContentDataSource
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.FileDataSource
-import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.MultiTransformation
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
@@ -579,25 +570,24 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun initBlurPlayer() {
-        if (!mConfig.blurVideoBackground || mIsPanorama || mExoPlayer == null) {
+        if (!mConfig.blurBackgroundVideo || mIsPanorama || mExoPlayer == null) {
             return
         }
 
         val ctx = context ?: return
         val uri = if (mMedium.path.startsWith("content://")) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
 
-        mBlurPlayer = ExoPlayer.Builder(ctx)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx))
-            .build()
-            .apply {
-                repeatMode = Player.REPEAT_MODE_ONE
-                setVideoSurface(Surface(mTextureView.surfaceTexture))
-                setMediaItem(MediaItem.fromUri(uri))
-                volume = 0f
-                prepare()
-                playWhenReady = mExoPlayer?.playWhenReady ?: false
-                seekTo(mExoPlayer?.currentPosition ?: 0L)
+        mBlurPlayer = ExoPlayer.Builder(ctx).build().apply {
+            repeatMode = Player.REPEAT_MODE_ONE
+            volume = 0f
+            if (binding.videoBlurSurface.surfaceTexture != null) {
+                setVideoSurface(Surface(binding.videoBlurSurface.surfaceTexture))
             }
+            setMediaItem(MediaItem.fromUri(uri))
+            prepare()
+            playWhenReady = mExoPlayer?.playWhenReady ?: false
+            seekTo(mExoPlayer?.currentPosition ?: 0L)
+        }
     }
 
 
@@ -612,20 +602,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val uri = if (mMedium.path.startsWith("content://")) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
         mPlayOnPrepared = true
 
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                EXOPLAYER_MIN_BUFFER_MS,
-                EXOPLAYER_MAX_BUFFER_MS,
-                EXOPLAYER_MIN_BUFFER_MS,
-                EXOPLAYER_MIN_BUFFER_MS
-            )
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
-
         mExoPlayer = ExoPlayer.Builder(ctx)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx))
             .setSeekParameters(SeekParameters.DEFAULT)
-            .setLoadControl(loadControl)
             .build()
             .apply {
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) {
