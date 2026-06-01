@@ -467,6 +467,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onResume() {
         super.onResume()
+        mVideoFillMode = mConfig.videoFillMode
         if (mIsFragmentVisible) {
             initExoPlayer()
             initBlurPlayer()
@@ -578,6 +579,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun initBlurPlayer() {
+        if (!::mMedium.isInitialized || !::mConfig.isInitialized) return
         val ctx = context ?: return
         val path = mMedium.path
         val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
@@ -618,6 +620,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
 
     private fun initExoPlayer() {
+        if (!::mMedium.isInitialized || !::mConfig.isInitialized) return
+        mVideoFillMode = mConfig.videoFillMode
         val ctx = context ?: return
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
         if (shouldSkipInit) return
@@ -676,14 +680,19 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 )
                 prepare()
 
-                if (mTextureView.surfaceTexture != null) {
+                val lastPos = mConfig.getLastVideoPosition(mMedium.path)
+                if (lastPos > 0) {
+                    seekTo(lastPos.toLong())
+                }
+
+                if (::mTextureView.isInitialized && mTextureView.surfaceTexture != null) {
                     setVideoSurface(Surface(mTextureView.surfaceTexture))
                 }
 
                 initListeners()
             }
 
-        if (mConfig.videoFillScreen) {
+        if (mConfig.videoFillScreen || mVideoFillMode != 0) {
             setVideoSize()
         }
         updatePlayerMuteState()
@@ -1103,6 +1112,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun cleanup() {
+        if (!::mConfig.isInitialized) return
         pauseVideo()
         releaseExoPlayer()
         mVolumeController?.destroy()
@@ -1131,11 +1141,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture) = false
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        mExoPlayer?.setVideoSurface(Surface(mTextureView.surfaceTexture))
+        if (::mTextureView.isInitialized) {
+            mExoPlayer?.setVideoSurface(Surface(mTextureView.surfaceTexture))
+        }
     }
 
     private fun setVideoSize() {
-        if (activity == null || mConfig.gestureVideoPlayer) return
+        if (activity == null || mConfig.gestureVideoPlayer || !::mTextureView.isInitialized) return
 
         val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
         val display = requireActivity().windowManager.defaultDisplay
