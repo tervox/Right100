@@ -36,6 +36,7 @@ import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.resource.bitmap.Rotate
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
@@ -436,6 +437,7 @@ class PhotoFragment : ViewPagerFragment() {
             Glide.with(ctx)
                 .load(mMedium.path)
                 .apply(options)
+                .transition(DrawableTransitionOptions.withCrossFade())
                 .into(binding.photoBlurBg)
         } else {
             binding.photoBlurBg.beGone()

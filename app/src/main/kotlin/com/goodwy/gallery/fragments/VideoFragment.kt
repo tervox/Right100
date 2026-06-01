@@ -43,6 +43,7 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.MultiTransformation
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import jp.wasabeef.glide.transformations.BlurTransformation
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
 import com.goodwy.commons.helpers.ensureBackgroundThread
@@ -573,6 +574,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             Glide.with(this)
                 .load(target)
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
+                .transition(DrawableTransitionOptions.withCrossFade())
                 .into(binding.videoBlurBg)
         }
     }
