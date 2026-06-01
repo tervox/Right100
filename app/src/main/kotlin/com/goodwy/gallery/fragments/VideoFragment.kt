@@ -192,13 +192,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 setOnClickListener {
                     mConfig.videoFillScreen = !mConfig.videoFillScreen
                     // Se ativar preencher, desativa modo esticado
-        if (mConfig.videoFillScreen && mVideoFillMode != 0) {
-            mVideoFillMode = 0
-            mConfig.videoFillMode = 0
-            if (::binding.isInitialized) {
-                binding.bottomVideoTimeHolder.videoStretch.setImageResource(R.drawable.ic_maximize_vector)
-            }
-        }
+                    if (mConfig.videoFillScreen && mVideoFillMode != 0) {
+                        mVideoFillMode = 0
+                        mConfig.videoFillMode = 0
+                        bottomVideoTimeHolder.videoStretch.setImageResource(R.drawable.ic_maximize_vector)
+                    }
                     binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(
                         if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free
                     )
@@ -405,6 +403,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mConfig =
             requireContext().config      // make sure we get a new config, in case the user changed something in the app settings
         mVideoFillMode = mConfig.videoFillMode
+        if (!::binding.isInitialized || !::mTextureView.isInitialized) return
+
         requireActivity().updateTextColors(binding.videoHolder)
         val allowVideoGestures = mConfig.allowVideoGestures
         mTextureView.beGoneIf(mConfig.gestureVideoPlayer || mIsPanorama)
@@ -417,11 +417,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         initTimeHolder()
         loadBlurBackground()
         storeStateVariables()
-        context?.let { (mSeekBar as MySeekBar?)!!.setColors(
-            it.getProperTextColor(),
-            it.getProperPrimaryColor(),
-            if (!mConfig.blackBackground) it.getProperTextColor() else resources.getColor(com.goodwy.commons.R.color.white)
-        ) }
+        if (::mSeekBar.isInitialized) {
+            context?.let { (mSeekBar as MySeekBar?)!!.setColors(
+                it.getProperTextColor(),
+                it.getProperPrimaryColor(),
+                if (!mConfig.blackBackground) it.getProperTextColor() else Color.WHITE
+            ) }
+        }
 
         if (!mConfig.blackBackground) {
             val textColor = this.requireContext().getProperTextColor()
@@ -484,14 +486,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (menuVisible) {
             initExoPlayer()
             initBlurPlayer()
+            val shouldPlayVideo = mWasFragmentInit && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer
+            if (shouldPlayVideo) playVideo()
         } else {
             pauseVideo()
         }
-    }
-        mIsFragmentVisible = menuVisible
-        val shouldPlayVideo = mWasFragmentInit && menuVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer
-        if (shouldPlayVideo) playVideo()
-
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -807,6 +806,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun fullscreenToggled(isFullscreen: Boolean) {
         mIsFullscreen = isFullscreen
+        if (!::binding.isInitialized) return
 
         mSeekBar.setOnSeekBarChangeListener(if (mIsFullscreen) null else this)
         arrayOf(
