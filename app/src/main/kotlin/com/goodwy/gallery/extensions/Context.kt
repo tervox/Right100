@@ -652,10 +652,10 @@ fun Context.loadImageBase(
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
         if (path.isGif()) {
-            // GIF: decode em background com baixa prioridade e cache em disco
-            // evita travar a UI ao rolar a lista de pastas
+            // GIF: limita resolução, baixa prioridade e cache — evita travar a UI
             options.priority(Priority.LOW)
             options.diskCacheStrategy(DiskCacheStrategy.DATA)
+            options.override(300, 300)  // decodifica no máximo 300x300 — evita GIFs grandes travarem
         }
     } else {
         options.dontAnimate()

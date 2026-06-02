@@ -570,23 +570,37 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun initBlurPlayer() {
         val path = mMedium.path
         val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
-        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            volume = 0f
-            repeatMode = Player.REPEAT_MODE_ONE
-            prepare()
-        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.setRenderEffect(
                 RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
             )
         }
+
+        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
+            setMediaItem(MediaItem.fromUri(uri))
+            volume = 0f
+            repeatMode = Player.REPEAT_MODE_ONE
+
+            // Só faz seek e inicia quando o player estiver realmente pronto
+            addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        val pos = mExoPlayer?.currentPosition ?: 0L
+                        seekTo(pos)
+                        playWhenReady = mIsPlaying
+                        setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+                    }
+                }
+            })
+
+            prepare()
+        }
+
+        // Seta o listener da surface
         binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
                 mBlurPlayer?.setVideoSurface(Surface(st))
-                mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-                mBlurPlayer?.playWhenReady = mIsPlaying
-                mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
             }
             override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
             override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
@@ -594,6 +608,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 return true
             }
             override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+        }
+
+        // Se a surface texture já existe (view já estava visível), conecta agora
+        binding.videoBlurSurface.surfaceTexture?.let { st ->
+            mBlurPlayer?.setVideoSurface(Surface(st))
         }
     }
 
@@ -1074,21 +1093,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun toggleVideoStretch() {
-        mVideoFillMode = (mVideoFillMode + 1) % 3
+        // Cicla só entre 0 (fit — bordas pretas) e 2 (stretch — estica/distorce)
+        // Modo 1 (fill/center-crop) é exclusivo do botão videoFillScreen
+        mVideoFillMode = if (mVideoFillMode == 0) 2 else 0
         mConfig.videoFillMode = mVideoFillMode
         setVideoSize()
         updateStretchIcon()
     }
 
     private fun updateStretchIcon() {
+        // 0 = fit (bordas pretas), 2 = stretch (estica/distorce)
         binding.bottomVideoTimeHolder.videoStretch.setImageResource(
-            when (mVideoFillMode) {
-                0 -> R.drawable.ic_maximize_vector   // FIT — bordas pretas
-                1 -> R.drawable.ic_minimize_vector   // FILL — corta bordas
-                else -> R.drawable.ic_minimize_vector // STRETCH — estica tudo
-            }
+            if (mVideoFillMode == 0) R.drawable.ic_maximize_vector
+            else R.drawable.ic_minimize_vector
         )
-        // Modo fill/stretch e tela cheia são exclusivos
+        // Stretch e tela cheia são exclusivos
         if (mVideoFillMode != 0 && mConfig.videoFillScreen) {
             mConfig.videoFillScreen = false
             binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(R.drawable.ic_crop_free)
@@ -1148,16 +1167,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             when {
                 mConfig.videoFillScreen -> {
                     // TELA CHEIA: center crop — ocupa toda a tela mantendo proporção
-                    if (videoProportion > screenProportion) {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                }
-                mVideoFillMode == 1 -> {
-                    // FILL: center crop (igual ao fillScreen mas controlado pelo botão stretch)
                     if (videoProportion > screenProportion) {
                         width = (videoProportion * screenHeight.toFloat()).toInt()
                         height = screenHeight
