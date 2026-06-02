@@ -465,5 +465,13 @@ open class PhotoVideoActivity : BaseViewerActivity(), ViewPagerFragment.Fragment
         binding.bottomActions.bottomMute.beVisibleIf(isVideo && config.visibleBottomActions and BOTTOM_ACTION_MUTE != 0)
         binding.bottomActions.bottomResize.beVisibleIf(config.visibleBottomActions and BOTTOM_ACTION_RESIZE != 0 && mMedium?.isImage() == true)
         updatePlayerMuteState()
+
+
+    private fun togglePlayPause() {
+        (getCurrentFragment() as? VideoFragment)?.togglePlayPause()
     }
+    private fun playVideo() {
+        (getCurrentFragment() as? VideoFragment)?.playVideo()
+    }
+
 }
