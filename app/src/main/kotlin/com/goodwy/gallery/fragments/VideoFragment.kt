@@ -533,7 +533,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             override fun run() {
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
-            if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 500) mBlurPlayer?.seekTo(mCurrTime)
+            // blur sync via play/pause/speed e seek do usuário
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
@@ -573,16 +573,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
+                RenderEffect.createBlurEffect(60f, 60f, Shader.TileMode.CLAMP)
             )
         }
 
-        // setVideoTextureView é a API correta para TextureView no ExoPlayer/Media3:
-        // ele gerencia o ciclo de vida da surface automaticamente, sem precisar de
-        // surfaceTextureListener manual nem checar se a surface já existe.
-        // Blur player: buffer mínimo (1s) para não competir com o player principal
         val blurLoadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(1000, 2000, 500, 500)
+            .setBufferDurationsMs(1500, 5000, 500, 500)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -592,21 +588,29 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 setMediaItem(MediaItem.fromUri(uri))
                 volume = 0f
                 repeatMode = Player.REPEAT_MODE_ONE
-
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_READY) {
-                            val pos = mExoPlayer?.currentPosition ?: 0L
-                            seekTo(pos)
-                            playWhenReady = mIsPlaying
-                            setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
-                        }
-                    }
-                })
-
-                setVideoTextureView(binding.videoBlurSurface)
                 prepare()
             }
+
+        binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                mBlurPlayer?.setVideoSurface(Surface(st))
+                mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
+                mBlurPlayer?.playWhenReady = mIsPlaying
+                mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+            }
+            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
+            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                mBlurPlayer?.clearVideoSurface()
+                return true
+            }
+            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+        }
+        binding.videoBlurSurface.surfaceTexture?.let { st ->
+            mBlurPlayer?.setVideoSurface(Surface(st))
+            mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
+            mBlurPlayer?.playWhenReady = mIsPlaying
+            mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+        }
     }
 
     private fun releaseBlurPlayer() {

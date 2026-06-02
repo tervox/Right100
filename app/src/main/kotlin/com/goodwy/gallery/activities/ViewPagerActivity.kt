@@ -1614,16 +1614,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         toast(com.goodwy.gallery.R.string.extracting_text)
         ensureBackgroundThread {
             try {
-                val raw = run {
-                    val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    android.graphics.BitmapFactory.decodeFile(medium.path, opts)
-                    val maxDim = 2048
-                    var sample = 1
-                    while (opts.outWidth / sample > maxDim || opts.outHeight / sample > maxDim) sample *= 2
-                    android.graphics.BitmapFactory.decodeFile(medium.path,
-                        android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
-                } ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
-                val bmp = preprocessForOcr(raw)
+                val rawBmp = android.graphics.BitmapFactory.decodeFile(medium.path)
+                    ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
+                val bmp = run {
+                    val exif = try { androidx.exifinterface.media.ExifInterface(medium.path) } catch (e: Throwable) { null }
+                    val ori = exif?.getAttributeInt(
+                        androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                    ) ?: androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                    val deg = when (ori) {
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90  -> 90f
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                        else -> 0f
+                    }
+                    if (deg != 0f) {
+                        val m = android.graphics.Matrix().apply { postRotate(deg) }
+                        android.graphics.Bitmap.createBitmap(rawBmp, 0, 0, rawBmp.width, rawBmp.height, m, true)
+                            .also { if (it !== rawBmp) rawBmp.recycle() }
+                    } else rawBmp
+                }
                 val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
                 val client = com.google.mlkit.vision.text.TextRecognition.getClient(
                     com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
@@ -1691,18 +1701,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
-    /**
-     * ML Kit v16 processa melhor a imagem original colorida.
-     * Só limitamos a 4096px para não crashar com fotos muito grandes.
-     */
-    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap {
-        val maxDim = 4096
-        if (src.width <= maxDim && src.height <= maxDim) return src
-        val scale = maxDim.toFloat() / maxOf(src.width, src.height)
-        return android.graphics.Bitmap.createScaledBitmap(
-            src, (src.width * scale).toInt(), (src.height * scale).toInt(), true
-        )
-    }
+    /** Rotação já aplicada antes do ML Kit */
+    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap = src
 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
     private fun cleanOcrText(raw: String): String = raw
