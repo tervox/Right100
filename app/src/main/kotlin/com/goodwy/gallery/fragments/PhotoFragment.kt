@@ -28,18 +28,19 @@ import androidx.core.view.updateLayoutParams
 import androidx.exifinterface.media.ExifInterface.*
 import com.alexvasilkov.gestures.GestureController
 import com.alexvasilkov.gestures.State
-import com.goodwy.commons.helpers.ensureBackgroundThread
 import com.bumptech.glide.Glide
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.load.resource.bitmap.Rotate
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.request.target.Target
+import jp.wasabeef.glide.transformations.BlurTransformation
 import com.bumptech.glide.load.MultiTransformation
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
-import com.bumptech.glide.load.resource.bitmap.Rotate
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
-import com.bumptech.glide.request.RequestListener
 import com.davemorrissey.labs.subscaleview.DecoderFactory
 import com.davemorrissey.labs.subscaleview.ImageDecoder
 import com.davemorrissey.labs.subscaleview.ImageRegionDecoder
@@ -49,6 +50,7 @@ import com.github.penfeizhou.animation.avif.AVIFDrawable
 import com.github.penfeizhou.animation.webp.WebPDrawable
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
+import com.goodwy.commons.helpers.ensureBackgroundThread
 import com.goodwy.commons.helpers.isRPlus
 import com.goodwy.gallery.R
 import com.goodwy.gallery.activities.BaseViewerActivity
@@ -434,7 +436,6 @@ class PhotoFragment : ViewPagerFragment() {
             Glide.with(ctx)
                 .load(mMedium.path)
                 .apply(options)
-                .transition(DrawableTransitionOptions.withCrossFade())
                 .into(binding.photoBlurBg)
         } else {
             binding.photoBlurBg.beGone()
@@ -454,7 +455,9 @@ class PhotoFragment : ViewPagerFragment() {
             binding.apply {
                 gesturesView.beGone()
                 gifViewFrame.beVisible()
-                gifView.setInputSource(source)
+                ensureBackgroundThread {
+                    gifView.setInputSource(source)
+                }
             }
         } catch (_: Exception) {
             loadBitmap()
@@ -510,22 +513,6 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadWithGlide(path: String, addZoomableView: Boolean) {
         if (!::mMedium.isInitialized) {
-            return
-        }
-
-        if (path.isGif()) {
-            binding.gesturesView.beGone()
-            binding.subsamplingView.beGone()
-            binding.gifViewFrame.beVisible()
-            
-            val priority = if (mIsFragmentVisible) Priority.IMMEDIATE else Priority.NORMAL
-            Glide.with(this)
-                .asGif()
-                .load(path)
-                .priority(priority)
-                .diskCacheStrategy(DiskCacheStrategy.NONE) // GIFs travam menos sem cache agressivo
-                .override(mScreenWidth / 2, mScreenHeight / 2) // Otimiza para o Samsung A05
-                .into(binding.gifView)
             return
         }
 
