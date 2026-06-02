@@ -542,7 +542,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun loadBlurBackground() {
-        if (mConfig.blackBackground || !mConfig.mConfig.blurBackgroundVideo) {
+        if (mConfig.blackBackground || !mConfig.context!!.config.blurBackgroundVideo) {
             binding.videoBlurBg.beGone()
             binding.videoBlurSurface.beGone()
             binding.videoBlurOverlay.beGone()
@@ -1166,7 +1166,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mTextureView.layoutParams = this
         }
         // Dimensiona blur surface com CENTER_CROP: mantém proporção, ocupa toda a tela
-        if (mConfig.mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (mConfig.context!!.config.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.layoutParams.apply {
                 if (videoProportion > screenProportion) {
                     width = (videoProportion * screenHeight.toFloat()).toInt()
