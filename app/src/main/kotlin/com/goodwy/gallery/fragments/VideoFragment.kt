@@ -715,6 +715,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 }
             }
 
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                mBlurPlayer?.playWhenReady = playWhenReady
+            }
+
+            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+                mBlurPlayer?.playbackParameters = playbackParameters
+            }
+
             override fun onTracksChanged(tracks: Tracks) {
                 super.onTracksChanged(tracks)
                 mHasAudio = tracks.containsType(C.TRACK_TYPE_AUDIO)
@@ -1074,12 +1082,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun updateStretchIcon() {
         binding.bottomVideoTimeHolder.videoStretch.setImageResource(
             when (mVideoFillMode) {
-                1 -> R.drawable.ic_minimize_vector
-                else -> R.drawable.ic_maximize_vector
+                0 -> R.drawable.ic_maximize_vector   // FIT — bordas pretas
+                1 -> R.drawable.ic_minimize_vector   // FILL — corta bordas
+                else -> R.drawable.ic_minimize_vector // STRETCH — estica tudo
             }
         )
-        // Modo esticado e preencher são exclusivos
-        if (mVideoFillMode == 1 && mConfig.videoFillScreen) {
+        // Modo fill/stretch e tela cheia são exclusivos
+        if (mVideoFillMode != 0 && mConfig.videoFillScreen) {
             mConfig.videoFillScreen = false
             binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(R.drawable.ic_crop_free)
         }
@@ -1135,8 +1144,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         
         
         mTextureView.layoutParams.apply {
-            when (mVideoFillMode) {
-                1 -> { // FILL (Corta bordas)
+            when {
+                mConfig.videoFillScreen -> {
+                    // TELA CHEIA: center crop — ocupa toda a tela mantendo proporção
                     if (videoProportion > screenProportion) {
                         width = (videoProportion * screenHeight.toFloat()).toInt()
                         height = screenHeight
@@ -1145,11 +1155,23 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                         height = (screenWidth.toFloat() / videoProportion).toInt()
                     }
                 }
-                2 -> { // STRETCH (Estica tudo)
+                mVideoFillMode == 1 -> {
+                    // FILL: center crop (igual ao fillScreen mas controlado pelo botão stretch)
+                    if (videoProportion > screenProportion) {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    } else {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                }
+                mVideoFillMode == 2 -> {
+                    // STRETCH: estica para preencher tudo (pode distorcer)
                     width = screenWidth
                     height = screenHeight
                 }
-                else -> { // FIT (Barras pretas)
+                else -> {
+                    // FIT (padrão): mantém proporção com bordas pretas
                     if (videoProportion > screenProportion) {
                         width = screenWidth
                         height = (screenWidth.toFloat() / videoProportion).toInt()
