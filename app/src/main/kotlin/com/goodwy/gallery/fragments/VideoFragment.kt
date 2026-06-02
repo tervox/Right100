@@ -666,32 +666,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 }
 
                 initListeners()
-                
-        mExoPlayer?.addListener(object : Player.Listener {
-            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                mBlurPlayer?.playbackParameters = playbackParameters
-            }
-            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                mBlurPlayer?.playWhenReady = playWhenReady
-            }
-        })
-    
             }
 
         updatePlayerMuteState()
     }
 
-    private fun ExoPlayer.initListeners()
-                
-        mExoPlayer?.addListener(object : Player.Listener {
-            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                mBlurPlayer?.playbackParameters = playbackParameters
-            }
-            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                mBlurPlayer?.playWhenReady = playWhenReady
-            }
-        })
-     {
+    private fun ExoPlayer.initListeners() {
         addListener(object : Player.Listener {
             override fun onPositionDiscontinuity(
                 oldPosition: Player.PositionInfo,
@@ -1090,48 +1070,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    private private private fun toggleVideoStretch() {
+    private fun toggleVideoStretch() {
         mVideoFillMode = (mVideoFillMode + 1) % 3
         mConfig.videoFillMode = mVideoFillMode
         setVideoSize()
         updateStretchIcon()
     }
-            1 -> {
-                // Stretch: estica para preencher tudo
-                
-        
-        mTextureView.layoutParams.apply {
-            when (mVideoFillMode) {
-                1 -> { // FILL (Corta bordas)
-                    if (videoProportion > screenProportion) {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                }
-                2 -> { // STRETCH (Estica tudo)
-                    width = screenWidth
-                    height = screenHeight
-                }
-                else -> { // FIT (Barras pretas)
-                    if (videoProportion > screenProportion) {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    } else {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    }
-                }
-            }
-            mTextureView.layoutParams = this
-        }
-    
-    
-            }
-        }
 
+    private fun updateStretchIcon() {
         binding.bottomVideoTimeHolder.videoStretch.setImageResource(
             when (mVideoFillMode) {
                 1 -> R.drawable.ic_minimize_vector
