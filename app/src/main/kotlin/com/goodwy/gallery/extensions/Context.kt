@@ -651,6 +651,12 @@ fun Context.loadImageBase(
     if (animate && roundCorners == ROUNDED_CORNERS_NONE && (path.isGif() || path.isWebP())) {
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
+        if (path.isGif()) {
+            // GIF: decode em background com baixa prioridade e cache em disco
+            // evita travar a UI ao rolar a lista de pastas
+            options.priority(Priority.LOW)
+            options.diskCacheStrategy(DiskCacheStrategy.DATA)
+        }
     } else {
         options.dontAnimate()
         // don't animate is not enough for webp files, decode as bitmap forces first frame use in animated webps

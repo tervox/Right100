@@ -533,7 +533,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
             if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 150) mBlurPlayer?.seekTo(mCurrTime)
-            if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 200) mBlurPlayer?.seekTo(mCurrTime)
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
@@ -818,9 +817,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             "${DecimalFormat("#.##").format(speed)}x"
         mExoPlayer?.setPlaybackSpeed(speed)
         mBlurPlayer?.setPlaybackSpeed(speed)
-        mBlurPlayer?.videoScalingMode = mExoPlayer?.videoScalingMode ?: 0
-        mBlurPlayer?.setPlaybackSpeed(speed)
-        mBlurPlayer?.setPlaybackSpeed(speed)
     }
 
     private fun skip(forward: Boolean) {
@@ -896,7 +892,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
-            mBlurPlayer?.playWhenReady = true
             mBlurPlayer?.playWhenReady = true
         }
 
@@ -1005,7 +1000,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun setPosition(milliseconds: Long) {
         mExoPlayer?.seekTo(milliseconds)
-        mBlurPlayer?.seekTo(milliseconds)
         mBlurPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
