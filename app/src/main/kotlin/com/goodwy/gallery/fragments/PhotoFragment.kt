@@ -430,6 +430,7 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
+            binding.photoBlurOverlay.setBackgroundColor(0x11000000)
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
@@ -444,7 +445,7 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-    private fun loadGif() // Optimized {
+    private fun loadGif() { // Optimized
         try {
             val pathToLoad = getPathToLoad(mMedium)
             val source = if (pathToLoad.startsWith("content://") || pathToLoad.startsWith("file://")) {

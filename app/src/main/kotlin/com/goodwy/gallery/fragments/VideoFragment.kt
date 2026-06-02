@@ -532,6 +532,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             override fun run() {
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
+            if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 150) mBlurPlayer?.seekTo(mCurrTime)
             if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 200) mBlurPlayer?.seekTo(mCurrTime)
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
@@ -1071,6 +1072,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun toggleVideoStretch() {
         mVideoFillMode = (mVideoFillMode + 1) % 2
+        mConfig.videoFillMode = mVideoFillMode
         val displayMetrics = DisplayMetrics()
         requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
         val screenWidth = displayMetrics.widthPixels
