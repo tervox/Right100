@@ -533,7 +533,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             override fun run() {
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
-            // blur sync via play/pause/speed e seek do usuário
+                    // Manter blur em sync: corrige drift > 300ms sem travar
+                    val blurPos = mBlurPlayer?.currentPosition ?: mCurrTime
+                    if (Math.abs(blurPos - mCurrTime) > 300) mBlurPlayer?.seekTo(mCurrTime)
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
@@ -573,7 +575,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(60f, 60f, Shader.TileMode.CLAMP)
+                RenderEffect.createBlurEffect(25f, 25f, Shader.TileMode.CLAMP)
             )
         }
 
