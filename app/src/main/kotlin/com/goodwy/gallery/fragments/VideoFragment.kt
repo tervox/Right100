@@ -576,7 +576,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(25f, 25f, Shader.TileMode.CLAMP)
+                RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
             )
         }
         binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
@@ -815,6 +815,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         binding.bottomVideoTimeHolder.videoPlaybackSpeed.text =
             "${DecimalFormat("#.##").format(speed)}x"
         mExoPlayer?.setPlaybackSpeed(speed)
+        mBlurPlayer?.setPlaybackSpeed(speed)
+        mBlurPlayer?.videoScalingMode = mExoPlayer?.videoScalingMode ?: 0
         mBlurPlayer?.setPlaybackSpeed(speed)
         mBlurPlayer?.setPlaybackSpeed(speed)
     }
