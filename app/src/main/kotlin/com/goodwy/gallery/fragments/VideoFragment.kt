@@ -542,7 +542,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun loadBlurBackground() {
-        if (mConfig.blackBackground || !mConfig.context!!.config.blurBackgroundVideo) {
+        if (mConfig.blackBackground || !mConfig.blurBackgroundVideo) {
             binding.videoBlurBg.beGone()
             binding.videoBlurSurface.beGone()
             binding.videoBlurOverlay.beGone()
@@ -576,7 +576,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(60f, 60f, Shader.TileMode.CLAMP)
+                RenderEffect.createBlurEffect(25f, 25f, Shader.TileMode.CLAMP)
             )
         }
         binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
@@ -815,6 +815,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         binding.bottomVideoTimeHolder.videoPlaybackSpeed.text =
             "${DecimalFormat("#.##").format(speed)}x"
         mExoPlayer?.setPlaybackSpeed(speed)
+        mBlurPlayer?.setPlaybackSpeed(speed)
     }
 
     private fun skip(forward: Boolean) {
@@ -890,6 +891,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
+            mBlurPlayer?.playWhenReady = true
         }
 
         mIsDragged = false
@@ -979,10 +981,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         listener?.updatePlayPause(true)
 
         mIsPlaying = false
-        mBlurPlayer?.playWhenReady = false
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
-        mBlurPlayer?.playWhenReady = false
+            mBlurPlayer?.playWhenReady = false
         }
 
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
@@ -998,6 +999,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun setPosition(milliseconds: Long) {
         mExoPlayer?.seekTo(milliseconds)
+        mBlurPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
 
@@ -1166,7 +1168,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mTextureView.layoutParams = this
         }
         // Dimensiona blur surface com CENTER_CROP: mantém proporção, ocupa toda a tela
-        if (mConfig.context!!.config.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.layoutParams.apply {
                 if (videoProportion > screenProportion) {
                     width = (videoProportion * screenHeight.toFloat()).toInt()
