@@ -577,42 +577,55 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             )
         }
 
-        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            volume = 0f
-            repeatMode = Player.REPEAT_MODE_ONE
+        var blurSurfaceReady = false
+        var blurPlayerReady = false
 
-            // Só faz seek e inicia quando o player estiver realmente pronto
-            addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        val pos = mExoPlayer?.currentPosition ?: 0L
-                        seekTo(pos)
-                        playWhenReady = mIsPlaying
-                        setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
-                    }
-                }
-            })
-
-            prepare()
+        fun tryStartBlur(player: ExoPlayer) {
+            if (!blurSurfaceReady || !blurPlayerReady) return
+            val pos = mExoPlayer?.currentPosition ?: 0L
+            player.seekTo(pos)
+            player.playWhenReady = mIsPlaying
+            player.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
         }
 
-        // Seta o listener da surface
+        // 1) Seta o listener da surface ANTES de criar o player
         binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
                 mBlurPlayer?.setVideoSurface(Surface(st))
+                blurSurfaceReady = true
+                mBlurPlayer?.let { tryStartBlur(it) }
             }
             override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
             override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
                 mBlurPlayer?.clearVideoSurface()
+                blurSurfaceReady = false
                 return true
             }
             override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
         }
 
-        // Se a surface texture já existe (view já estava visível), conecta agora
-        binding.videoBlurSurface.surfaceTexture?.let { st ->
-            mBlurPlayer?.setVideoSurface(Surface(st))
+        // 2) Cria o player
+        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
+            setMediaItem(MediaItem.fromUri(uri))
+            volume = 0f
+            repeatMode = Player.REPEAT_MODE_ONE
+
+            addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        blurPlayerReady = true
+                        tryStartBlur(this@apply)
+                    }
+                }
+            })
+
+            // 3) Se a surface já existe, conecta agora antes do prepare()
+            binding.videoBlurSurface.surfaceTexture?.let { st ->
+                setVideoSurface(Surface(st))
+                blurSurfaceReady = true
+            }
+
+            prepare()
         }
     }
 
@@ -715,8 +728,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width == 0 || videoSize.height == 0) return
+                val ratio = videoSize.pixelWidthHeightRatio.takeIf { it > 0f } ?: 1f
                 mVideoSize.x = videoSize.width
-                mVideoSize.y = (videoSize.height / videoSize.pixelWidthHeightRatio).toInt()
+                mVideoSize.y = (videoSize.height / ratio).toInt().coerceAtLeast(1)
                 setVideoSize()
             }
 

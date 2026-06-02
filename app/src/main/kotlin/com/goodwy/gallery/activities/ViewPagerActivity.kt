@@ -1697,36 +1697,30 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
      * - Aumenta contraste (textos ficam mais definidos)
      * - Garante dimensão mínima de 640px (ML Kit recomenda >= 480px)
      */
+    /**
+     * Pré-processa para OCR:
+     * - Garante mínimo de 640px no lado menor (ML Kit recomenda >= 480px)
+     * - Converte para escala de cinza pura via ColorMatrix correta
+     * - Sem ajuste de contraste artificial (ML Kit já normaliza internamente)
+     */
     private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap {
-        // Garante tamanho mínimo sem ampliar demais
+        // Garante tamanho mínimo
         val minDim = 640
-        val scaled = if (src.width < minDim || src.height < minDim) {
-            val scale = minDim.toFloat() / minOf(src.width, src.height)
+        val scaled = if (src.width < minDim && src.height < minDim) {
+            val scale = minDim.toFloat() / maxOf(src.width, src.height)
             android.graphics.Bitmap.createScaledBitmap(
                 src, (src.width * scale).toInt(), (src.height * scale).toInt(), true
             )
         } else src
 
-        // Converte para escala de cinza com contraste aumentado
+        // Escala de cinza: usa a matriz padrão luminância (R*0.299 + G*0.587 + B*0.114)
         val result = android.graphics.Bitmap.createBitmap(
             scaled.width, scaled.height, android.graphics.Bitmap.Config.ARGB_8888
         )
         val canvas = android.graphics.Canvas(result)
         val paint = android.graphics.Paint()
-        // Escala de cinza + contraste +40%
-        val contrast = 1.4f
-        val brightness = -30f
         paint.colorFilter = android.graphics.ColorMatrixColorFilter(
-            android.graphics.ColorMatrix().apply {
-                setSaturation(0f) // escala de cinza
-                val cm = android.graphics.ColorMatrix(floatArrayOf(
-                    contrast, 0f, 0f, 0f, brightness,
-                    0f, contrast, 0f, 0f, brightness,
-                    0f, 0f, contrast, 0f, brightness,
-                    0f, 0f, 0f, 1f, 0f
-                ))
-                postConcat(cm)
-            }
+            android.graphics.ColorMatrix().also { it.setSaturation(0f) }
         )
         canvas.drawBitmap(scaled, 0f, 0f, paint)
         if (scaled !== src) scaled.recycle()
