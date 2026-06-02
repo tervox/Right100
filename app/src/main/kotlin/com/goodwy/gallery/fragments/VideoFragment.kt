@@ -1090,8 +1090,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    private private fun toggleVideoStretch() {
-        mVideoFillMode = (mVideoFillMode + 1) % 2
+    private private private fun toggleVideoStretch() {
+        mVideoFillMode = (mVideoFillMode + 1) % 3
         mConfig.videoFillMode = mVideoFillMode
         setVideoSize()
         updateStretchIcon()
@@ -1099,32 +1099,35 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             1 -> {
                 // Stretch: estica para preencher tudo
                 
+        
         mTextureView.layoutParams.apply {
-            if (mVideoFillMode == 1) {
-                // STRETCH: Estica tudo
-                width = screenWidth
-                height = screenHeight
-            } else if (mConfig.videoFillScreen) {
-                // FILL: Preenche cortando
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
+            when (mVideoFillMode) {
+                1 -> { // FILL (Corta bordas)
+                    if (videoProportion > screenProportion) {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    } else {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
                 }
-            } else {
-                // FIT: Normal com barras
-                if (videoProportion > screenProportion) {
+                2 -> { // STRETCH (Estica tudo)
                     width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                } else {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
                     height = screenHeight
+                }
+                else -> { // FIT (Barras pretas)
+                    if (videoProportion > screenProportion) {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    } else {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    }
                 }
             }
             mTextureView.layoutParams = this
         }
+    
     
             }
         }
@@ -1190,32 +1193,35 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
 
         
+        
         mTextureView.layoutParams.apply {
-            if (mVideoFillMode == 1) {
-                // STRETCH: Estica tudo
-                width = screenWidth
-                height = screenHeight
-            } else if (mConfig.videoFillScreen) {
-                // FILL: Preenche cortando
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
+            when (mVideoFillMode) {
+                1 -> { // FILL (Corta bordas)
+                    if (videoProportion > screenProportion) {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    } else {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
                 }
-            } else {
-                // FIT: Normal com barras
-                if (videoProportion > screenProportion) {
+                2 -> { // STRETCH (Estica tudo)
                     width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                } else {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
                     height = screenHeight
+                }
+                else -> { // FIT (Barras pretas)
+                    if (videoProportion > screenProportion) {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    } else {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    }
                 }
             }
             mTextureView.layoutParams = this
         }
+    
     
         // Dimensiona blur surface com CENTER_CROP: mantém proporção, ocupa toda a tela
         if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
