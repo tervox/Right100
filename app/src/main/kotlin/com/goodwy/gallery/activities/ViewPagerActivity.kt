@@ -1614,26 +1614,27 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         toast(com.goodwy.gallery.R.string.extracting_text)
         ensureBackgroundThread {
             try {
-                val rawBmp = android.graphics.BitmapFactory.decodeFile(medium.path)
+                                val rawBmp = android.graphics.BitmapFactory.decodeFile(medium.path)
+                    ?.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
                     ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
+                
                 val bmp = run {
                     val exif = try { androidx.exifinterface.media.ExifInterface(medium.path) } catch (e: Throwable) { null }
-                    val ori = exif?.getAttributeInt(
-                        androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
-                    ) ?: androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
+                    val ori = exif?.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, 1) ?: 1
                     val deg = when (ori) {
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90  -> 90f
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                        androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                        6 -> 90f
+                        3 -> 180f
+                        8 -> 270f
                         else -> 0f
                     }
                     if (deg != 0f) {
                         val m = android.graphics.Matrix().apply { postRotate(deg) }
-                        android.graphics.Bitmap.createBitmap(rawBmp, 0, 0, rawBmp.width, rawBmp.height, m, true)
-                            .also { if (it !== rawBmp) rawBmp.recycle() }
+                        val rotated = android.graphics.Bitmap.createBitmap(rawBmp, 0, 0, rawBmp.width, rawBmp.height, m, true)
+                        if (rotated !== rawBmp) rawBmp.recycle()
+                        rotated
                     } else rawBmp
                 }
+                // InputImage.fromBitmap(bmp, 0) é o ideal se o bitmap já estiver rotacionado
                 val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
                 val client = com.google.mlkit.vision.text.TextRecognition.getClient(
                     com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
