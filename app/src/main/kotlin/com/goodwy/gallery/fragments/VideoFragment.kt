@@ -719,8 +719,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 mBlurPlayer?.playWhenReady = playWhenReady
             }
 
-            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                mBlurPlayer?.playbackParameters = playbackParameters
+            override fun onPlaybackSpeedChanged(playbackSpeed: Float) {
+                mBlurPlayer?.setPlaybackSpeed(playbackSpeed)
             }
 
             override fun onTracksChanged(tracks: Tracks) {
