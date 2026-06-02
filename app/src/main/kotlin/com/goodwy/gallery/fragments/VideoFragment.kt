@@ -531,9 +531,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun setupTimer() {
         activity?.runOnUiThread(object : Runnable {
             override fun run() {
-                if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
+                                if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
-                    // Manter blur em sync: corrige drift > 300ms sem travar
                     val blurPos = mBlurPlayer?.currentPosition ?: mCurrTime
                     if (Math.abs(blurPos - mCurrTime) > 80) mBlurPlayer?.seekTo(mCurrTime)
                     mSeekBar.progress = mCurrTime.toInt()
@@ -1063,7 +1062,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setPosition(milliseconds: Long) {
-        mExoPlayer?.seekTo(milliseconds); mBlurPlayer?.seekTo(milliseconds)
+        mExoPlayer?.seekTo(milliseconds); mBlurPlayer?.seekTo(milliseconds); mBlurPlayer?.seekTo(milliseconds)
         mBlurPlayer?.seekTo(milliseconds)
         mBlurPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
