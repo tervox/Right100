@@ -1692,39 +1692,16 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     /**
-     * Pré-processa a imagem para melhorar a precisão do OCR:
-     * - Converte para escala de cinza (reduz ruído de cor)
-     * - Aumenta contraste (textos ficam mais definidos)
-     * - Garante dimensão mínima de 640px (ML Kit recomenda >= 480px)
-     */
-    /**
-     * Pré-processa para OCR:
-     * - Garante mínimo de 640px no lado menor (ML Kit recomenda >= 480px)
-     * - Converte para escala de cinza pura via ColorMatrix correta
-     * - Sem ajuste de contraste artificial (ML Kit já normaliza internamente)
+     * ML Kit v16 processa melhor a imagem original colorida.
+     * Só limitamos a 4096px para não crashar com fotos muito grandes.
      */
     private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap {
-        // Garante tamanho mínimo
-        val minDim = 640
-        val scaled = if (src.width < minDim && src.height < minDim) {
-            val scale = minDim.toFloat() / maxOf(src.width, src.height)
-            android.graphics.Bitmap.createScaledBitmap(
-                src, (src.width * scale).toInt(), (src.height * scale).toInt(), true
-            )
-        } else src
-
-        // Escala de cinza: usa a matriz padrão luminância (R*0.299 + G*0.587 + B*0.114)
-        val result = android.graphics.Bitmap.createBitmap(
-            scaled.width, scaled.height, android.graphics.Bitmap.Config.ARGB_8888
+        val maxDim = 4096
+        if (src.width <= maxDim && src.height <= maxDim) return src
+        val scale = maxDim.toFloat() / maxOf(src.width, src.height)
+        return android.graphics.Bitmap.createScaledBitmap(
+            src, (src.width * scale).toInt(), (src.height * scale).toInt(), true
         )
-        val canvas = android.graphics.Canvas(result)
-        val paint = android.graphics.Paint()
-        paint.colorFilter = android.graphics.ColorMatrixColorFilter(
-            android.graphics.ColorMatrix().also { it.setSaturation(0f) }
-        )
-        canvas.drawBitmap(scaled, 0f, 0f, paint)
-        if (scaled !== src) scaled.recycle()
-        return result
     }
 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
