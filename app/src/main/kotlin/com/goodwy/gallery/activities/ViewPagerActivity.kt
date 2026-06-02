@@ -1761,4 +1761,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         (getCurrentFragment() as? VideoFragment)?.playVideo()
     }
 
+
+
+    private fun togglePlayPause() {
+        (getCurrentFragment() as? VideoFragment)?.togglePlayPause()
+    }
+    private fun playVideo() {
+        (getCurrentFragment() as? VideoFragment)?.playVideo()
+    }
+
 }
