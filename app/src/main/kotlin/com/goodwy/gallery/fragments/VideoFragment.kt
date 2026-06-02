@@ -152,7 +152,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mMuteInit: Boolean = false
 
     // 0 = fit (default), 1 = fill/cover (sem esticar), 2 = stretch (esticado)
-    private var mVideoFillMode = 0
+    private var mVideoFillMode: Int
+        get() = mConfig.videoFillMode
+        set(value) { mConfig.videoFillMode = value }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
@@ -558,7 +560,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 mMedium.path.toUri() else File(mMedium.path)
             Glide.with(this)
                 .load(target)
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(30, 3)))
                 .into(binding.videoBlurBg)
         }
     }
@@ -582,6 +584,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 mBlurPlayer?.setVideoSurface(Surface(st))
                 mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
                 mBlurPlayer?.playWhenReady = mIsPlaying
+                mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
             }
             override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
             override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
@@ -979,6 +982,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mBlurPlayer?.playWhenReady = false
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
+        mBlurPlayer?.playWhenReady = false
         }
 
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
