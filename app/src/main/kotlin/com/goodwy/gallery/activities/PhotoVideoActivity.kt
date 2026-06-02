@@ -484,4 +484,11 @@ open class PhotoVideoActivity : BaseViewerActivity(), ViewPagerFragment.Fragment
         (getCurrentFragment() as? VideoFragment)?.playVideo()
     }
 
+    private fun togglePlayPause() {
+        (getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment)?.togglePlayPause()
+    }
+    private fun playVideo() {
+        (getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment)?.playVideo()
+    }
+
 }
