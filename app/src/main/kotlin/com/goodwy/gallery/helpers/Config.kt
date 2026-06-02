@@ -18,6 +18,18 @@ import java.util.Arrays
 import java.util.Locale
 
 class Config(context: Context) : BaseConfig(context) {
+    var blurBackgroundPhoto: Boolean
+        get() = prefs.getBoolean("blur_background_photo", false)
+        set(value) = prefs.edit { putBoolean("blur_background_photo", value) }
+
+    var blurBackgroundVideo: Boolean
+        get() = prefs.getBoolean("blur_background_video", false)
+        set(value) = prefs.edit { putBoolean("blur_background_video", value) }
+
+    var showSelectAllFab: Boolean
+        get() = prefs.getBoolean("show_select_all_fab", false)
+        set(value) = prefs.edit { putBoolean("show_select_all_fab", value) }
+
     companion object {
         fun newInstance(context: Context) = Config(context)
     }
