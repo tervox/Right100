@@ -533,7 +533,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             override fun run() {
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
-            if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 150) mBlurPlayer?.seekTo(mCurrTime)
+            if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 500) mBlurPlayer?.seekTo(mCurrTime)
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
@@ -580,25 +580,33 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // setVideoTextureView é a API correta para TextureView no ExoPlayer/Media3:
         // ele gerencia o ciclo de vida da surface automaticamente, sem precisar de
         // surfaceTextureListener manual nem checar se a surface já existe.
-        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            volume = 0f
-            repeatMode = Player.REPEAT_MODE_ONE
+        // Blur player: buffer mínimo (1s) para não competir com o player principal
+        val blurLoadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(1000, 2000, 500, 500)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
 
-            addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        val pos = mExoPlayer?.currentPosition ?: 0L
-                        seekTo(pos)
-                        playWhenReady = mIsPlaying
-                        setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+        mBlurPlayer = ExoPlayer.Builder(requireContext())
+            .setLoadControl(blurLoadControl)
+            .build().apply {
+                setMediaItem(MediaItem.fromUri(uri))
+                volume = 0f
+                repeatMode = Player.REPEAT_MODE_ONE
+
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_READY) {
+                            val pos = mExoPlayer?.currentPosition ?: 0L
+                            seekTo(pos)
+                            playWhenReady = mIsPlaying
+                            setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+                        }
                     }
-                }
-            })
+                })
 
-            setVideoTextureView(binding.videoBlurSurface)
-            prepare()
-        }
+                setVideoTextureView(binding.videoBlurSurface)
+                prepare()
+            }
     }
 
     private fun releaseBlurPlayer() {
