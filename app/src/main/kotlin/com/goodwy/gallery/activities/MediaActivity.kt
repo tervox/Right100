@@ -929,8 +929,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun setupSelectAllFab() {
-        binding.fabSelectAll.beVisibleIf(config.showSelectAllFab)
-        if (config.showSelectAllFab) {
+        binding.fabSelectAll.beVisibleIf(config.prefs.getBoolean("show_select_all_fab", false))
+        if (config.prefs.getBoolean("show_select_all_fab", false)) {
             binding.fabSelectAll.setOnClickListener { getMediaAdapter()?.selectAllItems() }
         }
     }
