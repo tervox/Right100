@@ -596,18 +596,18 @@ class SettingsActivity : SimpleActivity() {
     }
 
     private fun setupBlurBackgroundPhoto() {
-        binding.settingsBlurBackgroundPhoto.isChecked = config.blurBackgroundPhoto
+        binding.settingsBlurBackgroundPhoto.isChecked = config.prefs.getBoolean("blur_background_photo", false)
         binding.settingsBlurBackgroundPhotoHolder.setOnClickListener {
             binding.settingsBlurBackgroundPhoto.toggle()
-            config.blurBackgroundPhoto = binding.settingsBlurBackgroundPhoto.isChecked
+            config.prefs.getBoolean("blur_background_photo", false) = binding.settingsBlurBackgroundPhoto.isChecked
         }
     }
 
     private fun setupBlurBackgroundVideo() {
-        binding.settingsBlurBackgroundVideo.isChecked = config.blurBackgroundVideo
+        binding.settingsBlurBackgroundVideo.isChecked = config.prefs.getBoolean("blur_background_video", false)
         binding.settingsBlurBackgroundVideoHolder.setOnClickListener {
             binding.settingsBlurBackgroundVideo.toggle()
-            config.blurBackgroundVideo = binding.settingsBlurBackgroundVideo.isChecked
+            config.prefs.getBoolean("blur_background_video", false) = binding.settingsBlurBackgroundVideo.isChecked
         }
     }
 
@@ -1260,8 +1260,8 @@ class SettingsActivity : SimpleActivity() {
                 put(MAX_BRIGHTNESS, config.maxBrightness)
                 put(ULTRA_HDR_RENDERING, config.ultraHdrRendering)
                 put(BLACK_BACKGROUND, config.blackBackground)
-                put(BLUR_BACKGROUND_PHOTO, config.blurBackgroundPhoto)
-                put(BLUR_BACKGROUND_VIDEO, config.blurBackgroundVideo)
+                put(BLUR_BACKGROUND_PHOTO, config.prefs.getBoolean("blur_background_photo", false))
+                put(BLUR_BACKGROUND_VIDEO, config.prefs.getBoolean("blur_background_video", false))
                 put(HIDE_SYSTEM_UI, config.hideSystemUI)
                 put(ALLOW_INSTANT_CHANGE, config.allowInstantChange)
                 put(KEEP_SCREEN_ON, config.keepScreenOn)
@@ -1423,8 +1423,8 @@ class SettingsActivity : SimpleActivity() {
                 MAX_BRIGHTNESS -> config.maxBrightness = value.toBoolean()
                 ULTRA_HDR_RENDERING -> config.ultraHdrRendering = value.toBoolean()
                 BLACK_BACKGROUND -> config.blackBackground = value.toBoolean()
-                BLUR_BACKGROUND_PHOTO -> config.blurBackgroundPhoto = value.toBoolean()
-                BLUR_BACKGROUND_VIDEO -> config.blurBackgroundVideo = value.toBoolean()
+                BLUR_BACKGROUND_PHOTO -> config.prefs.getBoolean("blur_background_photo", false) = value.toBoolean()
+                BLUR_BACKGROUND_VIDEO -> config.prefs.getBoolean("blur_background_video", false) = value.toBoolean()
                 HIDE_SYSTEM_UI -> config.hideSystemUI = value.toBoolean()
                 ALLOW_INSTANT_CHANGE -> config.allowInstantChange = value.toBoolean()
                 KEEP_SCREEN_ON -> config.keepScreenOn = value.toBoolean()
