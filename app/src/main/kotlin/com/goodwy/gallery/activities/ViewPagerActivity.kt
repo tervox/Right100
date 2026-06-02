@@ -1637,7 +1637,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 // InputImage.fromBitmap(bmp, 0) é o ideal se o bitmap já estiver rotacionado
                 val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
                 val client = com.google.mlkit.vision.text.TextRecognition.getClient(
-                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                    com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build()
                 )
                 client.process(img)
                     .addOnSuccessListener { r ->
@@ -1684,7 +1684,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             toast(com.goodwy.gallery.R.string.extracting_text)
             val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
             val client = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build()
             )
             client.process(img)
                 .addOnSuccessListener { r ->
@@ -1707,9 +1707,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
     private fun cleanOcrText(raw: String): String = raw
-        .lines().map { it.trim() }.filter { it.isNotBlank() }
+        .lines()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
         .joinToString("\n")
+        .replace(Regex("[\\|\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "") // Remove caracteres de controle e barras verticais comuns em OCR ruim
         .replace(Regex("  +"), " ")
+        .replace(Regex("\\n\\n+"), "\n\n")
         .trim()
 
     private fun showExtractedTextDialog(text: String) {

@@ -340,10 +340,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             mWasFragmentInit = true
-            mVideoFillMode = 0
+            // Restaurar o modo de preenchimento salvo
             setVideoSize()
 
             binding.apply {
+                bottomVideoTimeHolder.videoStretch.setImageResource(
+                    if (mVideoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector
+                )
+                bottomVideoTimeHolder.videoFillScreen.setImageResource(
+                    if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free
+                )
                 mBrightnessSideScroll.initialize(
                     activity,
                     slideInfo,
@@ -534,11 +540,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
                     val blurPos = mBlurPlayer?.currentPosition ?: mCurrTime
-                    if (Math.abs(blurPos - mCurrTime) > 80) mBlurPlayer?.seekTo(mCurrTime)
-                    val blurPos = mBlurPlayer?.currentPosition ?: mCurrTime
-                    if (Math.abs(blurPos - mCurrTime) > 80) mBlurPlayer?.seekTo(mCurrTime)
-                    val blurPos = mBlurPlayer?.currentPosition ?: mCurrTime
-                    if (Math.abs(blurPos - mCurrTime) > 40) mBlurPlayer?.seekTo(mCurrTime)
+                    if (Math.abs(blurPos - mCurrTime) > 20) {
+                        mBlurPlayer?.seekTo(mCurrTime)
+                    }
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
@@ -569,6 +573,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 .load(target)
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
                 .into(binding.videoBlurBg)
+            binding.videoBlurBg.alpha = 0.2f
         }
     }
 
@@ -580,6 +585,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             binding.videoBlurSurface.setRenderEffect(
                 RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
             )
+            binding.videoBlurSurface.alpha = 0.2f
         }
 
         val blurLoadControl = DefaultLoadControl.Builder()
