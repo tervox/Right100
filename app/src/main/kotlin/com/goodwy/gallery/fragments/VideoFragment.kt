@@ -1065,6 +1065,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun setPosition(milliseconds: Long) {
         mExoPlayer?.seekTo(milliseconds)
         mBlurPlayer?.seekTo(milliseconds)
+        mBlurPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
 
