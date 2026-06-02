@@ -1284,4 +1284,25 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mPlaybackSpeedPill.fadeOut()
         }
     }
+
+
+    override fun onProgressChanged(p0: android.widget.SeekBar!, p1: Int, p2: Boolean) {
+        if (p2) {
+            mExoPlayer?.seekTo(p1.toLong())
+            mBlurPlayer?.seekTo(p1.toLong())
+        }
+    }
+    override fun onStartTrackingTouch(p0: android.widget.SeekBar!) { mIsDragged = true }
+    override fun onStopTrackingTouch(p0: android.widget.SeekBar!) { mIsDragged = false }
+    override fun fullscreenToggled(isFullscreen: Boolean) {}
+    override fun updatePlaybackSpeed(speed: Float) { mBlurPlayer?.setPlaybackSpeed(speed) }
+    override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+        mBlurPlayer?.setVideoSurface(android.view.Surface(st))
+    }
+    override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {}
+    override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+        mBlurPlayer?.clearVideoSurface(); return true
+    }
+    override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) {}
+
 }

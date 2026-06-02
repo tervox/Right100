@@ -1729,4 +1729,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             .setNegativeButton(com.goodwy.commons.R.string.cancel, null)
             .create().show()
     }
+
+
+    private fun togglePlayPause() {
+        (getCurrentFragment() as? VideoFragment)?.togglePlayPause()
+    }
+    private fun playVideo() {
+        (getCurrentFragment() as? VideoFragment)?.playVideo()
+    }
+
 }
