@@ -1614,8 +1614,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         toast(com.goodwy.gallery.R.string.extracting_text)
         ensureBackgroundThread {
             try {
-                val raw = android.graphics.BitmapFactory.decodeFile(medium.path)
-                    ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
+                val raw = run {
+                    val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeFile(medium.path, opts)
+                    val maxDim = 2048
+                    var sample = 1
+                    while (opts.outWidth / sample > maxDim || opts.outHeight / sample > maxDim) sample *= 2
+                    android.graphics.BitmapFactory.decodeFile(medium.path,
+                        android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                } ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
                 val bmp = preprocessForOcr(raw)
                 val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
                 val client = com.google.mlkit.vision.text.TextRecognition.getClient(
@@ -1684,8 +1691,47 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
-    /** Retorna o bitmap original — ML Kit funciona melhor sem pre-processamento manual */
-    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap = src
+    /**
+     * Pré-processa a imagem para melhorar a precisão do OCR:
+     * - Converte para escala de cinza (reduz ruído de cor)
+     * - Aumenta contraste (textos ficam mais definidos)
+     * - Garante dimensão mínima de 640px (ML Kit recomenda >= 480px)
+     */
+    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap {
+        // Garante tamanho mínimo sem ampliar demais
+        val minDim = 640
+        val scaled = if (src.width < minDim || src.height < minDim) {
+            val scale = minDim.toFloat() / minOf(src.width, src.height)
+            android.graphics.Bitmap.createScaledBitmap(
+                src, (src.width * scale).toInt(), (src.height * scale).toInt(), true
+            )
+        } else src
+
+        // Converte para escala de cinza com contraste aumentado
+        val result = android.graphics.Bitmap.createBitmap(
+            scaled.width, scaled.height, android.graphics.Bitmap.Config.ARGB_8888
+        )
+        val canvas = android.graphics.Canvas(result)
+        val paint = android.graphics.Paint()
+        // Escala de cinza + contraste +40%
+        val contrast = 1.4f
+        val brightness = -30f
+        paint.colorFilter = android.graphics.ColorMatrixColorFilter(
+            android.graphics.ColorMatrix().apply {
+                setSaturation(0f) // escala de cinza
+                val cm = android.graphics.ColorMatrix(floatArrayOf(
+                    contrast, 0f, 0f, 0f, brightness,
+                    0f, contrast, 0f, 0f, brightness,
+                    0f, 0f, contrast, 0f, brightness,
+                    0f, 0f, 0f, 1f, 0f
+                ))
+                postConcat(cm)
+            }
+        )
+        canvas.drawBitmap(scaled, 0f, 0f, paint)
+        if (scaled !== src) scaled.recycle()
+        return result
+    }
 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
     private fun cleanOcrText(raw: String): String = raw
