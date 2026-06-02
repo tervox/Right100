@@ -569,15 +569,50 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    private fun initBlurPlayer() {
+        private fun initBlurPlayer() {
         val path = mMedium.path
         val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(10f, 10f, Shader.TileMode.CLAMP)
+                RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP)
             )
         }
+
+        val blurLoadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(1500, 5000, 500, 500)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
+        mBlurPlayer = ExoPlayer.Builder(requireContext())
+            .setLoadControl(blurLoadControl)
+            .build().apply {
+                setMediaItem(MediaItem.fromUri(uri))
+                volume = 0f
+                repeatMode = Player.REPEAT_MODE_ONE
+                prepare()
+            }
+
+        binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                mBlurPlayer?.setVideoSurface(Surface(st))
+                mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
+                mBlurPlayer?.playWhenReady = mIsPlaying
+                mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+            }
+            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
+            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                mBlurPlayer?.clearVideoSurface(); return true
+            }
+            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+        }
+        binding.videoBlurSurface.surfaceTexture?.let { st ->
+            mBlurPlayer?.setVideoSurface(Surface(st))
+            mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
+            mBlurPlayer?.playWhenReady = mIsPlaying
+            mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+        }
+    }
 
         val blurLoadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(1500, 5000, 500, 500)

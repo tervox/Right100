@@ -1687,12 +1687,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             )
             client.process(img)
                 .addOnSuccessListener { r ->
-                    if (bmp !== raw) bmp.recycle()
+                    bmp.recycle()
                     raw.recycle(); client.close()
                     showExtractedTextDialog(cleanOcrText(r?.text ?: ""))
                 }
                 .addOnFailureListener { e ->
-                    if (bmp !== raw) bmp.recycle()
+                    bmp.recycle()
                     raw.recycle(); client.close()
                     toast("Erro OCR video: " + (e.localizedMessage?.take(80) ?: ""))
                 }
