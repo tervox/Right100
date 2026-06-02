@@ -268,7 +268,7 @@ class PhotoFragment : ViewPagerFragment() {
                 binding.subsamplingView.beGone()
                 loadImage()
             } else if (mMedium.isGIF()) {
-                loadGif()
+                loadGif() // Optimized
             } else if (mIsSubsamplingVisible && mShouldResetImage) {
                 binding.subsamplingView.onGlobalLayout {
                     binding.subsamplingView.resetView()
@@ -324,7 +324,7 @@ class PhotoFragment : ViewPagerFragment() {
                     measureScreen()
                     Handler().postDelayed({
                         binding.gifViewFrame.controller.resetState()
-                        loadGif()
+                        loadGif() // Optimized
                     }, 50)
                 }
             }
@@ -414,7 +414,7 @@ class PhotoFragment : ViewPagerFragment() {
             mImageOrientation = getImageOrientation()
             activity?.runOnUiThread {
                 when {
-                    mMedium.isGIF() -> loadGif()
+                    mMedium.isGIF() -> loadGif() // Optimized
                     mMedium.isSVG() -> loadSVG()
                     mMedium.isApng() -> loadAPNG()
                     mMedium.isAvif() -> loadAVIF()
@@ -432,9 +432,10 @@ class PhotoFragment : ViewPagerFragment() {
             binding.photoBlurOverlay.beVisible()
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(30, 3)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
                 .load(mMedium.path)
+                .thumbnail(0.2f)
                 .apply(options)
                 .into(binding.photoBlurBg)
         } else {
@@ -443,7 +444,7 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-    private fun loadGif() {
+    private fun loadGif() // Optimized {
         try {
             val pathToLoad = getPathToLoad(mMedium)
             val source = if (pathToLoad.startsWith("content://") || pathToLoad.startsWith("file://")) {
@@ -472,6 +473,7 @@ class PhotoFragment : ViewPagerFragment() {
                 .`as`(PictureDrawable::class.java)
                 .listener(SvgSoftwareLayerSetter())
                 .load(mMedium.path)
+                .thumbnail(0.2f)
                 .into(binding.gesturesView)
         }
     }

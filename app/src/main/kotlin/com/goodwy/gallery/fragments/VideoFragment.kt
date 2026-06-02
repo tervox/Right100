@@ -532,6 +532,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             override fun run() {
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
+            if (Math.abs((mBlurPlayer?.currentPosition ?: 0) - mCurrTime) > 200) mBlurPlayer?.seekTo(mCurrTime)
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
@@ -560,7 +561,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 mMedium.path.toUri() else File(mMedium.path)
             Glide.with(this)
                 .load(target)
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(30, 3)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
                 .into(binding.videoBlurBg)
         }
     }
