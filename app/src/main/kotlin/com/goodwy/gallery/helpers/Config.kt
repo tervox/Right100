@@ -243,22 +243,6 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(BLACK_BACKGROUND, true)
         set(blackBackground) = prefs.edit { putBoolean(BLACK_BACKGROUND, blackBackground) }
 
-    var blurBackgroundPhoto: Boolean
-        get() = prefs.getBoolean(BLUR_BACKGROUND_PHOTO, true)
-        set(v) = prefs.edit { putBoolean(BLUR_BACKGROUND_PHOTO, v) }
-
-    var blurBackgroundVideo: Boolean
-        get() = prefs.getBoolean(BLUR_BACKGROUND_VIDEO, true)
-        set(v) = prefs.edit { putBoolean(BLUR_BACKGROUND_VIDEO, v) }
-
-    var videoFillScreen: Boolean
-        get() = prefs.getBoolean(VIDEO_FILL_SCREEN, false)
-        set(v) = prefs.edit { putBoolean(VIDEO_FILL_SCREEN, v) }
-
-    var videoFillMode: Int
-        get() = prefs.getInt("video_fill_mode", 0)
-        set(v) = prefs.edit { putInt("video_fill_mode", v) }
-
     var filterMedia: Int
         get() = prefs.getInt(FILTER_MEDIA, getDefaultFileFilter())
         set(filterMedia) = prefs.edit { putInt(FILTER_MEDIA, filterMedia) }
@@ -658,7 +642,15 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getInt(FONT_SIZE_DIR, FONT_SIZE_MEDIUM)
         set(size) = prefs.edit { putInt(FONT_SIZE_DIR, size) }
 
-    var showSelectAllFab: Boolean
-        get() = prefs.getBoolean(SHOW_SELECT_ALL_FAB, false)
-        set(v) = prefs.edit { putBoolean(SHOW_SELECT_ALL_FAB, v) }
+    var videoFillScreen: Boolean
+        get() = prefs.getBoolean(VIDEO_FILL_SCREEN, false)
+        set(videoFillScreen) = prefs.edit { putBoolean(VIDEO_FILL_SCREEN, videoFillScreen) }
+
+    var markWatchedItems: Boolean
+        get() = prefs.getBoolean(MARK_WATCHED_ITEMS, false)
+        set(markWatchedItems) = prefs.edit { putBoolean(MARK_WATCHED_ITEMS, markWatchedItems) }
+
+    var videoFillMode: Int
+        get() = prefs.getInt("video_fill_mode", 0)
+        set(value) = prefs.edit { putInt("video_fill_mode", value) }
 }
