@@ -435,6 +435,7 @@ class PhotoFragment : ViewPagerFragment() {
             val options = RequestOptions()
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
+                .asBitmap()
                 .load(mMedium.path)
                 .thumbnail(0.2f)
                 .apply(options)
