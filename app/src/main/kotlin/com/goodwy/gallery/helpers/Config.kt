@@ -647,8 +647,8 @@ class Config(context: Context) : BaseConfig(context) {
         set(videoFillScreen) = prefs.edit { putBoolean(VIDEO_FILL_SCREEN, videoFillScreen) }
 
     var markWatchedItems: Boolean
-        get() = prefs.getBoolean(MARK_WATCHED_ITEMS, false)
-        set(markWatchedItems) = prefs.edit { putBoolean(MARK_WATCHED_ITEMS, markWatchedItems) }
+        get() = prefs.getBoolean("mark_watched_items", false)
+        set(markWatchedItems) = prefs.edit { putBoolean("mark_watched_items", markWatchedItems) }
 
     var videoFillMode: Int
         get() = prefs.getInt("video_fill_mode", 0)
