@@ -426,7 +426,7 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadBlurBackground() {
         val ctx = context ?: return
-        val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground && ctx.config.prefs.getBoolean("blur_background_photo", false)
+        val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground && ctx.config.mConfig.blurBackgroundPhoto
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
