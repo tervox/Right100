@@ -173,6 +173,7 @@ dependencies {
     implementation(libs.sanselan)
     implementation(libs.androidphotofilters)
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation(libs.androidsvg.aar)
     implementation(libs.gestureviews)
     implementation(libs.subsamplingscaleimageview)
