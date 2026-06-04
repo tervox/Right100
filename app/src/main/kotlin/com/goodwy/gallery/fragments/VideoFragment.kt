@@ -1,5 +1,4 @@
-@file:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-import android.widget.Toast
+@file:androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 
 package com.goodwy.gallery.fragments
 
@@ -30,6 +29,7 @@ import android.widget.ImageView
 import android.widget.RelativeLayout
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat.Type
@@ -266,6 +266,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (videoSurfaceFrame.controller.state.zoom == 1f) {
                     handleEvent(event)
                 }
+                // REMOVIDO: handleTouchHoldEvent(event) - função inexistente
                 if (mIsLongPressActive) {
                     return@setOnTouchListener true
                 }
@@ -436,7 +437,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun updatePlayerMuteState(showToast: Boolean = false) {
         if (!mHasAudio) {
             if (showToast && mWasVideoStarted) {
-                Toast.makeText(requireContext(), "Pause o video primeiro", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), R.string.video_no_sound, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -969,8 +970,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun doSkip(forward: Boolean) = skip(forward)
 
+    // CORRIGIDO: Adicionado override e removido handleTouchHoldEvent
     override fun handleEvent(event: MotionEvent) {
-        // Implementação simplificada de gestos se necessário
+cd ~/Right100 && \
+# 1. Completar o arquivo VideoFragment.kt que ficou cortado
+cat >> app/src/main/kotlin/com/goodwy/gallery/fragments/VideoFragment.kt << 'ENDFILE'
+        // Implementação simplificada - gestos básicos
     }
 
     private fun setVideoSize() {
