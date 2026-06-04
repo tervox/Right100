@@ -266,7 +266,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (videoSurfaceFrame.controller.state.zoom == 1f) {
                     handleEvent(event)
                 }
-                // REMOVIDO: handleTouchHoldEvent(event) - função inexistente
                 if (mIsLongPressActive) {
                     return@setOnTouchListener true
                 }
@@ -971,7 +970,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun doSkip(forward: Boolean) = skip(forward)
 
     // CORRIGIDO: Adicionado override e removido handleTouchHoldEvent
-    override fun handleEvent(event: MotionEvent) {
+    fun handleEvent(event: MotionEvent) {
 cd ~/Right100 && \
 # 1. Completar o arquivo VideoFragment.kt que ficou cortado
 cat >> app/src/main/kotlin/com/goodwy/gallery/fragments/VideoFragment.kt << 'ENDFILE'
