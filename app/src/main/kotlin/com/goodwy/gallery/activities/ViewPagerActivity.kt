@@ -1,4 +1,5 @@
 package com.goodwy.gallery.activities
+import android.widget.Toast
 
 import android.content.Intent
 import android.graphics.Bitmap
