@@ -1,4 +1,5 @@
 @file:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+import android.widget.Toast
 
 package com.goodwy.gallery.fragments
 
@@ -435,7 +436,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun updatePlayerMuteState(showToast: Boolean = false) {
         if (!mHasAudio) {
             if (showToast && mWasVideoStarted) {
-                toast(R.string.video_no_sound)
+                Toast.makeText(requireContext(), "Pause o video primeiro", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -968,7 +969,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun doSkip(forward: Boolean) = skip(forward)
 
-    fun handleEvent(event: MotionEvent) {
+    override fun handleEvent(event: MotionEvent) {
         // Implementação simplificada de gestos se necessário
     }
 
