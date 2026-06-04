@@ -17,7 +17,7 @@ import androidx.viewpager.widget.ViewPager
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.*
 import com.goodwy.gallery.R
-import com.goodwy.gallery.databinding.ActivityViewPagerBinding
+import com.goodwy.gallery.databinding.ActivityMediumBinding
 import com.goodwy.gallery.extensions.*
 import com.goodwy.gallery.fragments.VideoFragment
 import com.goodwy.gallery.fragments.ViewPagerFragment
@@ -26,6 +26,7 @@ import com.goodwy.gallery.models.Medium
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import com.google.android.material.appbar.AppBarLayout
 import java.io.File
 
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
@@ -34,17 +35,17 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
     private var mIsFullScreen = false
     private var mIsSlideshowActive = false
 
-    private val binding by viewBinding(ActivityViewPagerBinding::inflate)
+    private val binding by viewBinding(ActivityMediumBinding::inflate)
 
     override val contentHolder: ViewGroup
-        get() = binding.viewPagerHolder
+        get() = binding.fragmentHolder
+
+    override val appBarLayout: AppBarLayout
+        get() = binding.mediumViewerAppbar
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        setupEdgeToEdge(
-            padBottomSystem = listOf(binding.viewPagerHolder),
-        )
 
         val path = intent.getStringExtra(PATH) ?: ""
         if (path.isEmpty()) {
@@ -60,12 +61,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
     }
 
     private fun setupOptionsMenu() {
-        binding.viewPagerToolbar.apply {
+        binding.mediumViewerToolbar.apply {
             setTitleTextColor(android.graphics.Color.WHITE)
             overflowIcon = resources.getColoredDrawableWithColor(com.goodwy.commons.R.drawable.ic_three_dots_vector, android.graphics.Color.WHITE)
             navigationIcon = resources.getColoredDrawableWithColor(com.goodwy.commons.R.drawable.ic_chevron_left_vector, android.graphics.Color.WHITE)
             setNavigationOnClickListener { finish() }
-            inflateMenu(R.menu.menu_view_pager)
+            inflateMenu(R.menu.menu_viewpager)
             setOnMenuItemClickListener { menuItem ->
                 when (menuItem.itemId) {
                     R.id.menu_extract_text -> {
@@ -79,7 +80,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
     }
 
     private fun initViewPager() {
-        // Implementação básica do ViewPager omitida para brevidade, focando no OCR
+        // Implementação básica do ViewPager omitida para brevidade
     }
 
     override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
@@ -88,7 +89,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
 
     private fun getCurrentMedium(): Medium? = if (mPos < mMediums.size) mMediums[mPos] else null
 
-    private fun getCurrentFragment(): ViewPagerFragment? = null // Placeholder
+    private fun getCurrentFragment(): ViewPagerFragment? = null
 
     private fun extractTextFromImage() {
         val medium = getCurrentMedium() ?: return
@@ -209,4 +210,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
             .setNegativeButton(com.goodwy.commons.R.string.cancel, null)
             .create().show()
     }
+
+    override fun fragmentClicked() {}
+    override fun videoEnded() = false
+    override fun goToPrevItem() {}
+    override fun goToNextItem() {}
+    override fun launchViewVideoIntent(path: String) {}
+    override fun isSlideShowActive() = false
+    override fun isFullScreen() = mIsFullScreen
+    override fun updatePlayPause(play: Boolean) {}
 }

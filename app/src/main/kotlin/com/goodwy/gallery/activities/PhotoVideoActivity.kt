@@ -4,12 +4,11 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
-import android.text.Html
 import android.view.View
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.*
 import com.goodwy.gallery.R
-import com.goodwy.gallery.databinding.ActivityPhotoVideoBinding
+import com.goodwy.gallery.databinding.ActivityMediumBinding
 import com.goodwy.gallery.extensions.*
 import com.goodwy.gallery.fragments.PhotoFragment
 import com.goodwy.gallery.fragments.VideoFragment
@@ -18,27 +17,25 @@ import com.goodwy.gallery.helpers.*
 import com.goodwy.gallery.models.Medium
 import com.google.android.material.appbar.AppBarLayout
 
-class PhotoVideoActivity : BaseViewerActivity() {
-    private var mMedium: Medium? = null
-    private var mIsFullScreen = false
-    private var mFragment: ViewPagerFragment? = null
-    private var mUri: Uri? = null
-    private var mMuteInit = false
+open class PhotoVideoActivity : BaseViewerActivity() {
+    protected var mMedium: Medium? = null
+    protected var mIsFullScreen = false
+    protected var mFragment: ViewPagerFragment? = null
+    protected var mUri: Uri? = null
+    protected var mMuteInit = false
+    protected var mIsVideo = false
 
-    private val binding by viewBinding(ActivityPhotoVideoBinding::inflate)
+    private val binding by viewBinding(ActivityMediumBinding::inflate)
 
     override val contentHolder: View
-        get() = binding.photoVideoHolder
+        get() = binding.fragmentHolder
 
     override val appBarLayout: AppBarLayout
-        get() = binding.fragmentViewerAppbar
+        get() = binding.mediumViewerAppbar
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        setupEdgeToEdge(
-            padBottomSystem = listOf(binding.bottomActions.root),
-        )
 
         mUri = intent.data
         if (mUri == null) {
@@ -56,11 +53,14 @@ class PhotoVideoActivity : BaseViewerActivity() {
                 0L,
                 0L,
                 0L,
-                path.getMimeType(),
+                0,
+                0,
                 false,
+                0L,
                 0L,
                 0
             )
+            mMedium?.type = if (mIsVideo) TYPE_VIDEOS else TYPE_IMAGES
         }
 
         setupOptionsMenu()
@@ -71,20 +71,20 @@ class PhotoVideoActivity : BaseViewerActivity() {
     override fun onResume() {
         super.onResume()
         if (config.blackBackground) {
-            binding.photoVideoHolder.setBackgroundColor(Color.BLACK)
+            binding.fragmentHolder.setBackgroundColor(Color.BLACK)
         }
     }
 
     private fun setupOptionsMenu() {
-        binding.fragmentViewerToolbar.apply {
+        binding.mediumViewerToolbar.apply {
             setTitleTextColor(Color.WHITE)
             overflowIcon = resources.getColoredDrawableWithColor(com.goodwy.commons.R.drawable.ic_three_dots_vector, Color.WHITE)
             navigationIcon = resources.getColoredDrawableWithColor(com.goodwy.commons.R.drawable.ic_chevron_left_vector, Color.WHITE)
             setNavigationOnClickListener { finish() }
         }
 
-        updateMenuItemColors(binding.fragmentViewerToolbar.menu, forceWhiteIcons = true)
-        binding.fragmentViewerToolbar.setOnMenuItemClickListener { menuItem ->
+        updateMenuItemColors(binding.mediumViewerToolbar.menu, forceWhiteIcons = true)
+        binding.mediumViewerToolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.menu_set_as -> setAs(mMedium?.path ?: mUri.toString())
                 R.id.menu_open_with -> openPath(mMedium?.path ?: mUri.toString(), true)
@@ -151,10 +151,10 @@ class PhotoVideoActivity : BaseViewerActivity() {
             binding.bottomActions.root.animate().alpha(newAlpha).start()
         }
 
-        binding.fragmentViewerToolbar.animate().alpha(newAlpha).withStartAction {
-            binding.fragmentViewerToolbar.beVisible()
+        binding.mediumViewerToolbar.animate().alpha(newAlpha).withStartAction {
+            binding.mediumViewerToolbar.beVisible()
         }.withEndAction {
-            binding.fragmentViewerToolbar.beVisibleIf(newAlpha == 1f)
+            binding.mediumViewerToolbar.beVisibleIf(newAlpha == 1f)
         }.start()
     }
 
