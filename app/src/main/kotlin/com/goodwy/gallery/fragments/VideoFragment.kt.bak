@@ -265,6 +265,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (videoSurfaceFrame.controller.state.zoom == 1f) {
                     handleEvent(event)
                 }
+                handleTouchHoldEvent(event)
                 if (mIsLongPressActive) {
                     return@setOnTouchListener true
                 }
@@ -968,7 +969,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun doSkip(forward: Boolean) = skip(forward)
 
-    override fun handleEvent(event: MotionEvent) {
+    private fun handleEvent(event: MotionEvent) {
         // Implementação simplificada de gestos se necessário
     }
 
