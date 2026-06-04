@@ -44,6 +44,7 @@ open class PhotoVideoActivity : BaseViewerActivity() {
             return
         }
 
+        val path = applicationContext.getRealPathFromURI(mUri!!) ?: ""
         if (path.isNotEmpty()) {
             mMedium = Medium(
                 null,
@@ -108,9 +109,11 @@ open class PhotoVideoActivity : BaseViewerActivity() {
         bundle.putBoolean(SHOULD_INIT_FRAGMENT, true)
         mFragment?.arguments = bundle
 
+        supportFragmentManager.beginTransaction().replace(R.id.fragment_placeholder, mFragment!!).commit()
     }
 
     fun fragmentClicked() {
+        mIsFullScreen = !mIsFullScreen
         if (mIsFullScreen) hideSystemUI() else showSystemUI()
         mFragment?.fullscreenToggled(mIsFullScreen)
         val newAlpha = if (mIsFullScreen) 0f else 1f
