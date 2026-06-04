@@ -44,6 +44,8 @@ abstract class ViewPagerFragment : Fragment() {
         fun isFullScreen(): Boolean
 
         fun refreshMenuItems() {}
+
+        fun refreshMenuItems() {}
     }
 
     fun getMediumExtendedDetails(medium: Medium): String {

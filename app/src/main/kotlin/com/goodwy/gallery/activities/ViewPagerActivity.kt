@@ -30,7 +30,7 @@ import com.google.android.material.appbar.AppBarLayout
 import java.io.File
 
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
-    private var mMediums = ArrayList<<Medium>()
+    private var mMediums = ArrayList<Medium>()
     private var mPos = 0
     private var mIsFullScreen = false
     private var mIsSlideshowActive = false
@@ -54,7 +54,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
         }
 
         mPos = intent.getIntExtra(POS, 0)
-        mMediums = intent.getSerializableExtra(MEDIUMS) as? ArrayList<<Medium> ?: ArrayList()
+        mMediums = intent.getSerializableExtra(MEDIUMS) as? ArrayList<Medium> ?: ArrayList()
 
         setupOptionsMenu()
         initViewPager()
@@ -191,10 +191,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
         .lines()
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .joinToString("\\n")
-        .replace(Regex("[\\\\\\\\|\\\\x00-\\\\x08\\\\x0B\\\\x0C\\\\x0E-\\\\x1F]"), "")
+        .joinToString("\n")
+        .replace(Regex("[\\|\x00-\x08\x0B\x0C\x0E-\x1F]"), "")
         .replace(Regex(" +"), " ")
-        .replace(Regex("\\\\n\\\\n+"), "\\\\n\\\\n")
+        .replace(Regex("\n\n+"), "\n\n")
         .trim()
 
     private fun showExtractedTextDialog(text: String) {
@@ -222,7 +222,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
         binding.topShadow.animate().alpha(newAlpha).start()
         binding.mediumViewerToolbar.animate().alpha(newAlpha).start()
     }
-    
+
     fun videoEnded() = false
     fun goToPrevItem() {
         if (mPos > 0) {

@@ -826,8 +826,8 @@ class PhotoFragment : ViewPagerFragment() {
                     loadBitmap(false)
 
                     // ugly, but it works
-                    (activity as? ViewPagerActivity)?.refreshMenuItems()
-                    (activity as? PhotoVideoActivity)?.refreshMenuItems()
+                    (activity as? ViewPagerActivity)?.invalidateOptionsMenu()
+                    (activity as? PhotoVideoActivity)?.invalidateOptionsMenu()
                 }
 
                 override fun onUpEvent() {

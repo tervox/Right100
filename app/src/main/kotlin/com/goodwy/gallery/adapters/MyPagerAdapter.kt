@@ -15,7 +15,7 @@ import com.goodwy.gallery.helpers.MEDIUM
 import com.goodwy.gallery.helpers.SHOULD_INIT_FRAGMENT
 import com.goodwy.gallery.models.Medium
 
-class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val media: MutableList<<Medium>) : FragmentStatePagerAdapter(fm) {
+class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val media: MutableList<Medium>) : FragmentStatePagerAdapter(fm) {
     private val fragments = HashMap<Int, ViewPagerFragment>()
     var shouldInitFragment = true
 
