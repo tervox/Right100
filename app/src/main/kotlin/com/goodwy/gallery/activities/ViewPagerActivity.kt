@@ -54,7 +54,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
 
-        mPos = intent.getIntExtra(POS, 0)
+        mPos = intent.getIntExtra("pos", 0)
         mMediums = intent.getSerializableExtra(MEDIUMS) as? ArrayList<Medium> ?: ArrayList()
 
         setupOptionsMenu()
