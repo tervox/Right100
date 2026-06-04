@@ -17,6 +17,7 @@ import androidx.viewpager.widget.ViewPager
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.*
 import com.goodwy.gallery.R
+import com.goodwy.gallery.adapters.MyPagerAdapter
 import com.goodwy.gallery.databinding.ActivityMediumBinding
 import com.goodwy.gallery.extensions.*
 import com.goodwy.gallery.fragments.VideoFragment
@@ -29,7 +30,7 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.android.material.appbar.AppBarLayout
 import java.io.File
 
-class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
+class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
     private var mMediums = ArrayList<Medium>()
     private var mPos = 0
     private var mIsFullScreen = false
@@ -191,10 +192,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
         .lines()
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .joinToString("\n")
-        .replace(Regex("[\\|\x00-\x08\x0B\x0C\x0E-\x1F]"), "")
+        .joinToString("
+")
+        .replace(Regex("[\| --]"), "")
         .replace(Regex(" +"), " ")
-        .replace(Regex("\n\n+"), "\n\n")
+        .replace(Regex("
+
++"), "
+
+")
         .trim()
 
     private fun showExtractedTextDialog(text: String) {
@@ -215,7 +221,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
             .create().show()
     }
 
-    fun fragmentClicked() {
+    override fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
         if (mIsFullScreen) hideSystemUI() else showSystemUI()
         val newAlpha = if (mIsFullScreen) 0f else 1f
@@ -223,19 +229,20 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
         binding.mediumViewerToolbar.animate().alpha(newAlpha).start()
     }
 
-    fun videoEnded() = false
-    fun goToPrevItem() {
+    override fun videoEnded() = false
+    override fun goToPrevItem() {
         if (mPos > 0) {
             binding.viewPager.currentItem = mPos - 1
         }
     }
-    fun goToNextItem() {
+    override fun goToNextItem() {
         if (mPos < mMediums.size - 1) {
             binding.viewPager.currentItem = mPos + 1
         }
     }
-    fun launchViewVideoIntent(path: String) {}
-    fun isSlideShowActive() = mIsSlideshowActive
-    fun isFullScreen() = mIsFullScreen
-    fun updatePlayPause(play: Boolean) {}
+    override fun launchViewVideoIntent(path: String) {}
+    override fun isSlideShowActive() = mIsSlideshowActive
+    override fun isFullScreen() = mIsFullScreen
+    override fun updatePlayPause(play: Boolean) {}
+    override fun refreshMenuItems() {}
 }

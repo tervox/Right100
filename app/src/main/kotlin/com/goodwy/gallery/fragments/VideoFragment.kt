@@ -265,7 +265,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (videoSurfaceFrame.controller.state.zoom == 1f) {
                     handleEvent(event)
                 }
-                handleTouchHoldEventLocal(event)
+                handleTouchHoldEvent(event)
                 if (mIsLongPressActive) {
                     return@setOnTouchListener true
                 }
