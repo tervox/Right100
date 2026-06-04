@@ -436,7 +436,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun updatePlayerMuteState(showToast: Boolean = false) {
         if (!mHasAudio) {
             if (showToast && mWasVideoStarted) {
-                Toast.makeText(requireContext(), "Pause o video primeiro", Toast.LENGTH_SHORT).show()
+                toast(R.string.video_no_sound)
             }
         }
 
@@ -969,7 +969,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun doSkip(forward: Boolean) = skip(forward)
 
-    fun handleEvent(event: MotionEvent) {
+    private fun handleEvent(event: MotionEvent) {
         // Implementação simplificada de gestos se necessário
     }
 
