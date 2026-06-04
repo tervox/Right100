@@ -1,5 +1,4 @@
 package com.goodwy.gallery.activities
-import android.widget.Toast
 
 import android.content.Intent
 import android.graphics.Bitmap
@@ -13,6 +12,7 @@ import android.view.TextureView
 import android.view.ViewGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.exifinterface.media.ExifInterface
 import androidx.viewpager.widget.ViewPager
 import com.goodwy.commons.extensions.*
@@ -30,11 +30,6 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.android.material.appbar.AppBarLayout
 import java.io.File
-
-// Constantes locais para evitar dependência de imports externos
-private const val EXTRA_PATH = "path"
-private const val EXTRA_POS = "pos"
-private const val EXTRA_MEDIUMS = "mediums"
 
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
     private var mMediums = ArrayList<Medium>()
@@ -54,14 +49,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
 
-        val path = intent.getStringExtra(EXTRA_PATH) ?: ""
+        val path = intent.getStringExtra("path") ?: ""
         if (path.isEmpty()) {
             finish()
             return
         }
 
-        mPos = intent.getIntExtra(EXTRA_POS, 0)
-        mMediums = intent.getSerializableExtra(EXTRA_MEDIUMS) as? ArrayList<Medium> ?: ArrayList()
+        mPos = intent.getIntExtra("pos", 0)
+        mMediums = intent.getSerializableExtra("mediums") as? ArrayList<Medium> ?: ArrayList()
 
         setupOptionsMenu()
         initViewPager()
