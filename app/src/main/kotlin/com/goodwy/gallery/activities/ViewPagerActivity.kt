@@ -30,7 +30,7 @@ import com.google.android.material.appbar.AppBarLayout
 import java.io.File
 
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
-    private var mMediums = ArrayList<Medium>()
+    private var mMediums = ArrayList<<Medium>()
     private var mPos = 0
     private var mIsFullScreen = false
     private var mIsSlideshowActive = false
@@ -38,7 +38,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
     private val binding by viewBinding(ActivityMediumBinding::inflate)
 
     override val contentHolder: ViewGroup
-        get() = binding.fragmentHolder
+        get() = binding.root as ViewGroup
 
     override val appBarLayout: AppBarLayout
         get() = binding.mediumViewerAppbar
@@ -54,7 +54,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
         }
 
         mPos = intent.getIntExtra(POS, 0)
-        mMediums = intent.getSerializableExtra(MEDIUMS) as? ArrayList<Medium> ?: ArrayList()
+        mMediums = intent.getSerializableExtra(MEDIUMS) as? ArrayList<<Medium> ?: ArrayList()
 
         setupOptionsMenu()
         initViewPager()
@@ -80,7 +80,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
     }
 
     private fun initViewPager() {
-        // Implementação básica do ViewPager omitida para brevidade
+        val adapter = MyPagerAdapter(this, supportFragmentManager, mMediums)
+        binding.viewPager.adapter = adapter
+        binding.viewPager.currentItem = mPos
+        binding.viewPager.addOnPageChangeListener(this)
     }
 
     override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
@@ -89,7 +92,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
 
     private fun getCurrentMedium(): Medium? = if (mPos < mMediums.size) mMediums[mPos] else null
 
-    private fun getCurrentFragment(): ViewPagerFragment? = null
+    private fun getCurrentFragment(): ViewPagerFragment? {
+        val adapter = binding.viewPager.adapter as? MyPagerAdapter
+        return adapter?.getCurrentFragment(mPos)
+    }
 
     private fun extractTextFromImage() {
         val medium = getCurrentMedium() ?: return
@@ -100,7 +106,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
                 val rawBmp = BitmapFactory.decodeFile(medium.path)
                     ?.copy(Bitmap.Config.ARGB_8888, true)
                     ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
-                
                 val bmp = run {
                     val exif = try { ExifInterface(medium.path) } catch (e: Throwable) { null }
                     val ori = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) ?: 1
@@ -117,7 +122,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
                         rotated
                     } else rawBmp
                 }
-                
                 val img = InputImage.fromBitmap(bmp, 0)
                 val client = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
                 client.process(img)
@@ -158,7 +162,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
             val textureView = findTextureView(viewGroup) ?: run {
                 toast("Abra ou pause o video para capturar"); return
             }
-            val raw = textureView.getBitmap() ?: run {
+            val raw = textureView.bitmap ?: run {
                 toast("Erro ao capturar frame do video"); return
             }
             val bmp = preprocessForOcr(raw)
@@ -187,10 +191,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
         .lines()
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .joinToString("\n")
-        .replace(Regex("[\\|\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "")
-        .replace(Regex("  +"), " ")
-        .replace(Regex("\\n\\n+"), "\n\n")
+        .joinToString("\\n")
+        .replace(Regex("[\\\\\\\\|\\\\x00-\\\\x08\\\\x0B\\\\x0C\\\\x0E-\\\\x1F]"), "")
+        .replace(Regex(" +"), " ")
+        .replace(Regex("\\\\n\\\\n+"), "\\\\n\\\\n")
         .trim()
 
     private fun showExtractedTextDialog(text: String) {
@@ -211,12 +215,27 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener {
             .create().show()
     }
 
-    override fun fragmentClicked() {}
-    override fun videoEnded() = false
-    override fun goToPrevItem() {}
-    override fun goToNextItem() {}
-    override fun launchViewVideoIntent(path: String) {}
-    override fun isSlideShowActive() = false
-    override fun isFullScreen() = mIsFullScreen
-    override fun updatePlayPause(play: Boolean) {}
+    fun fragmentClicked() {
+        mIsFullScreen = !mIsFullScreen
+        if (mIsFullScreen) hideSystemUI() else showSystemUI()
+        val newAlpha = if (mIsFullScreen) 0f else 1f
+        binding.topShadow.animate().alpha(newAlpha).start()
+        binding.mediumViewerToolbar.animate().alpha(newAlpha).start()
+    }
+    
+    fun videoEnded() = false
+    fun goToPrevItem() {
+        if (mPos > 0) {
+            binding.viewPager.currentItem = mPos - 1
+        }
+    }
+    fun goToNextItem() {
+        if (mPos < mMediums.size - 1) {
+            binding.viewPager.currentItem = mPos + 1
+        }
+    }
+    fun launchViewVideoIntent(path: String) {}
+    fun isSlideShowActive() = mIsSlideshowActive
+    fun isFullScreen() = mIsFullScreen
+    fun updatePlayPause(play: Boolean) {}
 }

@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.*
 import com.goodwy.gallery.R
@@ -27,8 +28,8 @@ open class PhotoVideoActivity : BaseViewerActivity() {
 
     private val binding by viewBinding(ActivityMediumBinding::inflate)
 
-    override val contentHolder: View
-        get() = binding.fragmentHolder
+    override val contentHolder: ViewGroup
+        get() = binding.root as ViewGroup
 
     override val appBarLayout: AppBarLayout
         get() = binding.mediumViewerAppbar
@@ -64,14 +65,13 @@ open class PhotoVideoActivity : BaseViewerActivity() {
         }
 
         setupOptionsMenu()
-        setupBottomActions()
         initFragment()
     }
 
     override fun onResume() {
         super.onResume()
         if (config.blackBackground) {
-            binding.fragmentHolder.setBackgroundColor(Color.BLACK)
+            binding.root.setBackgroundColor(Color.BLACK)
         }
     }
 
@@ -110,47 +110,14 @@ open class PhotoVideoActivity : BaseViewerActivity() {
         mFragment?.arguments = bundle
 
         supportFragmentManager.beginTransaction().replace(R.id.fragment_placeholder, mFragment!!).commit()
-        updateBottomActionIcons()
     }
 
-    private fun setupBottomActions() {
-        binding.bottomActions.bottomFavorite.beGone()
-        binding.bottomActions.bottomDelete.beGone()
-        binding.bottomActions.bottomDetails.beGone()
-        binding.bottomActions.bottomEdit.beGone()
-        binding.bottomActions.bottomCopy.beGone()
-        binding.bottomActions.bottomMove.beGone()
-        binding.bottomActions.bottomRename.beGone()
-        binding.bottomActions.bottomRotate.beGone()
-        binding.bottomActions.bottomProperties.beGone()
-
-        binding.bottomActions.bottomResize.setOnClickListener {
-            mMedium?.let {
-                resizeImage(it.path)
-            }
-        }
-
-        binding.bottomActions.bottomPlayPause.setOnClickListener {
-            (mFragment as? VideoFragment)?.togglePlayPause()
-        }
-
-        binding.bottomActions.bottomMute.setOnClickListener {
-            config.muteVideos = !config.muteVideos
-            updatePlayerMuteState()
-        }
-    }
-
-    override fun fragmentClicked() {
+    fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
         if (mIsFullScreen) hideSystemUI() else showSystemUI()
         mFragment?.fullscreenToggled(mIsFullScreen)
-
         val newAlpha = if (mIsFullScreen) 0f else 1f
         binding.topShadow.animate().alpha(newAlpha).start()
-        if (!binding.bottomActions.root.isGone()) {
-            binding.bottomActions.root.animate().alpha(newAlpha).start()
-        }
-
         binding.mediumViewerToolbar.animate().alpha(newAlpha).withStartAction {
             binding.mediumViewerToolbar.beVisible()
         }.withEndAction {
@@ -158,34 +125,11 @@ open class PhotoVideoActivity : BaseViewerActivity() {
         }.start()
     }
 
-    override fun videoEnded() = false
-    override fun goToPrevItem() {}
-    override fun goToNextItem() {}
-    override fun launchViewVideoIntent(path: String) {}
-    override fun isSlideShowActive() = false
-    override fun isFullScreen() = mIsFullScreen
-
-    override fun updatePlayPause(play: Boolean) {
-        if (play) {
-            binding.bottomActions.bottomPlayPause.setImageResource(R.drawable.ic_play_vector)
-        } else {
-            binding.bottomActions.bottomPlayPause.setImageResource(R.drawable.ic_pause_vector)
-        }
-    }
-
-    private fun updatePlayerMuteState() {
-        val isMuted = config.muteVideos
-        val drawableId = if (isMuted) R.drawable.ic_vector_speaker_off else R.drawable.ic_vector_speaker_on
-        binding.bottomActions.bottomMute.setImageResource(drawableId)
-        mMuteInit = true
-    }
-
-    private fun updateBottomActionIcons() {
-        if (mMedium == null) return
-        val isVideo = mMedium?.isVideo() == true || mMedium?.isGIF() == true
-        binding.bottomActions.bottomPlayPause.beVisibleIf(isVideo && config.visibleBottomActions and BOTTOM_ACTION_PLAY_PAUSE != 0)
-        binding.bottomActions.bottomMute.beVisibleIf(isVideo && config.visibleBottomActions and BOTTOM_ACTION_MUTE != 0)
-        binding.bottomActions.bottomResize.beVisibleIf(config.visibleBottomActions and BOTTOM_ACTION_RESIZE != 0 && mMedium?.isImage() == true)
-        updatePlayerMuteState()
-    }
+    fun videoEnded() = false
+    fun goToPrevItem() {}
+    fun goToNextItem() {}
+    fun launchViewVideoIntent(path: String) {}
+    fun isSlideShowActive() = false
+    fun isFullScreen() = mIsFullScreen
+    fun updatePlayPause(play: Boolean) {}
 }
