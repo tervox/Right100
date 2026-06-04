@@ -43,6 +43,8 @@ abstract class ViewPagerFragment : Fragment() {
 
         fun isFullScreen(): Boolean
 
+        fun refreshMenuItems() {}
+
 
     }
 

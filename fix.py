@@ -1,4 +1,28 @@
-package com.goodwy.gallery.activities
+import os
+import re
+
+os.chdir('/data/data/com.termux/files/home/Right100')
+
+# CORREÇÃO 1: PhotoVideoActivity.kt
+with open('app/src/main/kotlin/com/goodwy/gallery/activities/PhotoVideoActivity.kt', 'r') as f:
+    content = f.read()
+
+content = content.replace('override fun fragmentClicked()', 'fun fragmentClicked()')
+content = content.replace('override fun videoEnded()', 'fun videoEnded()')
+content = content.replace('override fun goToPrevItem()', 'fun goToPrevItem()')
+content = content.replace('override fun goToNextItem()', 'fun goToNextItem()')
+content = content.replace('override fun launchViewVideoIntent(path: String)', 'fun launchViewVideoIntent(path: String)')
+content = content.replace('override fun isSlideShowActive()', 'fun isSlideShowActive()')
+content = content.replace('override fun isFullScreen()', 'fun isFullScreen()')
+content = content.replace('override fun updatePlayPause(play: Boolean)', 'fun updatePlayPause(play: Boolean)')
+
+with open('app/src/main/kotlin/com/goodwy/gallery/activities/PhotoVideoActivity.kt', 'w') as f:
+    f.write(content)
+
+print("PhotoVideoActivity.kt OK")
+
+# CORREÇÃO 2: ViewPagerActivity.kt - REESCREVER
+vp = '''package com.goodwy.gallery.activities
 
 import android.content.Intent
 import android.graphics.Bitmap
@@ -192,15 +216,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         .lines()
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .joinToString("
-")
-        .replace(Regex("[\\|\x00-\x08\x0B\x0C\x0E-\x1F]"), "")
+        .joinToString("\n")
+        .replace(Regex("[\\\\|\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "")
         .replace(Regex(" +"), " ")
-        .replace(Regex("
-
-+"), "
-
-")
+        .replace(Regex("\n\n+"), "\n\n")
         .trim()
 
     private fun showExtractedTextDialog(text: String) {
@@ -246,3 +265,64 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     override fun updatePlayPause(play: Boolean) {}
     override fun refreshMenuItems() {}
 }
+'''
+
+with open('app/src/main/kotlin/com/goodwy/gallery/activities/ViewPagerActivity.kt', 'w') as f:
+    f.write(vp)
+
+print("ViewPagerActivity.kt OK")
+
+# CORREÇÃO 3: MyPagerAdapter.kt
+with open('app/src/main/kotlin/com/goodwy/gallery/adapters/MyPagerAdapter.kt', 'r') as f:
+    content = f.read()
+
+content = content.replace('MutableList<<Medium>', 'MutableList<<Medium>')
+
+with open('app/src/main/kotlin/com/goodwy/gallery/adapters/MyPagerAdapter.kt', 'w') as f:
+    f.write(content)
+
+print("MyPagerAdapter.kt OK")
+
+# CORREÇÃO 4: ViewPagerFragment.kt
+with open('app/src/main/kotlin/com/goodwy/gallery/fragments/ViewPagerFragment.kt', 'r') as f:
+    content = f.read()
+
+content = re.sub(r'\s+fun refreshMenuItems\(\)\s*\{\s*\}', '', content)
+content = content.replace(
+    'fun isFullScreen(): Boolean',
+    'fun isFullScreen(): Boolean\n\n        fun refreshMenuItems() {}'
+)
+
+with open('app/src/main/kotlin/com/goodwy/gallery/fragments/ViewPagerFragment.kt', 'w') as f:
+    f.write(content)
+
+print("ViewPagerFragment.kt OK")
+
+# CORREÇÃO 5: PhotoFragment.kt
+with open('app/src/main/kotlin/com/goodwy/gallery/fragments/PhotoFragment.kt', 'r') as f:
+    content = f.read()
+
+content = content.replace('?.refreshMenuItems()', '?.invalidateOptionsMenu()')
+
+with open('app/src/main/kotlin/com/goodwy/gallery/fragments/PhotoFragment.kt', 'w') as f:
+    f.write(content)
+
+print("PhotoFragment.kt OK")
+
+# CORREÇÃO 6: VideoFragment.kt
+with open('app/src/main/kotlin/com/goodwy/gallery/fragments/VideoFragment.kt', 'r') as f:
+    content = f.read()
+
+content = content.replace('handleTouchHoldEventLocal(event)', 'handleTouchHoldEvent(event)')
+content = content.replace(
+    '    fun handleEvent(event: MotionEvent)',
+    '    override fun handleEvent(event: MotionEvent)'
+)
+
+with open('app/src/main/kotlin/com/goodwy/gallery/fragments/VideoFragment.kt', 'w') as f:
+    f.write(content)
+
+print("VideoFragment.kt OK")
+
+print("\nTUDO CORRIGIDO!")
+print("Execute: git add -A && git commit -m 'Fix: Corrige todos os erros' && git push origin master")
