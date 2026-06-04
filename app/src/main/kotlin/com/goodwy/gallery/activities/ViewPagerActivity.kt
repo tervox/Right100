@@ -30,6 +30,11 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.android.material.appbar.AppBarLayout
 import java.io.File
 
+// Constantes locais para evitar dependência de imports externos
+private const val EXTRA_PATH = "path"
+private const val EXTRA_POS = "pos"
+private const val EXTRA_MEDIUMS = "mediums"
+
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
     private var mMediums = ArrayList<Medium>()
     private var mPos = 0
@@ -48,14 +53,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
 
-        val path = intent.getStringExtra(PATH) ?: ""
+        val path = intent.getStringExtra(EXTRA_PATH) ?: ""
         if (path.isEmpty()) {
             finish()
             return
         }
 
-        mPos = intent.getIntExtra("pos", 0)
-        mMediums = intent.getSerializableExtra(MEDIUMS) as? ArrayList<Medium> ?: ArrayList()
+        mPos = intent.getIntExtra(EXTRA_POS, 0)
+        mMediums = intent.getSerializableExtra(EXTRA_MEDIUMS) as? ArrayList<Medium> ?: ArrayList()
 
         setupOptionsMenu()
         initViewPager()
@@ -144,11 +149,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun extractTextFromVideoFrame() {
         val fragment = getCurrentFragment() as? VideoFragment ?: run {
-            toast("Pause o video primeiro"); return
+            Toast.makeText(this, "Pause o video primeiro", Toast.LENGTH_SHORT).show(); return
         }
         try {
             val viewGroup = fragment.view as? android.view.ViewGroup ?: run {
-                toast("Erro ao carregar tela do video"); return
+                Toast.makeText(this, "Erro ao carregar tela do video", Toast.LENGTH_SHORT).show(); return
             }
             fun findTextureView(view: android.view.View): TextureView? {
                 if (view is TextureView) return view
@@ -161,10 +166,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 return null
             }
             val textureView = findTextureView(viewGroup) ?: run {
-                toast("Abra ou pause o video para capturar"); return
+                Toast.makeText(this, "Abra ou pause o video para capturar", Toast.LENGTH_SHORT).show(); return
             }
             val raw = textureView.bitmap ?: run {
-                toast("Erro ao capturar frame do video"); return
+                Toast.makeText(this, "Erro ao capturar frame do video", Toast.LENGTH_SHORT).show(); return
             }
             val bmp = preprocessForOcr(raw)
             toast(com.goodwy.gallery.R.string.extracting_text)
@@ -179,10 +184,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 .addOnFailureListener { e ->
                     bmp.recycle()
                     raw.recycle(); client.close()
-                    toast("Erro OCR video: " + (e.localizedMessage?.take(80) ?: ""))
+                    Toast.makeText(this, "Erro OCR video: " + (e.localizedMessage?.take(80) ?: ""), Toast.LENGTH_SHORT).show()
                 }
         } catch (e: Throwable) {
-            toast(e.javaClass.simpleName + ": " + (e.localizedMessage?.take(80) ?: ""))
+            Toast.makeText(this, e.javaClass.simpleName + ": " + (e.localizedMessage?.take(80) ?: ""), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -193,7 +198,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .joinToString("\n")
-        .replace(Regex("[\\|\x00-\x08\x0B\x0C\x0E-\x1F]"), "")
+        .replace(Regex("[|]"), "")
         .replace(Regex(" +"), " ")
         .replace(Regex("\n\n+"), "\n\n")
         .trim()
