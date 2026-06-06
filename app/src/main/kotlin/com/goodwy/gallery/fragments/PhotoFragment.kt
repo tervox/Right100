@@ -160,7 +160,7 @@ class PhotoFragment : ViewPagerFragment() {
             })
 
             gifView.setOnTouchListener { v, event ->
-                if (context.config.allowDownGesture && gifViewFrame.controller.state.zoom == 1f) handleEvent(event)
+                if (context.config.allowDownGesture && gifViewFrame.controller.state.zoom == 1f) handlePhotoGesture(event)
                 false
             }
 
@@ -168,13 +168,13 @@ class PhotoFragment : ViewPagerFragment() {
             gesturesView.setOnTouchListener { v, event ->
                 val allowDownGesture = context.config.allowDownGesture
                 if (allowDownGesture && abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) {
-                    handleEvent(event)
+                    handlePhotoGesture(event)
                 }
                 false
             }
 
             subsamplingView.setOnTouchListener { v, event ->
-                if (subsamplingView.isZoomedOut() && context.config.allowDownGesture) handleEvent(event)
+                if (subsamplingView.isZoomedOut() && context.config.allowDownGesture) handlePhotoGesture(event)
                 false
             }
         }
