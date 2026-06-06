@@ -969,7 +969,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun doSkip(forward: Boolean) = skip(forward)
 
-    private fun handleEvent(event: MotionEvent) {
+    fun handleEvent(event: MotionEvent) {
         // Implementação simplificada de gestos se necessário
     }
 
