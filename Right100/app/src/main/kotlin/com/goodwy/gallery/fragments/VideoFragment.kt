@@ -5,10 +5,6 @@ package com.goodwy.gallery.fragments
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.graphics.Color
-import android.graphics.RenderEffect
-import android.graphics.Shader
-import android.os.Build
-import android.media.MediaMetadataRetriever
 import android.graphics.Point
 import android.graphics.SurfaceTexture
 import android.net.Uri
@@ -38,7 +34,6 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -53,9 +48,6 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.MultiTransformation
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
-import jp.wasabeef.glide.transformations.BlurTransformation
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
 import com.goodwy.commons.helpers.ensureBackgroundThread
@@ -111,21 +103,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
-    private val mSyncHandler = Handler(Looper.getMainLooper())
-    private val mSyncRunnable = object : Runnable {
-        override fun run() {
-            syncBlur()
-            mSyncHandler.postDelayed(this, 1000)
-        }
-    }
-
-    private fun syncBlur() {
-        val mainPos = mExoPlayer?.currentPosition ?: 0L
-        val blurPos = mBlurPlayer?.currentPosition ?: 0L
-        if (Math.abs(mainPos - blurPos) > 100) { mBlurPlayer?.seekTo(mainPos) }
-    }
-
-    private var mBlurPlayer: ExoPlayer? = null
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -154,7 +131,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private lateinit var mView: View
     private lateinit var mMedium: Medium
     private lateinit var mConfig: Config
-    private lateinit var mTextureView: TextureView
+    lateinit var mTextureView: TextureView
     private lateinit var mCurrTimeView: TextView
     private lateinit var mPlayPauseButton: ImageView
     private lateinit var mSeekBar: SeekBar
@@ -167,9 +144,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mMuteInit: Boolean = false
 
     // 0 = fit (default), 1 = fill/cover (sem esticar), 2 = stretch (esticado)
-    private var mVideoFillMode: Int
-        get() = mConfig.videoFillMode
-        set(value) { mConfig.videoFillMode = value }
+    private var mVideoFillMode = 0
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
@@ -199,23 +174,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             bottomVideoTimeHolder.videoStretch.apply {
                 beVisible()
                 setOnClickListener { toggleVideoStretch() }
-            }
-
-            bottomVideoTimeHolder.videoFillScreen.apply {
-                beVisible()
-                setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
-                setOnClickListener {
-                    mConfig.videoFillScreen = !mConfig.videoFillScreen
-                    // Se ativar preencher, desativa modo esticado
-                    if (mConfig.videoFillScreen && mVideoFillMode != 0) {
-                        mVideoFillMode = 0
-                        binding.bottomVideoTimeHolder.videoStretch.setImageResource(R.drawable.ic_maximize_vector)
-                    }
-                    binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(
-                        if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free
-                    )
-                    setVideoSize()
-                }
             }
 
             videoSurfaceFrame.controller.settings.swallowDoubleTaps = true
@@ -426,7 +384,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         checkExtendedDetails()
         initTimeHolder()
-        loadBlurBackground()
         storeStateVariables()
         context?.let { (mSeekBar as MySeekBar?)!!.setColors(
             it.getProperTextColor(),
@@ -556,66 +513,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         })
     }
 
-    private fun loadBlurBackground() {
-        if (mConfig.blackBackground || !mConfig.blurBackgroundVideo) {
-            binding.videoBlurBg.beGone()
-            binding.videoBlurSurface.beGone()
-            binding.videoBlurOverlay.beGone()
-            return
-        }
-        binding.videoBlurOverlay.beVisible()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurBg.beGone()
-            binding.videoBlurSurface.beVisible()
-            initBlurPlayer()
-        } else {
-            binding.videoBlurSurface.beGone()
-            binding.videoBlurBg.beVisible()
-            val target: Any = if (mMedium.path.startsWith("content://"))
-                mMedium.path.toUri() else File(mMedium.path)
-            Glide.with(this)
-                .load(target)
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(30, 3)))
-                .into(binding.videoBlurBg)
-        }
-    }
-
-    private fun initBlurPlayer() {
-        val path = mMedium.path
-        val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
-        mBlurPlayer = ExoPlayer.Builder(requireContext()).build().apply {
-            setMediaItem(MediaItem.fromUri(uri))
-            volume = 0f
-            repeatMode = Player.REPEAT_MODE_ONE
-            prepare()
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(25f, 25f, Shader.TileMode.CLAMP)
-            )
-        }
-        binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
-                mBlurPlayer?.setVideoSurface(Surface(st))
-                mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-                mBlurPlayer?.playWhenReady = mIsPlaying
-                mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
-            }
-            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
-            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-                mBlurPlayer?.clearVideoSurface()
-                return true
-            }
-            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
-        }
-    }
-
-    private fun releaseBlurPlayer() {
-        mBlurPlayer?.apply { stop(); release() }
-        mBlurPlayer = null
-    }
-
-
     private fun initExoPlayer() {
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
         if (shouldSkipInit) return
@@ -686,17 +583,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun ExoPlayer.initListeners() {
         addListener(object : Player.Listener {
-
-            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                mBlurPlayer?.setPlaybackSpeed(playbackParameters.speed)
-            }
-            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                mBlurPlayer?.playWhenReady = playWhenReady
-            }
-        
-            
-            }
-
             override fun onPositionDiscontinuity(
                 oldPosition: Player.PositionInfo,
                 newPosition: Player.PositionInfo,
@@ -706,9 +592,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
                     mSeekBar.progress = 0
                     mCurrTimeView.text = 0.getFormattedDuration()
-                } else {
-                    // Usuário avançou/voltou: sincroniza o blur player
-                    mBlurPlayer?.seekTo(newPosition.positionMs)
                 }
             }
 
@@ -841,7 +724,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         binding.bottomVideoTimeHolder.videoPlaybackSpeed.text =
             "${DecimalFormat("#.##").format(speed)}x"
         mExoPlayer?.setPlaybackSpeed(speed)
-        mBlurPlayer?.setPlaybackSpeed(speed)
     }
 
     private fun skip(forward: Boolean) {
@@ -917,8 +799,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
-            mBlurPlayer?.playWhenReady = true; mSyncHandler.post(mSyncRunnable)
-        mSyncHandler.post(mSyncRunnable)
         }
 
         mIsDragged = false
@@ -995,9 +875,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsPlaying = true
         }
         mExoPlayer?.playWhenReady = true
-        mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-        mBlurPlayer?.playWhenReady = true; mSyncHandler.post(mSyncRunnable)
-        mSyncHandler.post(mSyncRunnable)
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -1011,8 +888,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mIsPlaying = false
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
-            mBlurPlayer?.playWhenReady = false; mSyncHandler.removeCallbacks(mSyncRunnable)
-        mSyncHandler.removeCallbacks(mSyncRunnable)
         }
 
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
@@ -1028,7 +903,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun setPosition(milliseconds: Long) {
         mExoPlayer?.seekTo(milliseconds)
-        mBlurPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
 
@@ -1051,8 +925,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun videoPrepared() {
         if (mDuration == 0L) {
             mDuration = mExoPlayer!!.duration
-            mVideoFillMode = mConfig.videoFillMode
-            setVideoSize()
             setupTimeHolder()
             setPosition(mCurrTime)
 
@@ -1095,11 +967,32 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun toggleVideoStretch() {
-        mVideoFillMode = (mVideoFillMode + 1) % 3
-        mConfig.videoFillMode = mVideoFillMode
-        setVideoSize()
-        updateStretchIcon()
-    }
+        mVideoFillMode = (mVideoFillMode + 1) % 2
+        val displayMetrics = DisplayMetrics()
+        requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        when (mVideoFillMode) {
+            0 -> {
+                // Fit: proporcional com barras pretas
+                setVideoSize()
+            }
+            1 -> {
+                // Stretch: estica para preencher tudo
+                mTextureView.layoutParams.apply {
+                    width = screenWidth
+                    height = screenHeight
+                    mTextureView.layoutParams = this
+                }
+            }
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                else -> R.drawable.ic_maximize_vector
+            }
         )
     }
 
@@ -1112,7 +1005,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mCurrTimeView.text = 0.getFormattedDuration()
             mSeekBar.progress = 0
             mTimerHandler.removeCallbacksAndMessages(null)
-            releaseBlurPlayer()
         }
     }
 
@@ -1135,158 +1027,30 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mExoPlayer?.setVideoSurface(Surface(mTextureView.surfaceTexture))
     }
 
-    
-    private fun updateStretchIcon() {
-        val icon = when (mVideoFillMode) {
-            1 -> R.drawable.ic_crop_free
-            2 -> R.drawable.ic_maximize_vector
-            else -> R.drawable.ic_minimize_vector
-        }
-        binding.bottomVideoTimeHolder.videoStretch.setImageResource(icon)
-    }
-
     private fun setVideoSize() {
         if (activity == null || mConfig.gestureVideoPlayer) return
-        val metrics = DisplayMetrics()
-        requireActivity().windowManager.defaultDisplay.getRealMetrics(metrics)
-        val screenWidth = metrics.widthPixels
-        val screenHeight = metrics.heightPixels
+
         val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+        val display = requireActivity().windowManager.defaultDisplay
+        val screenWidth: Int
+        val screenHeight: Int
+
+        val realMetrics = DisplayMetrics()
+        display.getRealMetrics(realMetrics)
+        screenWidth = realMetrics.widthPixels
+        screenHeight = realMetrics.heightPixels
+
         val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
 
         mTextureView.layoutParams.apply {
-            when (mVideoFillMode) {
-                2 -> { // STRETCH
-                    width = screenWidth
-                    height = screenHeight
-                }
-                1 -> { // FILL
-                    if (videoProportion > screenProportion) {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                }
-                else -> { // FIT
-                    if (videoProportion > screenProportion) {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    } else {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    }
-                }
+            if (videoProportion > screenProportion) {
+                width = screenWidth
+                height = (screenWidth.toFloat() / videoProportion).toInt()
+            } else {
+                width = (videoProportion * screenHeight.toFloat()).toInt()
+                height = screenHeight
             }
             mTextureView.layoutParams = this
-        }
-
-        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.layoutParams.apply {
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                }
-                binding.videoBlurSurface.layoutParams = this
-            }
-        }
-    }
-                1 -> { // FILL
-                    if (videoProportion > screenProportion) {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                }
-                else -> { // FIT
-                    if (videoProportion > screenProportion) {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    } else {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    }
-                }
-            }
-            mTextureView.layoutParams = this
-        }
-
-        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.layoutParams.apply {
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                }
-                binding.videoBlurSurface.layoutParams = this
-            }
-        }
-    }
-                1 -> { // FILL: Preenche cortando
-                    if (videoProportion > screenProportion) {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                }
-                else -> { // FIT: Normal com barras
-                    if (videoProportion > screenProportion) {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    } else {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    }
-                }
-            }
-            mTextureView.layoutParams = this
-        }
-
-        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.layoutParams.apply {
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                }
-                binding.videoBlurSurface.layoutParams = this
-            }
-        }
-    }
-                    else { width = sW; height = (sW / vP).toInt() }
-                }
-                2 -> { width = sW; height = sH } // Stretch
-                else -> { // Fit
-                    if (vP > sP) { width = sW; height = (sW / vP).toInt() }
-                    else { width = (vP * sH).toInt(); height = sH }
-                }
-            }
-            mTextureView.layoutParams = this
-        }
-        // Dimensiona blur surface com CENTER_CROP: mantém proporção, ocupa toda a tela
-        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.layoutParams.apply {
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                }
-                binding.videoBlurSurface.layoutParams = this
-            }
         }
     }
 
