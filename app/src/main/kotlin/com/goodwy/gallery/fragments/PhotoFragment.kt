@@ -444,11 +444,6 @@ class PhotoFragment : ViewPagerFragment() {
             binding.photoBlurOverlay.beGone()
         }
     }
-    } else {
-            binding.photoBlurBg.beGone()
-            binding.photoBlurOverlay.beGone()
-        }
-    }
 
     private fun loadGif() {
         try {
