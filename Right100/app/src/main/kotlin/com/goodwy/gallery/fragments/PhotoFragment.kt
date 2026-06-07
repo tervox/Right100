@@ -28,6 +28,9 @@ import androidx.core.view.updateLayoutParams
 import androidx.exifinterface.media.ExifInterface.*
 import com.alexvasilkov.gestures.GestureController
 import com.alexvasilkov.gestures.State
+import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+
+fun SubsamplingScaleImageView.isZoomedOut() = scale <= minScale
 import com.bumptech.glide.Glide
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
@@ -359,6 +362,10 @@ class PhotoFragment : ViewPagerFragment() {
             mStoredShowHighestQuality = showHighestQuality
             mStoredExtendedDetails = extendedDetails
         }
+    }
+
+    private fun handlePhotoGesture(event: MotionEvent) {
+        handleEvent(event)
     }
 
     private fun checkScreenDimensions() {
