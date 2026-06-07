@@ -424,14 +424,13 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-    private fun loadBlurBackground() {
+        private fun loadBlurBackground() {
         val ctx = context ?: return
         val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground && ctx.config.blurBackgroundPhoto
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
             binding.photoBlurOverlay.setBackgroundColor(0x11000009.toInt())
-            // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
@@ -441,6 +440,10 @@ class PhotoFragment : ViewPagerFragment() {
                 .apply(options)
                 .into(binding.photoBlurBg)
         } else {
+            binding.photoBlurBg.beGone()
+            binding.photoBlurOverlay.beGone()
+        }
+    } else {
             binding.photoBlurBg.beGone()
             binding.photoBlurOverlay.beGone()
         }
