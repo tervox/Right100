@@ -292,9 +292,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         mView = binding.root
 
-        if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) {
-            return mView
-        }
+        // Force init to fix black screen
+        // if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) {
+        //     return mView
+        // }
 
         updatePlaybackSpeed(mConfig.playbackSpeed)
         storeStateVariables()
