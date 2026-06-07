@@ -144,7 +144,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mMuteInit: Boolean = false
 
     // 0 = fit (default), 1 = fill/cover (sem esticar), 2 = stretch (esticado)
-    private var mVideoFillMode = 0
+    private var mVideoFillMode = mConfig.videoFillMode
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
@@ -312,7 +312,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             mWasFragmentInit = true
-            mVideoFillMode = 0
+            mVideoFillMode = mConfig.videoFillMode
             setVideoSize()
 
             binding.apply {
@@ -966,8 +966,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    private fun toggleVideoStretch() {
-        mVideoFillMode = (mVideoFillMode + 1) % 2
+        private fun toggleVideoStretch() {
+        mVideoFillMode = (mVideoFillMode + 1) % 3
+        mConfig.videoFillMode = mVideoFillMode
+        applyVideoFillMode()
+    }
+
+    private fun applyVideoFillMode() {
         val displayMetrics = DisplayMetrics()
         requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
         val screenWidth = displayMetrics.widthPixels
@@ -975,9 +980,42 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         when (mVideoFillMode) {
             0 -> {
-                // Fit: proporcional com barras pretas
+                // Fit: Proporcional com barras pretas (Original)
                 setVideoSize()
             }
+            1 -> {
+                // Stretch: Estica tudo para preencher (Pode distorcer)
+                mTextureView.layoutParams.apply {
+                    width = screenWidth
+                    height = screenHeight
+                    mTextureView.layoutParams = this
+                }
+            }
+            2 -> {
+                // Fit to Screen (Crop): Preenche sem distorcer, cortando as bordas
+                val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+                val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                mTextureView.layoutParams.apply {
+                    if (videoProportion > screenProportion) {
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    } else {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                    mTextureView.layoutParams = this
+                }
+            }
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                2 -> R.drawable.ic_aspect_ratio_vector // Icone sugerido para Fit to Screen
+                else -> R.drawable.ic_maximize_vector
+            }
+        )
+    }
             1 -> {
                 // Stretch: estica para preencher tudo
                 mTextureView.layoutParams.apply {
