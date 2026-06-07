@@ -429,7 +429,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             gotMedia(mMediaFiles as ArrayList<ThumbnailItem>, refetchViewPagerPosition = true)
         }
 
-        refreshViewPager(true)
+        if (mMediaFiles.isEmpty()) refreshViewPager(true)
         binding.viewPager.offscreenPageLimit = 1
 
         if (config.blackBackground) {//TODO always black background
