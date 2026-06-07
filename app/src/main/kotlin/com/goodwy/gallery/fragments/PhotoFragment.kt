@@ -430,7 +430,7 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
-            binding.photoBlurOverlay.setBackgroundColor(0x11000000)
+            binding.photoBlurOverlay.setBackgroundColor(0x11000009.toInt())
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
