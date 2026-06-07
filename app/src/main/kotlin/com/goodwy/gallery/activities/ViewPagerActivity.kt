@@ -1698,6 +1698,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             .replace(Regex("  +"), " ")
             .trim()
     }
+            .filter { it.isNotBlank() }
+            .joinToString("
+")
+            .replace(Regex("  +"), " ")
+            .trim()
+    }
 
     private fun showExtractedTextDialog(text: String) {
         if (text.isEmpty()) { toast(R.string.no_text_found); return }
