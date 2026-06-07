@@ -1693,14 +1693,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         return raw.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .joinToString("
-")
-            .replace(Regex("  +"), " ")
-            .trim()
-    }
-            .filter { it.isNotBlank() }
-            .joinToString("
-")
+            .joinToString("\n")
             .replace(Regex("  +"), " ")
             .trim()
     }
