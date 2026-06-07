@@ -192,7 +192,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         finish()
     }
 
-    fun refreshMenuItems() {
+    override fun refreshMenuItems() {
         val currentMedium = getCurrentMedium() ?: return
         currentMedium.isFavorite = mFavoritePaths.contains(currentMedium.path)
         val visibleBottomActions = if (config.bottomActions) config.visibleBottomActions else 0
@@ -430,7 +430,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
 
         refreshViewPager(true)
-        binding.viewPager.offscreenPageLimit = 2
+        binding.viewPager.offscreenPageLimit = 1
 
         if (config.blackBackground) {//TODO always black background
             binding.fragmentHolder.background = Color.BLACK.toDrawable()
