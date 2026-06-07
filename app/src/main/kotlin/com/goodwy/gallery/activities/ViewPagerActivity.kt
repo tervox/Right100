@@ -1608,14 +1608,27 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
     
-    private fun extractTextFromImage() {
+        private fun extractTextFromImage() {
         val medium = getCurrentMedium() ?: return
         if (medium.isVideo()) { extractTextFromVideoFrame(); return }
         toast(com.goodwy.gallery.R.string.extracting_text)
         ensureBackgroundThread {
             try {
-                val raw = android.graphics.BitmapFactory.decodeFile(medium.path)
+                // Carrega a imagem com redimensionamento inteligente para evitar OOM e melhorar o OCR
+                val options = android.graphics.BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                    android.graphics.BitmapFactory.decodeFile(medium.path, this)
+                    var sample = 1
+                    while (outWidth / sample > 2500 || outHeight / sample > 2500) {
+                        sample *= 2
+                    }
+                    inJustDecodeBounds = false
+                    inSampleSize = sample
+                }
+                
+                val raw = android.graphics.BitmapFactory.decodeFile(medium.path, options)
                     ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
+                
                 val bmp = preprocessForOcr(raw)
                 val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
                 val client = com.google.mlkit.vision.text.TextRecognition.getClient(
@@ -1624,16 +1637,18 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 client.process(img)
                     .addOnSuccessListener { r ->
                         if (bmp !== raw) bmp.recycle()
+                        raw.recycle()
                         client.close()
                         runOnUiThread { showExtractedTextDialog(cleanOcrText(r?.text ?: "")) }
                     }
                     .addOnFailureListener { e ->
                         if (bmp !== raw) bmp.recycle()
+                        raw.recycle()
                         client.close()
                         runOnUiThread { toast("Erro OCR: " + (e.localizedMessage?.take(80) ?: "")) }
                     }
             } catch (e: Throwable) {
-                runOnUiThread { toast("Erro: " + (e.localizedMessage?.take(80) ?: "")) }
+                runOnUiThread { toast("Erro: " + e.javaClass.simpleName) }
             }
         }
     }
