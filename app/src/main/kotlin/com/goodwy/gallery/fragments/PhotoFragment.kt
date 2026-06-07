@@ -430,13 +430,14 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
-            binding.photoBlurOverlay.setBackgroundColor(0x22000000)
+            binding.photoBlurOverlay.setBackgroundColor(0x11000000)
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 4)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
                 .asBitmap()
                 .load(mMedium.path)
+                .thumbnail(0.2f)
                 .apply(options)
                 .into(binding.photoBlurBg)
         } else {
@@ -474,6 +475,7 @@ class PhotoFragment : ViewPagerFragment() {
                 .`as`(PictureDrawable::class.java)
                 .listener(SvgSoftwareLayerSetter())
                 .load(mMedium.path)
+                .thumbnail(0.2f)
                 .into(binding.gesturesView)
         }
     }
