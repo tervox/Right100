@@ -387,7 +387,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onPause() {
         super.onPause()
         if (mWasFragmentInit) {
-            pauseVideo()
+            cleanup()
         }
 
         if (mStoredRememberLastVideoPosition && mWasVideoStarted) {
@@ -423,7 +423,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 initExoPlayer()
                 checkExtendedDetails()
             } else {
-                pauseVideo()
+                cleanup()
             }
         }
     }
@@ -470,7 +470,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     fun togglePlayPause() {
-        if (mIsPlaying) pauseVideo() else playVideo()
+        if (mIsPlaying) cleanup() else playVideo()
     }
 
     fun playVideo() {
@@ -510,7 +510,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    private fun pauseVideo() {
+    private fun cleanup() {
         if (mExoPlayer == null) {
             return
         }
@@ -596,7 +596,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         } else {
             mSeekBar.progress = mSeekBar.max
             mCurrTimeView.text = mDuration.getFormattedDuration()
-            pauseVideo()
+            cleanup()
         }
     }
 
@@ -619,7 +619,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun cleanup() {
-        pauseVideo()
+        cleanup()
         releaseExoPlayer()
         mVolumeController?.destroy()
 
