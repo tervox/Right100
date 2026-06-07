@@ -1034,5 +1034,17 @@ class PhotoFragment : ViewPagerFragment() {
                 resetColorModeIfVisible()
             }
         }
+
+    private fun handlePhotoGesture(event: MotionEvent) {
+        // Método para lidar com gestos de arrastar para baixo no PhotoFragment
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            mTouchY = event.y
+        } else if (event.action == MotionEvent.ACTION_MOVE) {
+            val diff = event.y - mTouchY
+            if (diff > 100) {
+                listener?.finishViewPager()
+            }
+        }
+    }
     }
 }
