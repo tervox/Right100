@@ -1685,7 +1685,20 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     /** Retorna o bitmap original — ML Kit funciona melhor sem pre-processamento manual */
-    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap = src
+    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap {
+        return try {
+            val width = src.width
+            val height = src.height
+            // Se a imagem for muito grande, redimensionamos para processar mais rápido sem perder detalhes vitais
+            val scale = if (width > 2000 || height > 2000) 0.7f else 1.0f
+            if (scale == 1.0f) return src
+            
+            val matrix = android.graphics.Matrix().apply { postScale(scale, scale) }
+            android.graphics.Bitmap.createBitmap(src, 0, 0, width, height, matrix, true)
+        } catch (e: Exception) {
+            src
+        }
+    }
 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
     
