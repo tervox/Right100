@@ -242,7 +242,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/copy"
         android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_copy_vector"
+        android:src="@drawable/ic_move_vector"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/bottom_move"
         app:layout_constraintHorizontal_bias="0.5"
