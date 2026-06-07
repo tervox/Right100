@@ -314,6 +314,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mWasFragmentInit = true
             mVideoFillMode = mConfig.videoFillMode
             applyVideoFillMode()
+            mVideoFillMode = mConfig.videoFillMode
+            applyVideoFillMode()
 
             binding.apply {
                 mBrightnessSideScroll.initialize(
@@ -974,17 +976,54 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun applyVideoFillMode() {
-        val ctx = context ?: return
+        val activity = activity ?: return
         val displayMetrics = DisplayMetrics()
-        activity?.windowManager?.defaultDisplay?.getRealMetrics(displayMetrics) ?: return
+        activity.windowManager.defaultDisplay.getRealMetrics(displayMetrics)
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
 
-        when (mVideoFillMode) {
-            0 -> {
-                // Fit: Proporcional com barras pretas (Original)
-                setVideoSize()
+        mTextureView.layoutParams.apply {
+            when (mVideoFillMode) {
+                0 -> { // Original (Fit)
+                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                    if (videoProportion > screenProportion) {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    } else {
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    }
+                }
+                1 -> { // Esticado (Stretch)
+                    width = screenWidth
+                    height = screenHeight
+                }
+                2 -> { // Preencher Tela (Zoom/Crop - O que o usuário quer)
+                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                    if (videoProportion > screenProportion) {
+                        // Vídeo é mais largo que a tela (ex: 16:9 em tela 4:3)
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    } else {
+                        // Vídeo é mais alto que a tela (ex: 9:16 em tela 16:9)
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                }
             }
+            mTextureView.layoutParams = this
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                2 -> R.drawable.ic_aspect_ratio_vector
+                else -> R.drawable.ic_maximize_vector
+            }
+        )
+    }
             1 -> {
                 // Stretch: Estica tudo para preencher (Pode distorcer)
                 mTextureView.layoutParams.apply {
