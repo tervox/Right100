@@ -242,7 +242,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/copy"
         android:padding="@dimen/normal_margin"
-        android:src="@drawable/ic_copy_vector"
+        android:src="@drawable/ic_move_vector"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/bottom_move"
         app:layout_constraintHorizontal_bias="0.5"
@@ -263,6 +263,23 @@
         app:layout_constraintEnd_toStartOf="@+id/bottom_extract_text"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@+id/bottom_copy"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.0" />
+
+
+    <ImageView
+        android:id="@+id/bottom_extract_text"
+        android:layout_width="@dimen/list_touch_target_min"
+        android:layout_height="@dimen/list_touch_target_min"
+        android:layout_marginBottom="@dimen/normal_margin"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/extract_text"
+        android:padding="@dimen/normal_margin"
+        android:src="@drawable/ic_label_vector"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/bottom_resize"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/bottom_move"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0" />
 
