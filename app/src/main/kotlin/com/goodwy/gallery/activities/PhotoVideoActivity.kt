@@ -89,7 +89,7 @@ open class PhotoVideoActivity : BaseViewerActivity(), ViewPagerFragment.Fragment
         initBottomActionsLayout()
     }
 
-    fun refreshMenuItems() {
+    override fun refreshMenuItems() {
         val visibleBottomActions = if (config.bottomActions) config.visibleBottomActions else 0
 
         binding.fragmentViewerToolbar.menu.apply {
