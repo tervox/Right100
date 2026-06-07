@@ -395,6 +395,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        if (mWasFragmentInit) {
+            cleanup()
+        }
+        mWasFragmentInit = false
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (mWasFragmentInit) {
