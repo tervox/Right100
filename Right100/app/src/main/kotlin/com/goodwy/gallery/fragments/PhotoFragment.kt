@@ -1,5 +1,4 @@
 package com.goodwy.gallery.fragments
-import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
@@ -33,17 +32,19 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.DecodeFormat
-import com.bumptech.glide.load.MultiTransformation
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.Rotate
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
+import jp.wasabeef.glide.transformations.BlurTransformation
+import com.bumptech.glide.load.MultiTransformation
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.davemorrissey.labs.subscaleview.DecoderFactory
 import com.davemorrissey.labs.subscaleview.ImageDecoder
 import com.davemorrissey.labs.subscaleview.ImageRegionDecoder
+import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.penfeizhou.animation.apng.APNGDrawable
 import com.github.penfeizhou.animation.avif.AVIFDrawable
 import com.github.penfeizhou.animation.webp.WebPDrawable
@@ -67,18 +68,14 @@ import com.goodwy.gallery.svg.SvgSoftwareLayerSetter
 import com.squareup.picasso.Callback
 import com.squareup.picasso.Picasso
 import it.sephiroth.android.library.exif2.ExifInterface
-import java.io.File
-import java.io.FileOutputStream
-import java.util.Locale
-import jp.wasabeef.glide.transformations.BlurTransformation
-import kotlin.math.abs
-import kotlin.math.ceil
 import org.apache.sanselan.common.byteSources.ByteSourceInputStream
 import org.apache.sanselan.formats.jpeg.JpegImageParser
 import pl.droidsonroids.gif.InputSource
-
-
-
+import java.io.File
+import java.io.FileOutputStream
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.ceil
 
 class PhotoFragment : ViewPagerFragment() {
     private val DEFAULT_DOUBLE_TAP_ZOOM = 2f
@@ -127,10 +124,9 @@ class PhotoFragment : ViewPagerFragment() {
         binding = PagerPhotoItemBinding.inflate(inflater, container, false)
         mView = binding.root
 
-        // Force init to fix black screen
-        // if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) {
-        //     return mView
-        // }
+        if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) {
+            return mView
+        }
 
         val medium = arguments.getSerializable(MEDIUM) as? Medium
         if (medium == null) {
@@ -365,10 +361,6 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-    private fun handlePhotoGesture(event: MotionEvent) {
-        handleEvent(event)
-    }
-
     private fun checkScreenDimensions() {
         if (mScreenWidth == 0 || mScreenHeight == 0) {
             measureScreen()
@@ -434,14 +426,16 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadBlurBackground() {
         val ctx = context ?: return
-        val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground
+        val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground && ctx.config.blurBackgroundPhoto
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
+            binding.photoBlurOverlay.setBackgroundColor(0x11000000)
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(30, 3)))
             Glide.with(ctx)
+                .asBitmap()
                 .load(mMedium.path)
                 .apply(options)
                 .into(binding.photoBlurBg)
@@ -1040,5 +1034,3 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 }
-
-fun SubsamplingScaleImageView.isZoomedOut() = scale <= 1.0f
