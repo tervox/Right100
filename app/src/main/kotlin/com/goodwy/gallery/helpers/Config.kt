@@ -18,6 +18,10 @@ import java.util.Arrays
 import java.util.Locale
 
 class Config(context: Context) : BaseConfig(context) {
+    var videoFillMode: Int
+        get() = prefs.getInt("video_fill_mode", 0)
+        set(value) = prefs.edit { putInt("video_fill_mode", value) }
+
     var blurBackgroundPhoto: Boolean
         get() = prefs.getBoolean("blur_background_photo", false)
         set(value) = prefs.edit { putBoolean("blur_background_photo", value) }
