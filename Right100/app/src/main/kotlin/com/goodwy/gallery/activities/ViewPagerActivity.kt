@@ -1,5 +1,6 @@
 package com.goodwy.gallery.activities
 
+import android.graphics.BitmapFactory
 import android.animation.Animator
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
@@ -188,11 +189,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         mVolumeController?.destroy()
     }
 
-    fun finishViewPager() {
-        finish()
-    }
-
-    override fun refreshMenuItems() {
+    fun refreshMenuItems() {
         val currentMedium = getCurrentMedium() ?: return
         currentMedium.isFavorite = mFavoritePaths.contains(currentMedium.path)
         val visibleBottomActions = if (config.bottomActions) config.visibleBottomActions else 0
@@ -209,6 +206,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 findItem(R.id.menu_rename).isVisible = visibleBottomActions and BOTTOM_ACTION_RENAME == 0 && !currentMedium.getIsInRecycleBin()
                 findItem(R.id.menu_rotate).isVisible = currentMedium.isImage() && visibleBottomActions and BOTTOM_ACTION_ROTATE == 0
                 findItem(R.id.menu_set_as).isVisible = visibleBottomActions and BOTTOM_ACTION_SET_AS == 0
+                findItem(R.id.menu_extract_text).isVisible = currentMedium.isImage() || currentMedium.isVideo()
                 findItem(R.id.menu_copy_to_clipboard).isVisible = currentMedium.isImage()
                 findItem(R.id.menu_copy_to).isVisible = visibleBottomActions and BOTTOM_ACTION_COPY == 0
                 findItem(R.id.menu_move_to).isVisible = visibleBottomActions and BOTTOM_ACTION_MOVE == 0
@@ -274,6 +272,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 R.id.menu_share -> shareMediumPath(getCurrentPath())
                 R.id.menu_delete -> checkDeleteConfirmation()
                 R.id.menu_rename -> checkMediaManagementAndRename()
+                R.id.menu_extract_text -> extractTextFromImage()
                 R.id.menu_print -> printFile()
                 R.id.menu_edit -> openEditor(getCurrentPath())
                 R.id.menu_properties -> showProperties()
@@ -429,8 +428,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             gotMedia(mMediaFiles as ArrayList<ThumbnailItem>, refetchViewPagerPosition = true)
         }
 
-        if (mMediaFiles.isEmpty()) refreshViewPager(true)
-        binding.viewPager.offscreenPageLimit = 1
+        refreshViewPager(true)
+        binding.viewPager.offscreenPageLimit = 2
 
         if (config.blackBackground) {//TODO always black background
             binding.fragmentHolder.background = Color.BLACK.toDrawable()
@@ -478,6 +477,69 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun initBottomActions() {
         initBottomActionButtons()
         initBottomActionsLayout()
+        reorderBottomActions()
+    }
+
+    private fun reorderBottomActions() {
+        val savedOrder = config.bottomActionsOrder
+        if (savedOrder.isBlank()) return
+
+        val orderIds = savedOrder.split(",").mapNotNull { it.toIntOrNull() }
+        if (orderIds.isEmpty()) return
+
+        val actionToViewId = mapOf(
+            BOTTOM_ACTION_SHARE to R.id.bottom_share,
+            BOTTOM_ACTION_TOGGLE_FAVORITE to R.id.bottom_favorite,
+            BOTTOM_ACTION_PLAY_PAUSE to R.id.bottom_play_pause,
+            BOTTOM_ACTION_MUTE to R.id.bottom_mute,
+            BOTTOM_ACTION_PROPERTIES to R.id.bottomProperties,
+            BOTTOM_ACTION_DELETE to R.id.bottom_delete,
+            BOTTOM_ACTION_EDIT to R.id.bottom_edit,
+            BOTTOM_ACTION_ROTATE to R.id.bottom_rotate,
+            BOTTOM_ACTION_CHANGE_ORIENTATION to R.id.bottom_change_orientation,
+            BOTTOM_ACTION_SLIDESHOW to R.id.bottom_slideshow,
+            BOTTOM_ACTION_SHOW_ON_MAP to R.id.bottom_show_on_map,
+            BOTTOM_ACTION_TOGGLE_VISIBILITY to R.id.bottom_toggle_file_visibility,
+            BOTTOM_ACTION_RENAME to R.id.bottom_rename,
+            BOTTOM_ACTION_SET_AS to R.id.bottom_set_as,
+            BOTTOM_ACTION_COPY to R.id.bottom_copy,
+            BOTTOM_ACTION_MOVE to R.id.bottom_move,
+            BOTTOM_ACTION_RESIZE to R.id.bottom_resize,
+            BOTTOM_ACTION_EXTRACT_TEXT to R.id.bottom_extract_text
+        )
+
+        val wrapper = binding.bottomActions.bottomActionsWrapper
+        // Obtém apenas os view IDs visíveis na ordem salva
+        val visibleIds = orderIds
+            .mapNotNull { actionToViewId[it] }
+            .filter { wrapper.findViewById<android.view.View>(it)?.visibility == android.view.View.VISIBLE }
+
+        // Adiciona IDs visíveis não incluídos na ordem salva ao final
+        val allVisibleIds = visibleIds.toMutableList()
+        actionToViewId.forEach { (_, viewId) ->
+            if (!allVisibleIds.contains(viewId) &&
+                wrapper.findViewById<android.view.View>(viewId)?.visibility == android.view.View.VISIBLE) {
+                allVisibleIds.add(viewId)
+            }
+        }
+
+        if (allVisibleIds.size < 2) return
+
+        // Reconstrói o horizontal chain com ConstraintSet
+        val cs = androidx.constraintlayout.widget.ConstraintSet()
+        cs.clone(wrapper)
+
+        allVisibleIds.forEachIndexed { index, viewId ->
+            val prevId = if (index == 0) androidx.constraintlayout.widget.ConstraintSet.PARENT_ID else allVisibleIds[index - 1]
+            val nextId = if (index == allVisibleIds.lastIndex) androidx.constraintlayout.widget.ConstraintSet.PARENT_ID else allVisibleIds[index + 1]
+            val startSide = if (index == 0) androidx.constraintlayout.widget.ConstraintSet.START else androidx.constraintlayout.widget.ConstraintSet.END
+            val endSide = if (index == allVisibleIds.lastIndex) androidx.constraintlayout.widget.ConstraintSet.END else androidx.constraintlayout.widget.ConstraintSet.START
+
+            cs.connect(viewId, androidx.constraintlayout.widget.ConstraintSet.START, prevId, startSide)
+            cs.connect(viewId, androidx.constraintlayout.widget.ConstraintSet.END, nextId, endSide)
+        }
+
+        cs.applyTo(wrapper)
     }
 
     private fun initFavorites() {
@@ -499,11 +561,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun updatePagerItems(media: MutableList<Medium>) {
         val pagerAdapter = MyPagerAdapter(this, supportFragmentManager, media)
         if (!isDestroyed) {
-            pagerAdapter.shouldInitFragment = true
+            pagerAdapter.shouldInitFragment = mPos < 5
             binding.viewPager.apply {
                 // must remove the listener before changing adapter, otherwise it might cause `mPos` to be set to 0
                 removeOnPageChangeListener(this@ViewPagerActivity)
                 adapter = pagerAdapter
+                pagerAdapter.shouldInitFragment = true
                 addOnPageChangeListener(this@ViewPagerActivity)
                 currentItem = mPos
             }
@@ -895,37 +958,16 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     @OptIn(UnstableApi::class)
     private fun initBottomActionButtons() {
-        arrayListOf(
-            binding.bottomActions.bottomFavorite,
-            binding.bottomActions.bottomDelete,
-            binding.bottomActions.bottomRotate,
-            binding.bottomActions.bottomProperties,
-            binding.bottomActions.bottomChangeOrientation,
-            binding.bottomActions.bottomSlideshow,
-            binding.bottomActions.bottomShowOnMap,
-            binding.bottomActions.bottomToggleFileVisibility,
-            binding.bottomActions.bottomRename,
-            binding.bottomActions.bottomSetAs,
-            binding.bottomActions.bottomCopy,
-            binding.bottomActions.bottomMove,
-            binding.bottomActions.bottomResize,
-            binding.bottomActions.bottomShare,
-            binding.bottomActions.bottomPlayPause,
-            binding.bottomActions.bottomMute,
-            binding.bottomActions.bottomEdit,
-            binding.bottomActions.bottomSetAs
-        ).forEach {
-            it.beGone()
-        }
-
         val iconColor = if (baseConfig.topAppBarColorIcon) getProperPrimaryColor() else Color.WHITE
+
         arrayListOf(
             binding.bottomActions.bottomShare, binding.bottomActions.bottomFavorite, binding.bottomActions.bottomPlayPause,
             binding.bottomActions.bottomMute, binding.bottomActions.bottomProperties, binding.bottomActions.bottomDelete,
             binding.bottomActions.bottomEdit, binding.bottomActions.bottomRotate, binding.bottomActions.bottomChangeOrientation,
             binding.bottomActions.bottomSlideshow, binding.bottomActions.bottomShowOnMap, binding.bottomActions.bottomToggleFileVisibility,
             binding.bottomActions.bottomRename, binding.bottomActions.bottomSetAs, binding.bottomActions.bottomCopy,
-            binding.bottomActions.bottomMove, binding.bottomActions.bottomResize
+            binding.bottomActions.bottomMove, binding.bottomActions.bottomResize,
+            binding.bottomActions.bottomExtractText
         ).forEach {
             it.applyColorFilter(iconColor)
         }
@@ -1032,6 +1074,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             moveFileTo()
         }
 
+        binding.bottomActions.bottomExtractText.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_EXTRACT_TEXT != 0 && (currentMedium?.isImage() == true || currentMedium?.isVideo() == true))
+        binding.bottomActions.bottomExtractText.setOnLongClickListener { toast(R.string.extract_text); true }
+        binding.bottomActions.bottomExtractText.setOnClickListener { extractTextFromImage() }
+
         binding.bottomActions.bottomResize.beVisibleIf(visibleBottomActions and BOTTOM_ACTION_RESIZE != 0 && currentMedium?.isImage() == true)
         binding.bottomActions.bottomResize.setOnLongClickListener { toast(com.goodwy.commons.R.string.resize); true }
         binding.bottomActions.bottomResize.setOnClickListener {
@@ -1047,6 +1093,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             updatePlayerMuteState()
         }
     }
+
 
     private fun updatePlayerMuteState() {
         val isMuted = config.muteVideos
@@ -1559,5 +1606,109 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         } else {
             binding.bottomActions.bottomPlayPause.setImageResource(R.drawable.ic_pause_vector)
         }
+    }
+    
+    private fun extractTextFromImage() {
+        val medium = getCurrentMedium() ?: return
+        if (medium.isVideo()) { extractTextFromVideoFrame(); return }
+        toast(com.goodwy.gallery.R.string.extracting_text)
+        ensureBackgroundThread {
+            try {
+                val raw = android.graphics.BitmapFactory.decodeFile(medium.path)
+                    ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
+                val bmp = preprocessForOcr(raw)
+                val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+                val client = com.google.mlkit.vision.text.TextRecognition.getClient(
+                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                )
+                client.process(img)
+                    .addOnSuccessListener { r ->
+                        if (bmp !== raw) bmp.recycle()
+                        client.close()
+                        runOnUiThread { showExtractedTextDialog(cleanOcrText(r?.text ?: "")) }
+                    }
+                    .addOnFailureListener { e ->
+                        if (bmp !== raw) bmp.recycle()
+                        client.close()
+                        runOnUiThread { toast("Erro OCR: " + (e.localizedMessage?.take(80) ?: "")) }
+                    }
+            } catch (e: Throwable) {
+                runOnUiThread { toast("Erro: " + (e.localizedMessage?.take(80) ?: "")) }
+            }
+        }
+    }
+
+    private fun extractTextFromVideoFrame() {
+        val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
+            toast("Pause o video primeiro"); return
+        }
+        try {
+            val viewGroup = fragment.view as? android.view.ViewGroup ?: run {
+                toast("Erro ao carregar tela do video"); return
+            }
+            fun findTextureView(view: android.view.View): android.view.TextureView? {
+                if (view is android.view.TextureView) return view
+                if (view is android.view.ViewGroup) {
+                    for (i in 0 until view.childCount) {
+                        val r = findTextureView(view.getChildAt(i))
+                        if (r != null) return r
+                    }
+                }
+                return null
+            }
+            val textureView = findTextureView(viewGroup) ?: run {
+                toast("Abra ou pause o video para capturar"); return
+            }
+            val raw = textureView.getBitmap() ?: run {
+                toast("Erro ao capturar frame do video"); return
+            }
+            val bmp = preprocessForOcr(raw)
+            toast(com.goodwy.gallery.R.string.extracting_text)
+            val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+            val client = com.google.mlkit.vision.text.TextRecognition.getClient(
+                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+            )
+            client.process(img)
+                .addOnSuccessListener { r ->
+                    if (bmp !== raw) bmp.recycle()
+                    raw.recycle(); client.close()
+                    showExtractedTextDialog(cleanOcrText(r?.text ?: ""))
+                }
+                .addOnFailureListener { e ->
+                    if (bmp !== raw) bmp.recycle()
+                    raw.recycle(); client.close()
+                    toast("Erro OCR video: " + (e.localizedMessage?.take(80) ?: ""))
+                }
+        } catch (e: Throwable) {
+            toast(e.javaClass.simpleName + ": " + (e.localizedMessage?.take(80) ?: ""))
+        }
+    }
+
+    /** Retorna o bitmap original — ML Kit funciona melhor sem pre-processamento manual */
+    private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap = src
+
+    /** Remove linhas vazias e normaliza espacos no texto OCR */
+    private fun cleanOcrText(raw: String): String = raw
+        .lines().map { it.trim() }.filter { it.isNotBlank() }
+        .joinToString("\n")
+        .replace(Regex("  +"), " ")
+        .trim()
+
+    private fun showExtractedTextDialog(text: String) {
+        if (text.isEmpty()) { toast(R.string.no_text_found); return }
+        val tv = android.widget.TextView(this).apply {
+            this.text = text; setPadding(60, 40, 60, 20)
+            setTextIsSelectable(true); textSize = 16f
+        }
+        getAlertDialogBuilder()
+            .setTitle(R.string.extracted_text)
+            .setView(android.widget.ScrollView(this).apply { addView(tv) })
+            .setPositiveButton(com.goodwy.commons.R.string.copy) { _, _ ->
+                val cb = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cb.setPrimaryClip(android.content.ClipData.newPlainText("text", text))
+                toast(com.goodwy.commons.R.string.value_copied_to_clipboard)
+            }
+            .setNegativeButton(com.goodwy.commons.R.string.cancel, null)
+            .create().show()
     }
 }
