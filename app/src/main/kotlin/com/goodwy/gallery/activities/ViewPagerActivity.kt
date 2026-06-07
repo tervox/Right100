@@ -430,7 +430,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
 
         refreshViewPager(true)
-        binding.viewPager.offscreenPageLimit = 2
+        binding.viewPager.offscreenPageLimit = 1
 
         if (config.blackBackground) {//TODO always black background
             binding.fragmentHolder.background = Color.BLACK.toDrawable()
