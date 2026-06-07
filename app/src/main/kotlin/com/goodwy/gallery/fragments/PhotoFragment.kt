@@ -1,4 +1,5 @@
 package com.goodwy.gallery.fragments
+import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
@@ -43,7 +44,6 @@ import com.bumptech.glide.request.target.Target
 import com.davemorrissey.labs.subscaleview.DecoderFactory
 import com.davemorrissey.labs.subscaleview.ImageDecoder
 import com.davemorrissey.labs.subscaleview.ImageRegionDecoder
-import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.penfeizhou.animation.apng.APNGDrawable
 import com.github.penfeizhou.animation.avif.AVIFDrawable
 import com.github.penfeizhou.animation.webp.WebPDrawable
@@ -1040,4 +1040,4 @@ class PhotoFragment : ViewPagerFragment() {
     }
 }
 
-fun SubsamplingScaleImageView.isZoomedOut() = scale <= minScale
+fun SubsamplingScaleImageView.isZoomedOut() = scale <= 1.0f
