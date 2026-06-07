@@ -1690,18 +1690,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
     
     private fun cleanOcrText(raw: String): String {
-        return raw.split("
-")
+        return raw.lines()
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.isNotBlank() }
             .joinToString("
 ")
+            .replace(Regex("  +"), " ")
+            .trim()
     }
-
-        .lines().map { it.trim() }.filter { it.isNotBlank() }
-        .joinToString("\n")
-        .replace(Regex("  +"), " ")
-        .trim()
 
     private fun showExtractedTextDialog(text: String) {
         if (text.isEmpty()) { toast(R.string.no_text_found); return }
