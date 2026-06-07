@@ -188,6 +188,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         mVolumeController?.destroy()
     }
 
+    fun finishViewPager() {
+        finish()
+    }
+
     fun refreshMenuItems() {
         val currentMedium = getCurrentMedium() ?: return
         currentMedium.isFavorite = mFavoritePaths.contains(currentMedium.path)
@@ -495,12 +499,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun updatePagerItems(media: MutableList<Medium>) {
         val pagerAdapter = MyPagerAdapter(this, supportFragmentManager, media)
         if (!isDestroyed) {
-            pagerAdapter.shouldInitFragment = mPos < 5
+            pagerAdapter.shouldInitFragment = true
             binding.viewPager.apply {
                 // must remove the listener before changing adapter, otherwise it might cause `mPos` to be set to 0
                 removeOnPageChangeListener(this@ViewPagerActivity)
                 adapter = pagerAdapter
-                pagerAdapter.shouldInitFragment = true
                 addOnPageChangeListener(this@ViewPagerActivity)
                 currentItem = mPos
             }
@@ -892,6 +895,29 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     @OptIn(UnstableApi::class)
     private fun initBottomActionButtons() {
+        arrayListOf(
+            binding.bottomActions.bottomFavorite,
+            binding.bottomActions.bottomDelete,
+            binding.bottomActions.bottomRotate,
+            binding.bottomActions.bottomProperties,
+            binding.bottomActions.bottomChangeOrientation,
+            binding.bottomActions.bottomSlideshow,
+            binding.bottomActions.bottomShowOnMap,
+            binding.bottomActions.bottomToggleFileVisibility,
+            binding.bottomActions.bottomRename,
+            binding.bottomActions.bottomSetAs,
+            binding.bottomActions.bottomCopy,
+            binding.bottomActions.bottomMove,
+            binding.bottomActions.bottomResize,
+            binding.bottomActions.bottomShare,
+            binding.bottomActions.bottomPlayPause,
+            binding.bottomActions.bottomMute,
+            binding.bottomActions.bottomEdit,
+            binding.bottomActions.bottomSetAs
+        ).forEach {
+            it.beGone()
+        }
+
         val iconColor = if (baseConfig.topAppBarColorIcon) getProperPrimaryColor() else Color.WHITE
         arrayListOf(
             binding.bottomActions.bottomShare, binding.bottomActions.bottomFavorite, binding.bottomActions.bottomPlayPause,
