@@ -30,7 +30,6 @@ import com.alexvasilkov.gestures.GestureController
 import com.alexvasilkov.gestures.State
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 
-fun SubsamplingScaleImageView.isZoomedOut() = scale <= minScale
 import com.bumptech.glide.Glide
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
@@ -82,6 +81,7 @@ import kotlin.math.ceil
 
 class PhotoFragment : ViewPagerFragment() {
     private val DEFAULT_DOUBLE_TAP_ZOOM = 2f
+fun SubsamplingScaleImageView.isZoomedOut() = scale <= minScale
     private val ZOOMABLE_VIEW_LOAD_DELAY = 100L
     private val SAME_ASPECT_RATIO_THRESHOLD = 0.01
 
