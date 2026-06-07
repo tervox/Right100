@@ -144,7 +144,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mMuteInit: Boolean = false
 
     // 0 = fit (default), 1 = fill/cover (sem esticar), 2 = stretch (esticado)
-    private var mVideoFillMode = mConfig.videoFillMode
+    private var mVideoFillMode = 0
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
@@ -975,7 +975,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun applyVideoFillMode() {
         val ctx = context ?: return
         val displayMetrics = DisplayMetrics()
-        requireActivity().windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+        activity?.windowManager?.defaultDisplay?.getRealMetrics(displayMetrics) ?: return
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
 
