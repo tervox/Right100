@@ -424,7 +424,7 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-        private fun loadBlurBackground() {
+    private fun loadBlurBackground() {
         val ctx = context ?: return
         val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground && ctx.config.blurBackgroundPhoto
         if (shouldBlur) {
@@ -443,6 +443,7 @@ class PhotoFragment : ViewPagerFragment() {
             binding.photoBlurBg.beGone()
             binding.photoBlurOverlay.beGone()
         }
+    }
     } else {
             binding.photoBlurBg.beGone()
             binding.photoBlurOverlay.beGone()
