@@ -1608,13 +1608,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
     
-        private fun extractTextFromImage() {
+    private fun extractTextFromImage() {
         val medium = getCurrentMedium() ?: return
         if (medium.isVideo()) { extractTextFromVideoFrame(); return }
         toast(com.goodwy.gallery.R.string.extracting_text)
         ensureBackgroundThread {
             try {
-                // Carrega a imagem com redimensionamento inteligente para evitar OOM e melhorar o OCR
                 val options = android.graphics.BitmapFactory.Options().apply {
                     inJustDecodeBounds = true
                     android.graphics.BitmapFactory.decodeFile(medium.path, this)
@@ -1625,10 +1624,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     inJustDecodeBounds = false
                     inSampleSize = sample
                 }
-                
                 val raw = android.graphics.BitmapFactory.decodeFile(medium.path, options)
                     ?: run { runOnUiThread { toast("Erro ao decodificar imagem") }; return@ensureBackgroundThread }
-                
                 val bmp = preprocessForOcr(raw)
                 val img = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
                 val client = com.google.mlkit.vision.text.TextRecognition.getClient(
@@ -1652,7 +1649,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             }
         }
     }
-
     private fun extractTextFromVideoFrame() {
         val fragment = getCurrentFragment() as? com.goodwy.gallery.fragments.VideoFragment ?: run {
             toast("Pause o video primeiro"); return
