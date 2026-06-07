@@ -28,6 +28,9 @@ import androidx.core.view.updateLayoutParams
 import androidx.exifinterface.media.ExifInterface.*
 import com.alexvasilkov.gestures.GestureController
 import com.alexvasilkov.gestures.State
+import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+
+fun SubsamplingScaleImageView.isZoomedOut() = scale <= minScale
 import com.bumptech.glide.Glide
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
@@ -361,6 +364,10 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
+    private fun handlePhotoGesture(event: MotionEvent) {
+        handleEvent(event)
+    }
+
     private fun checkScreenDimensions() {
         if (mScreenWidth == 0 || mScreenHeight == 0) {
             measureScreen()
@@ -426,7 +433,7 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadBlurBackground() {
         val ctx = context ?: return
-        val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground && ctx.config.blurBackgroundPhoto
+        val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
@@ -1028,18 +1035,6 @@ class PhotoFragment : ViewPagerFragment() {
                 applyProperColorMode(drawable)
             } else {
                 resetColorModeIfVisible()
-            }
-        }
-    }
-
-    fun handlePhotoGesture(event: MotionEvent) {
-        var startY = 0f
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> startY = event.y
-            MotionEvent.ACTION_MOVE -> {
-                if (binding.gesturesView.isZoomedOut() && (event.y - startY) > 100) {
-                    listener?.finishViewPager()
-                }
             }
         }
     }
