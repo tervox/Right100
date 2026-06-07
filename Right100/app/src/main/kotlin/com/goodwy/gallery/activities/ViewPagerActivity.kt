@@ -1656,7 +1656,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 }
                 return null
             }
-            val textureView = findTextureView(viewGroup) ?: run {
+            val textureView = fragment.mTextureView ?: run {
                 toast("Abra ou pause o video para capturar"); return
             }
             val raw = textureView.getBitmap() ?: run {
@@ -1688,7 +1688,16 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun preprocessForOcr(src: android.graphics.Bitmap): android.graphics.Bitmap = src
 
     /** Remove linhas vazias e normaliza espacos no texto OCR */
-    private fun cleanOcrText(raw: String): String = raw
+    
+    private fun cleanOcrText(raw: String): String {
+        return raw.split("
+")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("
+")
+    }
+
         .lines().map { it.trim() }.filter { it.isNotBlank() }
         .joinToString("\n")
         .replace(Regex("  +"), " ")
