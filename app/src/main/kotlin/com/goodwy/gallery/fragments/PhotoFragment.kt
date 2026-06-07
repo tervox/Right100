@@ -194,7 +194,7 @@ class PhotoFragment : ViewPagerFragment() {
         }
 
         if (mMedium.path.startsWith("content://") && !mMedium.path.startsWith("content://mms/")) {
-            mMedium.path = mOriginalPath
+            mMedium.path = requireContext().getRealPathFromURI(mOriginalPath.toUri()) ?: mMedium.path
             if (isRPlus() && !isExternalStorageManager() && mMedium.path.startsWith("/storage/") && mMedium.isHidden()) {
                 mMedium.path = mOriginalPath
             }
@@ -268,7 +268,7 @@ class PhotoFragment : ViewPagerFragment() {
                 binding.subsamplingView.beGone()
                 loadImage()
             } else if (mMedium.isGIF()) {
-                loadGif() // Optimized
+                loadGif()
             } else if (mIsSubsamplingVisible && mShouldResetImage) {
                 binding.subsamplingView.onGlobalLayout {
                     binding.subsamplingView.resetView()
@@ -324,7 +324,7 @@ class PhotoFragment : ViewPagerFragment() {
                     measureScreen()
                     Handler().postDelayed({
                         binding.gifViewFrame.controller.resetState()
-                        loadGif() // Optimized
+                        loadGif()
                     }, 50)
                 }
             }
@@ -414,7 +414,7 @@ class PhotoFragment : ViewPagerFragment() {
             mImageOrientation = getImageOrientation()
             activity?.runOnUiThread {
                 when {
-                    mMedium.isGIF() -> loadGif() // Optimized
+                    mMedium.isGIF() -> loadGif()
                     mMedium.isSVG() -> loadSVG()
                     mMedium.isApng() -> loadAPNG()
                     mMedium.isAvif() -> loadAVIF()
@@ -430,14 +430,11 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
-            binding.photoBlurOverlay.setBackgroundColor(0x11000000)
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             Glide.with(ctx)
-                .asBitmap()
                 .load(mMedium.path)
-                .thumbnail(0.2f)
                 .apply(options)
                 .into(binding.photoBlurBg)
         } else {
@@ -446,7 +443,7 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-    private fun loadGif() { // Optimized
+    private fun loadGif() {
         try {
             val pathToLoad = getPathToLoad(mMedium)
             val source = if (pathToLoad.startsWith("content://") || pathToLoad.startsWith("file://")) {
@@ -475,7 +472,6 @@ class PhotoFragment : ViewPagerFragment() {
                 .`as`(PictureDrawable::class.java)
                 .listener(SvgSoftwareLayerSetter())
                 .load(mMedium.path)
-                .thumbnail(0.2f)
                 .into(binding.gesturesView)
         }
     }
@@ -826,8 +822,8 @@ class PhotoFragment : ViewPagerFragment() {
                     loadBitmap(false)
 
                     // ugly, but it works
-                    (activity as? ViewPagerActivity)?.invalidateOptionsMenu()
-                    (activity as? PhotoVideoActivity)?.invalidateOptionsMenu()
+                    (activity as? ViewPagerActivity)?.refreshMenuItems()
+                    (activity as? PhotoVideoActivity)?.refreshMenuItems()
                 }
 
                 override fun onUpEvent() {
@@ -1034,17 +1030,17 @@ class PhotoFragment : ViewPagerFragment() {
                 resetColorModeIfVisible()
             }
         }
+    }
 
-    private fun handlePhotoGesture(event: MotionEvent) {
-        // Método para lidar com gestos de arrastar para baixo no PhotoFragment
-        if (event.action == MotionEvent.ACTION_DOWN) {
-            mTouchY = event.y
-        } else if (event.action == MotionEvent.ACTION_MOVE) {
-            val diff = event.y - mTouchY
-            if (diff > 100) {
-                listener?.finishViewPager()
+    fun handlePhotoGesture(event: MotionEvent) {
+        var startY = 0f
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> startY = event.y
+            MotionEvent.ACTION_MOVE -> {
+                if (binding.gesturesView.isZoomedOut() && (event.y - startY) > 100) {
+                    listener?.finishViewPager()
+                }
             }
         }
-    }
     }
 }
