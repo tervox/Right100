@@ -430,10 +430,10 @@ class PhotoFragment : ViewPagerFragment() {
         if (shouldBlur) {
             binding.photoBlurBg.beVisible()
             binding.photoBlurOverlay.beVisible()
-            binding.photoBlurOverlay.setBackgroundColor(0x11000000)
+            binding.photoBlurOverlay.setBackgroundColor(0x15000000)
             // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
             val options = RequestOptions()
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(30, 3)))
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
             Glide.with(ctx)
                 .asBitmap()
                 .load(mMedium.path)
