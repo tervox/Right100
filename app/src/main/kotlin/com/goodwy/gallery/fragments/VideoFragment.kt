@@ -313,7 +313,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
             mWasFragmentInit = true
             mVideoFillMode = mConfig.videoFillMode
-            setVideoSize()
+            applyVideoFillMode()
 
             binding.apply {
                 mBrightnessSideScroll.initialize(
@@ -603,6 +603,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
+        applyVideoFillMode()
                 mVideoSize.x = videoSize.width
                 mVideoSize.y = (videoSize.height / videoSize.pixelWidthHeightRatio).toInt()
                 setVideoSize()
