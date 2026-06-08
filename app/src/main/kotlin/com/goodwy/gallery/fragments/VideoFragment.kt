@@ -591,7 +591,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    private fun toggleVideoStretch() {
+        private fun toggleVideoStretch() {
         mVideoFillMode = (mVideoFillMode + 1) % 3
         applyVideoFillMode()
     }
