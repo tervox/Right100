@@ -197,7 +197,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(
                         if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free
                     )
-                    applyVideoFillMode()
+                    setVideoSize()
                 }
             }
 
@@ -330,7 +330,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             mWasFragmentInit = true
-            applyVideoFillMode()
+            setVideoSize()
 
             binding.apply {
                 bottomVideoTimeHolder.videoStretch.setImageResource(
@@ -421,7 +421,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        applyVideoFillMode()
+        setVideoSize()
         initTimeHolder()
         checkExtendedDetails()
     }
@@ -592,10 +592,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun toggleVideoStretch() {
-        mVideoFillMode = if (mVideoFillMode == 0) 2 else 0
-        mConfig.videoFillMode = mVideoFillMode
+        mVideoFillMode = (mVideoFillMode + 1) % 3
         applyVideoFillMode()
-        updateStretchIcon()
     }
 
     private fun updateStretchIcon() {
@@ -697,7 +695,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 .load(target)
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
                 .into(binding.videoBlurBg)
-            binding.videoBlurBg.alpha = 0.7f
+            binding.videoBlurBg.alpha = 0.8f
         }
     }
 
@@ -709,7 +707,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             binding.videoBlurSurface.setRenderEffect(
                 RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
             )
-            binding.videoBlurSurface.alpha = 0.7f
+            binding.videoBlurSurface.alpha = 0.8f
         }
 
         val blurLoadControl = DefaultLoadControl.Builder()
@@ -848,7 +846,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 val ratio = videoSize.pixelWidthHeightRatio.takeIf { it > 0f } ?: 1f
                 mVideoSize.x = videoSize.width
                 mVideoSize.y = (videoSize.height / ratio).toInt().coerceAtLeast(1)
-                applyVideoFillMode()
+                setVideoSize()
             }
 
             override fun onPlayerErrorChanged(error: PlaybackException?) {
@@ -973,7 +971,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // Implementação simplificada de gestos se necessário
     }
 
-    private fun applyVideoFillMode() {
+    private fun setVideoSize() {
         if (activity == null || mConfig.gestureVideoPlayer) return
 
         val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
@@ -1048,57 +1046,4 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         return true
     }
     override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
-
-    private fun applyVideoFillMode() {
-        val activity = activity ?: return
-        val displayMetrics = DisplayMetrics()
-        activity.windowManager.defaultDisplay.getRealMetrics(displayMetrics)
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-
-        mTextureView.layoutParams.apply {
-            when (mVideoFillMode) {
-                0 -> { // Original (Fit)
-                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
-                    if (videoProportion > screenProportion) {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    } else {
-                        height = screenHeight
-                        width = (screenHeight.toFloat() * videoProportion).toInt()
-                    }
-                }
-                1 -> { // Esticado (Stretch)
-                    width = screenWidth
-                    height = screenHeight
-                }
-                2 -> { // Preencher (Zoom/Crop)
-                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
-                    if (videoProportion > screenProportion) {
-                        height = screenHeight
-                        width = (screenHeight.toFloat() * videoProportion).toInt()
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                }
-            }
-            mTextureView.layoutParams = this
-        }
-
-        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
-            when (mVideoFillMode) {
-                1 -> R.drawable.ic_minimize_vector
-                2 -> R.drawable.ic_aspect_ratio_vector
-                else -> R.drawable.ic_maximize_vector
-            }
-        )
-    }
-
-    private fun toggleVideoStretch() {
-        mVideoFillMode = (mVideoFillMode + 1) % 3
-        applyVideoFillMode()
-    }
 }
