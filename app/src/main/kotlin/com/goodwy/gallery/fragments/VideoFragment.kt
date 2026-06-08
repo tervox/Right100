@@ -197,7 +197,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     binding.bottomVideoTimeHolder.videoFillScreen.setImageResource(
                         if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free
                     )
-                    applyVideoFillMode()
+                    setVideoSize()
                 }
             }
 
@@ -330,7 +330,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             mWasFragmentInit = true
-            applyVideoFillMode()
+            setVideoSize()
 
             binding.apply {
                 bottomVideoTimeHolder.videoStretch.setImageResource(
@@ -421,7 +421,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        applyVideoFillMode()
+        setVideoSize()
         initTimeHolder()
         checkExtendedDetails()
     }
@@ -496,10 +496,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsPlaying = true
         }
         mExoPlayer?.playWhenReady = true
-        mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
         mBlurPlayer?.playWhenReady = true
         mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-        
+        mBlurPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -514,7 +513,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (!videoEnded()) {
             mExoPlayer?.playWhenReady = false
             mBlurPlayer?.playWhenReady = false
-            
+            mBlurPlayer?.playWhenReady = false
         }
 
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
@@ -530,6 +529,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun setPosition(milliseconds: Long) {
         mExoPlayer?.seekTo(milliseconds)
+        mBlurPlayer?.seekTo(milliseconds)
         mBlurPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
@@ -735,19 +735,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 mBlurPlayer?.setVideoSurface(Surface(st))
                 mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
                 mBlurPlayer?.playWhenReady = mIsPlaying
-                mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
             }
             override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
             override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
                 mBlurPlayer?.clearVideoSurface(); return true
             }
             override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
-        }
-        binding.videoBlurSurface.surfaceTexture?.let { st ->
-            mBlurPlayer?.setVideoSurface(Surface(st))
-            mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-            mBlurPlayer?.playWhenReady = mIsPlaying
-            mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
         }
     }
 
@@ -887,7 +880,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 val ratio = videoSize.pixelWidthHeightRatio.takeIf { it > 0f } ?: 1f
                 mVideoSize.x = videoSize.width
                 mVideoSize.y = (videoSize.height / ratio).toInt().coerceAtLeast(1)
-                applyVideoFillMode()
+                setVideoSize()
             }
 
             override fun onPlayerErrorChanged(error: PlaybackException?) {
@@ -1012,7 +1005,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // Implementação simplificada de gestos se necessário
     }
 
-    private fun applyVideoFillMode() {
+    private fun setVideoSize() {
         if (activity == null || mConfig.gestureVideoPlayer) return
 
         val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
