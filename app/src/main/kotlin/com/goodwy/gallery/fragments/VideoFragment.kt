@@ -1001,6 +1001,30 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     width = screenWidth
                     height = screenHeight
                 }
+                2 -> { // Preencher Tudo (Match Parent / No bars)
+                    width = screenWidth
+                    height = screenHeight
+                }
+            }
+            mTextureView.layoutParams = this
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                2 -> R.drawable.ic_aspect_ratio_vector
+                else -> R.drawable.ic_maximize_vector
+            }
+        )
+    } else {
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    }
+                }
+                1 -> { // Esticado (Stretch)
+                    width = screenWidth
+                    height = screenHeight
+                }
                 2 -> { // Preencher Tela (Center Crop / Zoom to Fill)
                     val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
                     val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
@@ -1155,4 +1179,4 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsLongPressActive = false
             mPlaybackSpeedPill.fadeOut()
         }
-    }
+}
