@@ -139,7 +139,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private lateinit var mView: View
     private lateinit var mMedium: Medium
     private lateinit var mConfig: Config
-    private lateinit var mTextureView: TextureView
+    lateinit var mTextureView: TextureView
     private lateinit var mCurrTimeView: TextView
     private lateinit var mPlayPauseButton: ImageView
     private lateinit var mSeekBar: SeekBar
