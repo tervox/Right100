@@ -1024,39 +1024,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
         )
     }
-            1 -> {
-                // Stretch: Estica tudo para preencher (Pode distorcer)
-                mTextureView.layoutParams.apply {
-                    width = screenWidth
-                    height = screenHeight
-                    mTextureView.layoutParams = this
-                }
-            }
-            2 -> {
-                // Fit to Screen (Crop): Preenche sem distorcer, cortando as bordas
-                val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-                val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
-                mTextureView.layoutParams.apply {
-                    if (videoProportion > screenProportion) {
-                        height = screenHeight
-                        width = (screenHeight.toFloat() * videoProportion).toInt()
-                    } else {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                    mTextureView.layoutParams = this
-                }
-            }
-        }
-
-        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
-            when (mVideoFillMode) {
-                1 -> R.drawable.ic_minimize_vector
-                2 -> R.drawable.ic_aspect_ratio_vector
-                else -> R.drawable.ic_maximize_vector
-            }
-        )
-    }
 
     private fun cleanup() {
         pauseVideo()
