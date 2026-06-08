@@ -131,9 +131,6 @@ class SettingsActivity : SimpleActivity() {
         setupChangeColourTopBar()
 
         setupDarkBackground()
-        setupBlurBackgroundPhoto()
-        setupBlurBackgroundVideo()
-        // setupVideoFillScreen()
         setupScreenRotation()
         setupHideSystemUI()
         setupFileDeletionPasswordProtection()
@@ -153,7 +150,6 @@ class SettingsActivity : SimpleActivity() {
         setupAllowInstantChange()
 
         setupBottomActions()
-        setupSelectAllFab()
         setupManageBottomActions()
 
         setupHiddenItemPasswordProtection()
@@ -595,30 +591,6 @@ class SettingsActivity : SimpleActivity() {
         }
     }
 
-    private fun setupBlurBackgroundPhoto() {
-        binding.settingsBlurBackgroundPhoto.isChecked = config.blurBackgroundPhoto
-        binding.settingsBlurBackgroundPhotoHolder.setOnClickListener {
-            binding.settingsBlurBackgroundPhoto.toggle()
-            config.blurBackgroundPhoto = binding.settingsBlurBackgroundPhoto.isChecked
-        }
-    }
-
-    private fun setupBlurBackgroundVideo() {
-        binding.settingsBlurBackgroundVideo.isChecked = config.blurBackgroundVideo
-        binding.settingsBlurBackgroundVideoHolder.setOnClickListener {
-            binding.settingsBlurBackgroundVideo.toggle()
-            config.blurBackgroundVideo = binding.settingsBlurBackgroundVideo.isChecked
-        }
-    }
-
-    private fun setupVideoFillScreen() {
-        binding.settingsVideoFillScreen.isChecked = config.videoFillScreen
-        binding.settingsVideoFillScreenHolder.setOnClickListener {
-            binding.settingsVideoFillScreen.toggle()
-            config.videoFillScreen = binding.settingsVideoFillScreen.isChecked
-        }
-    }
-
     private fun setupScrollHorizontally() {
         binding.apply {
             settingsScrollHorizontally.isChecked = config.scrollHorizontally
@@ -985,14 +957,6 @@ class SettingsActivity : SimpleActivity() {
         }
     )
 
-    private fun setupSelectAllFab() {
-        binding.settingsSelectAllFab.isChecked = config.showSelectAllFab
-        binding.settingsSelectAllFabHolder.setOnClickListener {
-            binding.settingsSelectAllFab.toggle()
-            config.showSelectAllFab = binding.settingsSelectAllFab.isChecked
-        }
-    }
-
     private fun setupBottomActions() {
         binding.settingsBottomActionsCheckbox.isChecked = config.bottomActions
         binding.settingsManageBottomActionsHolder.beVisibleIf(config.bottomActions)
@@ -1260,8 +1224,6 @@ class SettingsActivity : SimpleActivity() {
                 put(MAX_BRIGHTNESS, config.maxBrightness)
                 put(ULTRA_HDR_RENDERING, config.ultraHdrRendering)
                 put(BLACK_BACKGROUND, config.blackBackground)
-                put(BLUR_BACKGROUND_PHOTO, config.blurBackgroundPhoto)
-                put(BLUR_BACKGROUND_VIDEO, config.blurBackgroundVideo)
                 put(HIDE_SYSTEM_UI, config.hideSystemUI)
                 put(ALLOW_INSTANT_CHANGE, config.allowInstantChange)
                 put(KEEP_SCREEN_ON, config.keepScreenOn)
@@ -1423,8 +1385,6 @@ class SettingsActivity : SimpleActivity() {
                 MAX_BRIGHTNESS -> config.maxBrightness = value.toBoolean()
                 ULTRA_HDR_RENDERING -> config.ultraHdrRendering = value.toBoolean()
                 BLACK_BACKGROUND -> config.blackBackground = value.toBoolean()
-                BLUR_BACKGROUND_PHOTO -> config.blurBackgroundPhoto = value.toBoolean()
-                BLUR_BACKGROUND_VIDEO -> config.blurBackgroundVideo = value.toBoolean()
                 HIDE_SYSTEM_UI -> config.hideSystemUI = value.toBoolean()
                 ALLOW_INSTANT_CHANGE -> config.allowInstantChange = value.toBoolean()
                 KEEP_SCREEN_ON -> config.keepScreenOn = value.toBoolean()
