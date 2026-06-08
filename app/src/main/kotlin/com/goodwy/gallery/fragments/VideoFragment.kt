@@ -682,7 +682,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             return
         }
         binding.videoBlurOverlay.beVisible()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (true) {
             binding.videoBlurBg.beGone()
             binding.videoBlurSurface.beVisible()
             initBlurPlayer()
@@ -695,7 +695,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 .load(target)
                 .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
                 .into(binding.videoBlurBg)
-            binding.videoBlurBg.alpha = 0.2f
+            binding.videoBlurBg.alpha = 0.6f
         }
     }
 
@@ -703,11 +703,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val path = mMedium.path
         val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (true) {
             binding.videoBlurSurface.setRenderEffect(
                 RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
             )
-            binding.videoBlurSurface.alpha = 0.2f
+            binding.videoBlurSurface.alpha = 0.6f
         }
 
         val blurLoadControl = DefaultLoadControl.Builder()
@@ -1014,17 +1014,18 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mTextureView.layoutParams = this
         }
 
-        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (mConfig.blurBackgroundVideo && !mConfig.blackBackground) {
             binding.videoBlurSurface.layoutParams.apply {
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                }
+                width = ViewGroup.LayoutParams.MATCH_PARENT
+                height = ViewGroup.LayoutParams.MATCH_PARENT
                 binding.videoBlurSurface.layoutParams = this
             }
+            binding.videoBlurBg.layoutParams.apply {
+                width = ViewGroup.LayoutParams.MATCH_PARENT
+                height = ViewGroup.LayoutParams.MATCH_PARENT
+                binding.videoBlurBg.layoutParams = this
+            }
+        }
         }
     }
 
