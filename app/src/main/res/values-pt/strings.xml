@@ -264,6 +264,4 @@
     <string name="keep_screen_on_fullscreen_photos">Manter o ecrã ligado enquanto vê fotos em ecrã cheio</string>
     <string name="force_landscape_reverse">Paisagem forçada (reversa)</string>
     <string name="overwrite_original">Sobrescrever original</string>
-    <string name="extract_text">Extrair Texto</string>
-    <string name="extracting_text">Extraindo texto...</string>
 </resources>

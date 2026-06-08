@@ -18,10 +18,6 @@ import java.util.Arrays
 import java.util.Locale
 
 class Config(context: Context) : BaseConfig(context) {
-    var videoFillMode: Int
-        get() = prefs.getInt("video_fill_mode", 0)
-        set(value) = prefs.edit { putInt("video_fill_mode", value) }
-
     var blurBackgroundPhoto: Boolean
         get() = prefs.getBoolean("blur_background_photo", false)
         set(value) = prefs.edit { putBoolean("blur_background_photo", value) }
@@ -672,4 +668,7 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean("mark_watched_items", false)
         set(markWatchedItems) = prefs.edit { putBoolean("mark_watched_items", markWatchedItems) }
 
+    var videoFillMode: Int
+        get() = prefs.getInt("video_fill_mode", 0)
+        set(value) = prefs.edit { putInt("video_fill_mode", value) }
 }

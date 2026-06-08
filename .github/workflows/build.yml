@@ -23,11 +23,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Gradle 9.3.1
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -P /tmp
-          unzip -q /tmp/gradle-9.3.1-bin.zip -d /opt
-          echo "/opt/gradle-9.3.1/bin" >> $GITHUB_PATH
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Restore fixed keystore
         run: |
@@ -42,7 +39,8 @@ jobs:
           printf 'PRODUCT_ID_X1=\nPRODUCT_ID_X2=\nPRODUCT_ID_X3=\nPRODUCT_ID_X4=\n' >> local.properties
           printf 'SUBSCRIPTION_ID_X1=\nSUBSCRIPTION_ID_X2=\nSUBSCRIPTION_ID_X3=\n' >> local.properties
           printf 'SUBSCRIPTION_YEAR_ID_X1=\nSUBSCRIPTION_YEAR_ID_X2=\nSUBSCRIPTION_YEAR_ID_X3=\n' >> local.properties
-          gradle assembleFossRelease --no-daemon
+          chmod +x gradlew
+          ./gradlew assembleFossRelease --no-daemon
 
       - name: Find APK
         id: find_apk
