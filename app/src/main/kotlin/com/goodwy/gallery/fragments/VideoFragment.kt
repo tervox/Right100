@@ -1212,4 +1212,5 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mIsLongPressActive = false
             mPlaybackSpeedPill.fadeOut()
         }
+    }
 }
