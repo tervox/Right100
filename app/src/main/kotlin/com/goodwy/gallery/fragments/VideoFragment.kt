@@ -374,6 +374,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onResume() {
         super.onResume()
+        mVideoFillMode = mConfig.videoFillMode
+        applyVideoFillMode()
         mConfig =
             requireContext().config      // make sure we get a new config, in case the user changed something in the app settings
         requireActivity().updateTextColors(binding.videoHolder)
@@ -971,6 +973,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun toggleVideoStretch() {
         mVideoFillMode = (mVideoFillMode + 1) % 3
         mConfig.videoFillMode = mVideoFillMode
+        context?.config?.videoFillMode = mVideoFillMode
         applyVideoFillMode()
     }
 
@@ -990,6 +993,39 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                         width = screenWidth
                         height = (screenWidth.toFloat() / videoProportion).toInt()
                     } else {
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    }
+                }
+                1 -> { // Esticado (Stretch)
+                    width = screenWidth
+                    height = screenHeight
+                }
+                2 -> { // Preencher Tela (Center Crop / Zoom to Fill)
+                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                    if (videoProportion > screenProportion) {
+                        // Vídeo é mais largo que a tela -> Ajusta pela altura e corta laterais
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    } else {
+                        // Vídeo é mais estreito que a tela -> Ajusta pela largura e corta topo/baixo
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                }
+            }
+            mTextureView.layoutParams = this
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                2 -> R.drawable.ic_aspect_ratio_vector
+                else -> R.drawable.ic_maximize_vector
+            }
+        )
+    } else {
                         height = screenHeight
                         width = (screenHeight.toFloat() * videoProportion).toInt()
                     }
