@@ -1156,4 +1156,3 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mPlaybackSpeedPill.fadeOut()
         }
     }
-}
