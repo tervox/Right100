@@ -326,7 +326,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     singleTap = { x, y ->
                         if (mConfig.allowInstantChange) {
                             listener?.goToPrevItem()
-                        } else {
                             toggleFullscreen()
                         }
                     },
@@ -341,7 +340,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     singleTap = { x, y ->
                         if (mConfig.allowInstantChange) {
                             listener?.goToNextItem()
-                        } else {
                             toggleFullscreen()
                         }
                     },
@@ -483,7 +481,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     mMedium.path,
                     mExoPlayer!!.currentPosition.toInt() / 1000
                 )
-            } else {
                 mConfig.saveLastVideoPosition(mMedium.path, mPositionAtPause.toInt() / 1000)
             }
         }
@@ -526,7 +523,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val dataSpec = DataSpec(uri)
         val fileDataSource = if (isContentUri) {
             ContentDataSource(requireContext())
-        } else {
             FileDataSource()
         }
 
@@ -620,7 +616,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                         text = error.getFriendlyMessage(context)
                         setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
                         fadeIn()
-                    } else {
                         beGone()
                         binding.videoPlayOutline.beVisible()
                     }
@@ -657,7 +652,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 alpha = if (!mConfig.hideExtendedDetails || !mIsFullscreen) 1f else 0f
                 (activity as? BaseViewerActivity)?.applyProperHorizontalInsets(this)
             }
-        } else {
             binding.videoDetails.beGone()
         }
     }
@@ -702,7 +696,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (isFullscreen) {
             mTimeHolder.fadeOut(DEFAULT_ANIMATION_DURATION)
             binding.bottomActionsDummy.fadeOut(DEFAULT_ANIMATION_DURATION)
-        } else {
             binding.bottomActionsDummy.beVisible()
             mTimeHolder.fadeIn(DEFAULT_ANIMATION_DURATION)
         }
@@ -815,7 +808,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         if (mIsPlaying) {
             pauseVideo()
-        } else {
             playVideo()
         }
     }
@@ -963,7 +955,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mCurrTime = mExoPlayer!!.duration
         if (listener?.videoEnded() == false && mConfig.loopVideos) {
             playVideo()
-        } else {
             mSeekBar.progress = mSeekBar.max
             mCurrTimeView.text = mDuration.getFormattedDuration()
             pauseVideo()
@@ -975,6 +966,91 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mConfig.videoFillMode = mVideoFillMode
         context?.config?.videoFillMode = mVideoFillMode
         applyVideoFillMode()
+    }
+
+    
+                }
+                1 -> { // Esticado (Stretch)
+                    width = screenWidth
+                    height = screenHeight
+                }
+                2 -> { // Preencher Tudo (Match Parent / No bars)
+                    width = screenWidth
+                    height = screenHeight
+                }
+            }
+            mTextureView.layoutParams = this
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                2 -> R.drawable.ic_aspect_ratio_vector
+                else -> R.drawable.ic_maximize_vector
+            }
+        )
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    }
+                }
+                1 -> { // Esticado (Stretch)
+                    width = screenWidth
+                    height = screenHeight
+                }
+                2 -> { // Preencher Tela (Center Crop / Zoom to Fill)
+                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                    if (videoProportion > screenProportion) {
+                        // Vídeo é mais largo que a tela -> Ajusta pela altura e corta laterais
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                        // Vídeo é mais estreito que a tela -> Ajusta pela largura e corta topo/baixo
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                }
+            }
+            mTextureView.layoutParams = this
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                2 -> R.drawable.ic_aspect_ratio_vector
+                else -> R.drawable.ic_maximize_vector
+            }
+        )
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                    }
+                }
+                1 -> { // Esticado (Stretch)
+                    width = screenWidth
+                    height = screenHeight
+                }
+                2 -> { // Preencher Tela (Zoom/Crop - O que o usuário quer)
+                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+                    if (videoProportion > screenProportion) {
+                        // Vídeo é mais largo que a tela (ex: 16:9 em tela 4:3)
+                        height = screenHeight
+                        width = (screenHeight.toFloat() * videoProportion).toInt()
+                        // Vídeo é mais alto que a tela (ex: 9:16 em tela 16:9)
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                }
+            }
+            mTextureView.layoutParams = this
+        }
+
+        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
+            when (mVideoFillMode) {
+                1 -> R.drawable.ic_minimize_vector
+                2 -> R.drawable.ic_aspect_ratio_vector
+                else -> R.drawable.ic_maximize_vector
+            }
+        )
     }
 
     private fun applyVideoFillMode() {
@@ -1004,72 +1080,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 2 -> { // Preencher Tudo (Match Parent / No bars)
                     width = screenWidth
                     height = screenHeight
-                }
-            }
-            mTextureView.layoutParams = this
-        }
-
-        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
-            when (mVideoFillMode) {
-                1 -> R.drawable.ic_minimize_vector
-                2 -> R.drawable.ic_aspect_ratio_vector
-                else -> R.drawable.ic_maximize_vector
-            }
-        )
-    } else {
-                        height = screenHeight
-                        width = (screenHeight.toFloat() * videoProportion).toInt()
-                    }
-                }
-                1 -> { // Esticado (Stretch)
-                    width = screenWidth
-                    height = screenHeight
-                }
-                2 -> { // Preencher Tela (Center Crop / Zoom to Fill)
-                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
-                    if (videoProportion > screenProportion) {
-                        // Vídeo é mais largo que a tela -> Ajusta pela altura e corta laterais
-                        height = screenHeight
-                        width = (screenHeight.toFloat() * videoProportion).toInt()
-                    } else {
-                        // Vídeo é mais estreito que a tela -> Ajusta pela largura e corta topo/baixo
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
-                }
-            }
-            mTextureView.layoutParams = this
-        }
-
-        binding.bottomVideoTimeHolder.videoStretch.setImageResource(
-            when (mVideoFillMode) {
-                1 -> R.drawable.ic_minimize_vector
-                2 -> R.drawable.ic_aspect_ratio_vector
-                else -> R.drawable.ic_maximize_vector
-            }
-        )
-    } else {
-                        height = screenHeight
-                        width = (screenHeight.toFloat() * videoProportion).toInt()
-                    }
-                }
-                1 -> { // Esticado (Stretch)
-                    width = screenWidth
-                    height = screenHeight
-                }
-                2 -> { // Preencher Tela (Zoom/Crop - O que o usuário quer)
-                    val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-                    val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
-                    if (videoProportion > screenProportion) {
-                        // Vídeo é mais largo que a tela (ex: 16:9 em tela 4:3)
-                        height = screenHeight
-                        width = (screenHeight.toFloat() * videoProportion).toInt()
-                    } else {
-                        // Vídeo é mais alto que a tela (ex: 9:16 em tela 16:9)
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    }
                 }
             }
             mTextureView.layoutParams = this
@@ -1134,7 +1144,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             if (videoProportion > screenProportion) {
                 width = screenWidth
                 height = (screenWidth.toFloat() / videoProportion).toInt()
-            } else {
                 width = (videoProportion * screenHeight.toFloat()).toInt()
                 height = screenHeight
             }
