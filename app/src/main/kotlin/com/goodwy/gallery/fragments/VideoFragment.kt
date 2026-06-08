@@ -605,10 +605,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
-        applyVideoFillMode()
                 mVideoSize.x = videoSize.width
                 mVideoSize.y = (videoSize.height / videoSize.pixelWidthHeightRatio).toInt()
-                setVideoSize()
+                applyVideoFillMode()
             }
 
             override fun onPlayerErrorChanged(error: PlaybackException?) {
