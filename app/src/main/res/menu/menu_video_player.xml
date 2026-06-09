@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="AppCompatResource">
+    <item
+        android:id="@+id/menu_change_orientation"
+        android:title="@string/change_orientation"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/menu_force_portrait"
+                android:title="@string/force_portrait" />
+            <item
+                android:id="@+id/menu_force_landscape"
+                android:title="@string/force_landscape" />
+            <item
+                android:id="@+id/menu_force_landscape_reverse"
+                android:title="@string/force_landscape_reverse" />
+            <item
+                android:id="@+id/menu_default_orientation"
+                android:title="@string/use_default_orientation" />
+        </menu>
+    </item>
+    <item
+        android:id="@+id/menu_share"
+        android:icon="@drawable/ic_share_vector"
+        android:title="@string/share"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/menu_open_with"
+        android:showAsAction="never"
+        android:title="@string/open_with"
+        app:showAsAction="never" />
+</menu>

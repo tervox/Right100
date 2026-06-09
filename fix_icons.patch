@@ -1,0 +1,27 @@
+diff --git a/app/src/main/res/layout/bottom_actions.xml b/app/src/main/res/layout/bottom_actions.xml
+index 0000000..1111111 100644
+--- a/app/src/main/res/layout/bottom_actions.xml
++++ b/app/src/main/res/layout/bottom_actions.xml
+@@ -1,6 +1,7 @@
+ <LinearLayout
+     android:layout_width="match_parent"
+     android:layout_height="wrap_content"
++    android:gravity="center"
+     android:orientation="horizontal">
+
+diff --git a/app/src/main/kotlin/com/goodwy/gallery/activities/MediaActivity.kt b/app/src/main/kotlin/com/goodwy/gallery/activities/MediaActivity.kt
+index 0000000..1111111 100644
+--- a/app/src/main/kotlin/com/goodwy/gallery/activities/MediaActivity.kt
++++ b/app/src/main/kotlin/com/goodwy/gallery/activities/MediaActivity.kt
+@@ -100,6 +100,12 @@ class MediaActivity : AppCompatActivity() {
+
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
++
++        val color = getProperTextColor()
++        findViewById<ImageView>(R.id.bottom_share)?.setColorFilter(color)
++        findViewById<ImageView>(R.id.bottom_edit)?.setColorFilter(color)
++        findViewById<ImageView>(R.id.bottom_delete)?.setColorFilter(color)
++
+     }
+ }
