@@ -17,32 +17,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: gradle
 
       - name: Fix gradlew line endings (CRLF → LF)
         run: sed -i 's/\r$//' gradlew && chmod +x gradlew
 
-      - name: Fix gradle-wrapper.jar
-        run: |
-          GRADLE_VERSION=$(grep "distributionUrl" gradle/wrapper/gradle-wrapper.properties \
-            | sed 's/.*gradle-\(.*\)-bin.zip/\1/')
-          echo "Gradle version: $GRADLE_VERSION"
-          curl -fsSL "https://raw.githubusercontent.com/nicoulaj/gradle-wrapper-diff/master/gradle-wrappers/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || \
-          curl -fsSL "https://github.com/gradle/gradle/raw/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
-          if ! java -jar gradle/wrapper/gradle-wrapper.jar --version &>/dev/null; then
-            curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
-              -o /tmp/gradle.zip
-            unzip -q /tmp/gradle.zip -d /tmp/gradle-dist
-            GRADLE_BIN=$(find /tmp/gradle-dist -name "gradle" -type f | head -1)
-            $GRADLE_BIN wrapper --gradle-version "$GRADLE_VERSION"
-          fi
+      - name: Fix gradlew permissions
+        run: chmod +x gradlew
 
       - name: Setup keystore
         run: |
