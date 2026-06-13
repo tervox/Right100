@@ -44,11 +44,7 @@ jobs:
 
       - name: Build APK
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          printf 'PRODUCT_ID_X1=\nPRODUCT_ID_X2=\nPRODUCT_ID_X3=\nPRODUCT_ID_X4=\n' >> local.properties
-          printf 'SUBSCRIPTION_ID_X1=\nSUBSCRIPTION_ID_X2=\nSUBSCRIPTION_ID_X3=\n' >> local.properties
-          printf 'SUBSCRIPTION_YEAR_ID_X1=\nSUBSCRIPTION_YEAR_ID_X2=\nSUBSCRIPTION_YEAR_ID_X3=\n' >> local.properties
-          ./gradlew assembleFossDebug --no-daemon --stacktrace
+          ./gradlew assembleFossDebug --no-daemon --stacktrace -Pandroid.builder.sdkDownload=true
 
       - name: Find APK
         id: find_apk
