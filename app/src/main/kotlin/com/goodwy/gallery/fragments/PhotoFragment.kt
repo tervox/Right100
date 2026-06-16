@@ -1033,14 +1033,8 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     fun handlePhotoGesture(event: MotionEvent) {
-        var startY = 0f
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> startY = event.y
-            MotionEvent.ACTION_MOVE -> {
-                if (binding.gesturesView.isZoomedOut() && (event.y - startY) > 100) {
-                    listener?.finishViewPager()
-                }
-            }
-        }
+        // Removido: duplicava a lógica do gesto de descida já tratada pelo
+        // touch listener de gesturesView (linha ~168), que chama handleEvent()
+        // corretamente usando mCurrentGestureViewZoom/mInitialZoom.
     }
 }

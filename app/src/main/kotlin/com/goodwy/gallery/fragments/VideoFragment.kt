@@ -994,7 +994,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                         height = (screenWidth.toFloat() / videoProportion).toInt()
                     }
                 }
-                mVideoFillMode == 2 -> {
+                mConfig.videoFillMode == 2 -> {
                     width = screenWidth
                     height = screenHeight
                 }

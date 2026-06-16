@@ -75,6 +75,8 @@ open class PhotoVideoActivity : BaseViewerActivity() {
         }
     }
 
+    fun refreshMenuItems() {}
+
     private fun setupOptionsMenu() {
         binding.mediumViewerToolbar.apply {
             setTitleTextColor(Color.WHITE)
