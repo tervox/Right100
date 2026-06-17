@@ -512,19 +512,6 @@
                             app:switchPadding="@dimen/bigger_margin" />
 
                     </RelativeLayout>
-
-                    <RelativeLayout
-                        android:id="@+id/settings_show_folder_size_holder"
-                        style="@style/SettingsHolderSwitchStyle">
-
-                        <com.goodwy.commons.views.MyMaterialSwitch
-                            android:id="@+id/settings_show_folder_size"
-                            style="@style/SettingsSwitchStyle"
-                            android:text="@string/show_folder_size"
-                            app:switchPadding="@dimen/bigger_margin" />
-
-                    </RelativeLayout>
-
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -720,43 +707,6 @@
                             android:id="@+id/settings_black_background"
                             style="@style/SettingsSwitchStyle"
                             android:text="@string/black_background_at_fullscreen"
-                            app:switchPadding="@dimen/bigger_margin" />
-
-                    </RelativeLayout>
-
-                    <RelativeLayout
-                        android:id="@+id/settings_blur_background_photo_holder"
-                        style="@style/SettingsHolderSwitchStyle">
-
-                        <com.goodwy.commons.views.MyMaterialSwitch
-                            android:id="@+id/settings_blur_background_photo"
-                            style="@style/SettingsSwitchStyle"
-                            android:text="@string/blur_background_photo"
-                            app:switchPadding="@dimen/bigger_margin" />
-
-                    </RelativeLayout>
-
-                    <RelativeLayout
-                        android:id="@+id/settings_blur_background_video_holder"
-                        style="@style/SettingsHolderSwitchStyle">
-
-                        <com.goodwy.commons.views.MyMaterialSwitch
-                            android:id="@+id/settings_blur_background_video"
-                            style="@style/SettingsSwitchStyle"
-                            android:text="@string/blur_background_video"
-                            app:switchPadding="@dimen/bigger_margin" />
-
-                    </RelativeLayout>
-
-                    <RelativeLayout
-                        android:id="@+id/settings_video_fill_screen_holder"
-                        android:visibility="gone"
-                        style="@style/SettingsHolderSwitchStyle">
-
-                        <com.goodwy.commons.views.MyMaterialSwitch
-                            android:id="@+id/settings_video_fill_screen"
-                            style="@style/SettingsSwitchStyle"
-                            android:text="@string/video_fill_screen"
                             app:switchPadding="@dimen/bigger_margin" />
 
                     </RelativeLayout>
@@ -1093,18 +1043,6 @@
                             android:id="@+id/settings_skip_delete_confirmation"
                             style="@style/SettingsSwitchStyle"
                             android:text="@string/skip_delete_confirmation"
-                            app:switchPadding="@dimen/bigger_margin" />
-
-                    </RelativeLayout>
-
-                    <RelativeLayout
-                        android:id="@+id/settings_select_all_fab_holder"
-                        style="@style/SettingsHolderSwitchStyle">
-
-                        <com.goodwy.commons.views.MyMaterialSwitch
-                            android:id="@+id/settings_select_all_fab"
-                            style="@style/SettingsSwitchStyle"
-                            android:text="@string/select_all_fab_setting"
                             app:switchPadding="@dimen/bigger_margin" />
 
                     </RelativeLayout>

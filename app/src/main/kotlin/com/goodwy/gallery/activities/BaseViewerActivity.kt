@@ -90,17 +90,4 @@ abstract class BaseViewerActivity : SimpleActivity() {
             insets
         }
     }
-
-    // A tela e edge-to-edge (o conteudo desenha por baixo da barra de navegacao do sistema
-    // de proposito, pra foto/video ocupar a tela toda). Mas isso significa que qualquer view
-    // fixada no rodape (como a barra de acoes) precisa ganhar um respiro de baixo do tamanho
-    // da barra de navegacao, ou os icones ficam embaixo dela e o toque nao funciona.
-    fun applyProperBottomInsets(view: View) {
-        ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
-            val system = insets.getInsetsIgnoringVisibility(Type.systemBars())
-            view.updatePaddingWithBase(bottom = system.bottom)
-            insets
-        }
-        view.requestApplyInsets()
-    }
 }

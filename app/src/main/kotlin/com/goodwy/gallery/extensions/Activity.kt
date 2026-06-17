@@ -356,13 +356,9 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
     val source = fileDirItems[0].getParentPath()
     PickDirectoryDialog(this, source, true, false, true, false) {
         val destination = it
-        handleSAFDialog(source) { sourceGranted ->
-            if (sourceGranted) {
-                handleSAFDialogSdk30(destination) { destGranted ->
-                    if (destGranted) {
-                        copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden, callback)
-                    }
-                }
+        handleSAFDialog(source) {
+            if (it) {
+                copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden, callback)
             }
         }
     }
@@ -1062,11 +1058,18 @@ fun BaseSimpleActivity.ensureWritablePath(
     }
 
     fun requestGrantsThenProceed() {
-        if (isRPlus() && !isExternalStorageManager()) {
-            val fileDirItem = arrayListOf(File(targetPath).toFileDirItem(this))
-            val fileUris = getFileUrisFromFileDirItems(fileDirItem)
-            updateSDK30Uris(fileUris) { success ->
-                if (success) proceedAfterGrants() else onCancel?.invoke()
+        if (isRPlus() && !isExternalStorageManager() && getDoesFilePathExist(targetPath)) {
+            val fileDirItems = arrayListOf(File(targetPath).toFileDirItem(this))
+            resolveMediaStoreUris(fileDirItems) { resolution ->
+                val fileUris = resolution.uris
+                if (fileUris.isEmpty()) {
+                    proceedAfterGrants()
+                    return@resolveMediaStoreUris
+                }
+
+                updateSDK30Uris(fileUris) { success ->
+                    if (success) proceedAfterGrants() else onCancel?.invoke()
+                }
             }
         } else {
             proceedAfterGrants()
@@ -1126,7 +1129,7 @@ fun Activity.newAppRecommendation() {
                     activity = this,
                     packageName = packageName,
                     title = getString(com.goodwy.strings.R.string.notification_of_new_application),
-                    text = "AlRight Gallery",
+                    text = "Alright Gallery",
                     drawable = AppCompatResources.getDrawable(this, com.goodwy.commons.R.drawable.ic_gallery_new),
                     showSubtitle = true
                 ) {

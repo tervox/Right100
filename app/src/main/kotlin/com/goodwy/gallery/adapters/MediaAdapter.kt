@@ -1,7 +1,6 @@
 package com.goodwy.gallery.adapters
 
 import android.annotation.SuppressLint
-import androidx.recyclerview.widget.DiffUtil
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
@@ -28,10 +27,8 @@ import com.goodwy.commons.interfaces.ItemTouchHelperContract
 import com.goodwy.commons.models.FileDirItem
 import com.goodwy.commons.views.MyRecyclerView
 import com.goodwy.gallery.R
-import com.goodwy.gallery.activities.MediaActivity
 import com.goodwy.gallery.activities.ViewPagerActivity
 import com.goodwy.gallery.databinding.*
-import com.goodwy.gallery.dialogs.BulkRenameDialog
 import com.goodwy.gallery.dialogs.DeleteWithRememberDialog
 import com.goodwy.gallery.extensions.*
 import com.goodwy.gallery.helpers.*
@@ -39,10 +36,6 @@ import com.goodwy.gallery.interfaces.MediaOperationsListener
 import com.goodwy.gallery.models.Medium
 import com.goodwy.gallery.models.ThumbnailItem
 import com.goodwy.gallery.models.ThumbnailSection
-import com.bumptech.glide.ListPreloader
-import com.bumptech.glide.RequestBuilder
-import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
-import com.bumptech.glide.util.ViewPreloadSizeProvider
 
 class MediaAdapter(
     activity: BaseSimpleActivity,
@@ -123,14 +116,6 @@ class MediaAdapter(
 
     override fun getItemCount() = media.size
 
-    override fun getItemId(position: Int): Long {
-        return when (val item = media.getOrNull(position)) {
-            is Medium -> item.path.hashCode().toLong()
-            is ThumbnailSection -> item.title.hashCode().toLong()
-            else -> position.toLong()
-        }
-    }
-
     override fun getItemViewType(position: Int): Int {
         val tmbItem = media[position]
         return when {
@@ -151,7 +136,6 @@ class MediaAdapter(
         val isInRecycleBin = selectedItems.firstOrNull()?.getIsInRecycleBin() == true
         menu.apply {
             findItem(R.id.cab_rename).isVisible = !isInRecycleBin
-            findItem(R.id.cab_bulk_rename).isVisible = !isInRecycleBin && !isOneItemSelected
             findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin
             findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin
             findItem(R.id.cab_move_to).isVisible = !isInRecycleBin
@@ -177,7 +161,6 @@ class MediaAdapter(
             R.id.cab_confirm_selection -> confirmSelection()
             R.id.cab_properties -> showProperties()
             R.id.cab_rename -> checkMediaManagementAndRename()
-            R.id.cab_bulk_rename -> checkMediaManagementAndBulkRename()
             R.id.cab_edit -> editFile()
             R.id.cab_hide -> toggleFileVisibility(true)
             R.id.cab_unhide -> toggleFileVisibility(false)
@@ -214,12 +197,10 @@ class MediaAdapter(
     override fun onActionModeCreated() {
         swipeRefreshLayout?.isRefreshing = false
         swipeRefreshLayout?.isEnabled = false
-        (activity as? MediaActivity)?.showSelectionFab(true)
     }
 
     override fun onActionModeDestroyed() {
         swipeRefreshLayout?.isEnabled = activity.config.enablePullToRefresh
-        (activity as? MediaActivity)?.showSelectionFab(false)
     }
 
     override fun onViewRecycled(holder: ViewHolder) {
@@ -231,11 +212,6 @@ class MediaAdapter(
                 Glide.with(activity).clear(tmb)
             }
         }
-    }
-
-    fun selectAllItems() {
-        if (selectedKeys.isEmpty()) activity.startActionMode(actModeCallback)
-        selectAll()
     }
 
     fun isASectionTitle(position: Int) = media.getOrNull(position) is ThumbnailSection
@@ -268,21 +244,6 @@ class MediaAdapter(
     private fun checkMediaManagementAndRename() {
         activity.handleMediaManagementPrompt {
             renameFile()
-        }
-    }
-
-    private fun checkMediaManagementAndBulkRename() {
-        activity.handleMediaManagementPrompt {
-            bulkRenameFiles()
-        }
-    }
-
-    private fun bulkRenameFiles() {
-        val paths = getSelectedPaths()
-        if (paths.isEmpty()) return
-        BulkRenameDialog(activity, paths) {
-            listener?.refreshItems()
-            finishActMode()
         }
     }
 
@@ -443,13 +404,13 @@ class MediaAdapter(
         }
     }
 
-    internal fun moveFilesTo() {
+    private fun moveFilesTo() {
         activity.handleDeletePasswordProtection {
             checkMediaManagementAndCopy(false)
         }
     }
 
-    internal fun checkMediaManagementAndCopy(isCopyOperation: Boolean) {
+    private fun checkMediaManagementAndCopy(isCopyOperation: Boolean) {
         activity.handleMediaManagementPrompt {
             copyMoveTo(isCopyOperation)
         }
@@ -478,17 +439,13 @@ class MediaAdapter(
             activity.applicationContext.rescanFolderMedia(fileDirItems.first().getParentPath())
 
             val newPaths = fileDirItems.map { "$destinationPath/${it.name}" }.toMutableList() as ArrayList<String>
-
-            if (!isCopyOperation) {
-                // Refresh imediato: itens somem da tela sem esperar MediaStore
-                activity.runOnUiThread { listener?.refreshItems() }
-                activity.updateFavoritePaths(fileDirItems, destinationPath)
-            }
-
             activity.rescanPaths(newPaths) {
                 activity.fixDateTaken(newPaths, false)
-                // Segundo refresh apos MediaStore atualizar
-                if (!isCopyOperation) activity.runOnUiThread { listener?.refreshItems() }
+            }
+
+            if (!isCopyOperation) {
+                listener?.refreshItems()
+                activity.updateFavoritePaths(fileDirItems, destinationPath)
             }
         }
     }
@@ -542,7 +499,7 @@ class MediaAdapter(
         }
     }
 
-    internal fun askConfirmDelete() {
+    private fun askConfirmDelete() {
         val itemsCnt = selectedKeys.size
         val selectedMedia = getSelectedItems()
         val firstPath = selectedMedia.first().path
@@ -635,34 +592,8 @@ class MediaAdapter(
         val thumbnailItems = newMedia.clone() as ArrayList<ThumbnailItem>
         if (thumbnailItems.hashCode() != currentMediaHash) {
             currentMediaHash = thumbnailItems.hashCode()
-            val oldMedia = media
             media = thumbnailItems
-
-            val diffResult = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
-                override fun getOldListSize() = oldMedia.size
-                override fun getNewListSize() = thumbnailItems.size
-                override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean {
-                    val old = oldMedia.getOrNull(oldPos)
-                    val new = thumbnailItems.getOrNull(newPos)
-                    return when {
-                        old is Medium && new is Medium -> old.path == new.path
-                        old is ThumbnailSection && new is ThumbnailSection -> old.title == new.title
-                        else -> false
-                    }
-                }
-                override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
-                    val old = oldMedia.getOrNull(oldPos)
-                    val new = thumbnailItems.getOrNull(newPos)
-                    return when {
-                        old is Medium && new is Medium ->
-                            old.videoDuration == new.videoDuration &&
-                            old.size == new.size &&
-                            old.modified == new.modified
-                        else -> old == new
-                    }
-                }
-            })
-            diffResult.dispatchUpdatesTo(this)
+            notifyDataSetChanged()
             finishActMode()
         }
         keyToPositionCache.clear()
@@ -740,7 +671,7 @@ class MediaAdapter(
             mediumName.text = medium.name
             mediumName.tag = medium.path
 
-            val showVideoDuration = medium.isVideo() && config.showThumbnailVideoDuration && medium.videoDuration > 0
+            val showVideoDuration = medium.isVideo() && config.showThumbnailVideoDuration
             if (showVideoDuration) {
                 videoDuration?.text = medium.videoDuration.getFormattedDuration()
                 if (isListViewType) videoDuration?.setTextColor(textColor)

@@ -115,6 +115,7 @@
                 <data android:mimeType="video/*" />
                 <data android:mimeType="vnd.android.cursor.dir/image" />
                 <data android:mimeType="vnd.android.cursor.dir/video" />
+                <data android:scheme="com.goodwy.dialer.scheme" />
             </intent-filter>
         </activity>
 
@@ -336,10 +337,6 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="ocr" />
-
         <receiver
             android:name=".receivers.RefreshMediaReceiver"
             android:exported="true">
@@ -543,6 +540,4 @@
             </intent-filter>
         </activity-alias>
     </application>
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 </manifest>

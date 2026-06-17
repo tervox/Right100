@@ -26,29 +26,6 @@
         android:visibility="gone"
         tools:visibility="visible" />
 
-    <!-- Blur background: TextureView+RenderEffect para API 31+, ImageView estatico para API<31 -->
-    <TextureView
-        android:id="@+id/video_blur_surface"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_centerInParent="true"
-        android:visibility="gone" />
-
-    <ImageView
-        android:id="@+id/video_blur_bg"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:contentDescription="@null"
-        android:visibility="gone" />
-
-    <View
-        android:id="@+id/video_blur_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#11000000"
-        android:visibility="gone" />
-
     <ImageView
         android:id="@+id/video_preview"
         android:layout_width="match_parent"

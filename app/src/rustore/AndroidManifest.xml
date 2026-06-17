@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:installLocation="auto">
+
+    <application android:icon="@mipmap/ic_launcher">
+
+        <meta-data
+            android:name="console_app_id_value"
+            android:value="1504831423" />
+
+        <meta-data
+            android:name="sdk_pay_scheme_value"
+            android:value="com.goodwy.gallery.scheme" />
+
+    </application>
+</manifest>

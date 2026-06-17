@@ -105,9 +105,13 @@ data class Medium(
     }
 
     fun getSignature(): String {
-        // Usa apenas path + size como cache key do Glide.
-        // modified pode variar entre DB e filesystem causando cache miss na segunda visita.
-        return "$path-$size"
+        val lastModified = if (modified > 1) {
+            modified
+        } else {
+            File(path).lastModified()
+        }
+
+        return "$path-$lastModified-$size"
     }
 
     fun getKey() = ObjectKey(getSignature())

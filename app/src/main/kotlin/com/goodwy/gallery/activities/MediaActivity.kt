@@ -19,10 +19,6 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.ListPreloader
-import com.bumptech.glide.RequestBuilder
-import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
-import com.bumptech.glide.util.FixedPreloadSizeProvider
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.SimpleTarget
@@ -93,7 +89,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     companion object {
         var mMedia = ArrayList<ThumbnailItem>()
-        var mMediaPath = ""
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,7 +103,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         binding.mediaRefreshLayout.setOnRefreshListener { getMedia() }
-        setupSelectAllFab()
         try {
             mPath = intent.getStringExtra(DIRECTORY) ?: ""
         } catch (e: Exception) {
@@ -242,12 +236,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         // do not refresh Random sorted files after opening a fullscreen image and going Back
         val isRandomSorting = config.getFolderSorting(mPath) and SORT_BY_RANDOM != 0
-        val wasFullscreen = mWasFullscreenViewOpen
-        mWasFullscreenViewOpen = false
-        // Pular reload se voltamos de fullscreen com mídia já carregada e ordenação não-aleatória
-        // Evita scan completo do MediaStore toda vez que o usuário abre/fecha uma foto
-        val skipReload = mMedia.isNotEmpty() && wasFullscreen && !isRandomSorting
-        if (!skipReload) {
+        if (mMedia.isEmpty() || !isRandomSorting || (isRandomSorting && !mWasFullscreenViewOpen)) {
             if (shouldSkipAuthentication()) {
                 tryLoadGallery()
             } else {
@@ -451,13 +440,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun startSlideshow() {
         if (mMedia.isNotEmpty()) {
             hideKeyboard()
-            val mediums = ArrayList((getMediaAdapter()?.media ?: mMedia).filterIsInstance<Medium>())
-            val item = mediums.firstOrNull() ?: return
-            ViewPagerActivity.pendingMediums = mediums
             Intent(this, ViewPagerActivity::class.java).apply {
+                val item = mMedia.firstOrNull { it is Medium } as? Medium ?: return
                 putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
                 putExtra(PATH, item.path)
-                putExtra("pos", 0)
                 putExtra(SHOW_ALL, mShowAll)
                 putExtra(SLIDESHOW_START_ON_ENTER, true)
                 startActivity(this)
@@ -546,11 +532,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 mShowLoadingIndicator = false
             }
 
-            binding.mediaMenu.updateTitle(if (mShowAll) resources.getString(com.goodwy.strings.R.string.library) else {
-                val dirSize = intent.getLongExtra(DIR_SIZE, 0L)
-                if (config.showFolderSize && dirSize > 0) "$dirName · ${dirSize.formatSize()}"
-                else dirName
-            })
+            binding.mediaMenu.updateTitle(if (mShowAll) resources.getString(com.goodwy.strings.R.string.library) else dirName)
             binding.mediaMenu.searchBeVisibleIf(config.showSearchBar)
             getMedia()
             setupLayoutManager()
@@ -567,14 +549,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val currAdapter = binding.mediaGrid.adapter
         if (currAdapter == null) {
             initZoomListener()
-
-            // Otimizações de RecyclerView para scroll suave
-            binding.mediaGrid.setHasFixedSize(true)
-            binding.mediaGrid.setItemViewCacheSize(20)
-            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(0, 20)
-            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(1, 20)
-            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(2, 20)
-
             MediaAdapter(
                 activity = this,
                 media = mMedia.clone() as ArrayList<ThumbnailItem>,
@@ -589,40 +563,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     itemClicked(it.path)
                 }
             }.apply {
-                setHasStableIds(true)
                 setupZoomListener(mZoomListener)
                 binding.mediaGrid.adapter = this
-
-                // Preloader: pré-carrega thumbnails antes do scroll chegar
-                // Tamanho fixo por célula do grid — garante que o cache key do preloader
-                // bata exatamente com o que o adapter vai pedir, maximizando cache hits no scroll
-                val screenWidth = resources.displayMetrics.widthPixels
-                val spanCount = config.mediaColumnCnt.coerceAtLeast(1)
-                val thumbSize = screenWidth / spanCount
-                val sizeProvider = FixedPreloadSizeProvider<ThumbnailItem>(thumbSize, thumbSize)
-                val preloader = RecyclerViewPreloader(
-                    com.bumptech.glide.Glide.with(this@MediaActivity),
-                    object : ListPreloader.PreloadModelProvider<ThumbnailItem> {
-                        override fun getPreloadItems(position: Int): List<ThumbnailItem> {
-                            return listOf(mMedia.getOrNull(position) ?: return emptyList())
-                        }
-                        override fun getPreloadRequestBuilder(item: ThumbnailItem): RequestBuilder<*>? {
-                            if (item !is Medium) return null
-                            return com.bumptech.glide.Glide.with(this@MediaActivity)
-                                .load(item.path)
-                                .override(thumbSize, thumbSize)
-                                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
-                                .format(com.bumptech.glide.load.DecodeFormat.PREFER_ARGB_8888)
-                        }
-                    },
-                    sizeProvider,
-                    20
-                )
-                binding.mediaGrid.addOnScrollListener(preloader)
             }
 
-            // Remove animação de layout e item animator — reduz delay inicial de aparecimento
-            binding.mediaGrid.itemAnimator = null
+            val viewType = config.getFolderViewType(if (mShowAll) SHOW_ALL else mPath)
+            if (viewType == VIEW_TYPE_LIST && areSystemAnimationsEnabled) {
+                binding.mediaGrid.scheduleLayoutAnimation()
+            }
+
             setupLayoutManager()
             handleGridSpacing()
         } else if (mLastSearchedText.isEmpty()) {
@@ -827,35 +776,23 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         mIsGettingMedia = true
-
-        // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
-        // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
-        if (mMedia.isNotEmpty() && mMediaPath == mPath) {
-            runOnUiThread { setupAdapter() }
+        if (mLoadedInitialPhotos) {
+            startAsyncTask()
+        } else {
             getCachedMedia(
                 mPath,
                 mIsGetVideoIntent && !mIsGetImageIntent,
                 mIsGetImageIntent && !mIsGetVideoIntent
-            ) { cached ->
-                if (cached.isNotEmpty()) gotMedia(cached, true)
+            ) {
+                if (it.isEmpty()) {
+                    runOnUiThread {
+                        binding.mediaRefreshLayout.isRefreshing = true
+                    }
+                } else {
+                    gotMedia(it, true)
+                }
                 startAsyncTask()
             }
-            mLoadedInitialPhotos = true
-            return
-        }
-
-        // Primeira visita: banco de dados → async task
-        getCachedMedia(
-            mPath,
-            mIsGetVideoIntent && !mIsGetImageIntent,
-            mIsGetImageIntent && !mIsGetVideoIntent
-        ) { cached ->
-            if (cached.isEmpty()) {
-                runOnUiThread { binding.mediaRefreshLayout.isRefreshing = true }
-            } else {
-                gotMedia(cached, true)
-            }
-            startAsyncTask()
         }
 
         mLoadedInitialPhotos = true
@@ -876,10 +813,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 try {
                     gotMedia(newMedia, false)
 
-                    // Após mostrar os arquivos, busca duração dos vídeos com 0 em background
-                    // e atualiza só esses itens no adapter — sem re-render completo
-                    fillMissingVideoDurations(newMedia)
-
                     // remove cached files that are no longer valid for whatever reason
                     val newPaths = newMedia.mapNotNull { it as? Medium }.map { it.path }
                     oldMedia
@@ -899,58 +832,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         mCurrAsyncTask!!.execute()
-    }
-
-    private fun fillMissingVideoDurations(media: ArrayList<ThumbnailItem>) {
-        if (!config.showThumbnailVideoDuration) return
-        val videosWithout = media.filterIsInstance<Medium>()
-            .filter { it.isVideo() && it.videoDuration == 0 }
-        if (videosWithout.isEmpty()) return
-
-        Thread {
-            videosWithout.forEach { medium ->
-                try {
-                    val duration = android.media.MediaMetadataRetriever().use { r ->
-                        r.setDataSource(medium.path)
-                        r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                            ?.toLongOrNull()?.div(1000)?.toInt() ?: 0
-                    }
-                    if (duration > 0) {
-                        medium.videoDuration = duration
-                        try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
-                        // Atualiza só o item específico no adapter — sem re-render completo
-                        val pos = mMedia.indexOf(medium)
-                        if (pos >= 0) {
-                            runOnUiThread {
-                                getMediaAdapter()?.notifyItemChanged(pos)
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
-        }.start()
-    }
-
-    private fun setupSelectAllFab() {
-        binding.fabSelectAll.beVisibleIf(config.showSelectAllFab)
-        if (config.showSelectAllFab) {
-            binding.fabSelectAll.setOnClickListener { getMediaAdapter()?.selectAllItems() }
-        }
-    }
-
-    fun showSelectionFab(show: Boolean) {
-        binding.mediaSelectionFab.beVisibleIf(show)
-        if (show) {
-            binding.fabCopy.setOnClickListener {
-                getMediaAdapter()?.checkMediaManagementAndCopy(true)
-            }
-            binding.fabMove.setOnClickListener {
-                getMediaAdapter()?.moveFilesTo()
-            }
-            binding.fabDelete.setOnClickListener {
-                getMediaAdapter()?.askConfirmDelete()
-            }
-        }
     }
 
     private fun isDirEmpty(): Boolean {
@@ -1218,13 +1099,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun openInViewPager(path: String) {
-        val mediums = ArrayList((getMediaAdapter()?.media ?: mMedia).filterIsInstance<Medium>())
-        val pos = mediums.indexOfFirst { it.path == path }.coerceAtLeast(0)
-        ViewPagerActivity.pendingMediums = mediums
         Intent(this, ViewPagerActivity::class.java).apply {
             putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
             putExtra(PATH, path)
-            putExtra("pos", pos)
             putExtra(SHOW_ALL, mShowAll)
             putExtra(SHOW_FAVORITES, mPath == FAVORITES)
             putExtra(SHOW_RECYCLE_BIN, mPath == RECYCLE_BIN)
@@ -1248,7 +1125,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mIsGettingMedia = false
         checkLastMediaChanged()
         mMedia = media
-        mMediaPath = mPath
 
         runOnUiThread {
             binding.loadingIndicator.hide()
@@ -1531,6 +1407,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLoadedInitialPhotos = false
 //        binding.mediaGrid.adapter = null
         getMedia()
+
+        if (areSystemAnimationsEnabled) {
+            binding.mediaGrid.scheduleLayoutAnimation()
+        }
     }
 
     // Goodwy

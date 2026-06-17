@@ -147,23 +147,6 @@
     <string name="slide">Slide</string>
     <string name="slideshow_ended">The slideshow ended</string>
     <string name="no_media_for_slideshow">No media for the slideshow have been found</string>
-    <string name="zoom_in">Zoom In</string>
-    <string name="zoom_out">Zoom Out</string>
-    <string name="cube">Cube</string>
-    <string name="depth">Depth</string>
-    <string name="random_animation">Aleatório</string>
-    <string name="bulk_rename">Renomear em massa</string>
-    <string name="bulk_rename_prefix">Prefixo</string>
-    <string name="bulk_rename_suffix">Sufixo</string>
-    <string name="bulk_rename_start_number">Número inicial</string>
-    <string name="bulk_rename_padding">Dígitos</string>
-    <string name="bulk_rename_keep_extension">Manter extensão original</string>
-    <string name="bulk_rename_preview_label">Prévia:</string>
-    <string name="bulk_rename_done">%1$d arquivos renomeados</string>
-    <string name="bulk_rename_files_label">Arquivos selecionados:</string>
-    <string name="bulk_rename_conflict_title">Conflito de nomes</string>
-    <string name="bulk_rename_conflict_msg">Os seguintes arquivos já existem:</string>
-    <string name="bulk_rename_skip_conflicts">Pular conflitos</string>
 
     <!-- View types -->
     <string name="group_direct_subfolders">Group direct subfolders</string>
@@ -201,9 +184,6 @@
     <string name="screen_rotation_device_rotation">Device rotation</string>
     <string name="screen_rotation_aspect_ratio">Aspect ratio</string>
     <string name="black_background_at_fullscreen">Black background at fullscreen media</string>
-    <string name="blur_background_photo">Blur background on photos</string>
-    <string name="blur_background_video">Blur background on videos</string>
-    <string name="video_fill_screen">Preencher tela (sem corte)</string>
     <string name="scroll_thumbnails_horizontally">Scroll thumbnails horizontally</string>
     <string name="hide_system_ui_at_fullscreen">Automatically hide system UI at fullscreen media</string>
     <string name="delete_empty_folders">Delete empty folders after deleting their content</string>
@@ -269,18 +249,6 @@
 
     <!-- Bottom actions -->
     <string name="manage_bottom_actions">Manage visible bottom actions</string>
-    <string name="drag_to_reorder">Drag to reorder</string>
-    <string name="playpause">Play / Pause</string>
-    <string name="mute">Mudo</string>
-    <string name="properties">Propriedades</string>
-    <string name="delete">Excluir</string>
-    <string name="rename">Renomear</string>
-    <string name="set_as">Definir como</string>
-    <string name="copy">Copiar</string>
-    <string name="move">Mover</string>
-    <string name="resize">Redimensionar</string>
-    <string name="share">Compartilhar</string>
-    <string name="selection_bar_order">Selection bar order</string>
     <string name="toggle_favorite">Toggle favorite</string>
     <string name="toggle_file_visibility">Toggle file visibility</string>
 
@@ -331,11 +299,4 @@
     <string name="faq_17_text">That stopped working due to the system changes that came with Android 11 too, the app cannot browse real folders anymore, it relies on the so called MediaStore at fetching data.</string>
     <string name="faq_18_title">Why do I see ads during video playback?</string>
     <string name="faq_18_text">Our apps have no ads whatsoever. If you see them during video playback, you must be using some other apps video player. Try finding your default video player in the device settings, then do a \"Clear defaults\" on it. The next time you invoke some video intent you will see an app picker prompt, where you can select what app you want to use.</string>
-    <string name="stretch">Esticar vídeo</string>
-    <string name="show_folder_size">Mostrar tamanho das pastas</string>
-    <string name="extract_text">Extrair texto</string>
-    <string name="extracting_text">Extraindo texto...</string>
-    <string name="no_text_found">Nenhum texto encontrado na imagem</string>
-    <string name="extracted_text">Texto extraído</string>
-    <string name="select_all_fab_setting">Botao flutuante de selecionar todos</string>
 </resources>

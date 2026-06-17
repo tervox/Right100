@@ -8,6 +8,12 @@
     <string name="playback_speed_display_text">2x >></string>
 
     <!-- Release notes -->
+    <string name="release_830">
+        Purchase libraries updated\n
+        Fixed invalid MediaStore URI crash when overwriting edited images on scoped-storage devices\n
+        Fixed 16 KB page-size compatibility by replacing the editor photo filters native library\n
+        Fixed bugs, improved stability
+    </string>
     <string name="release_820">
         Compatibility updates for Android 15 &amp; 16\n
         Changed the logic of styles\n

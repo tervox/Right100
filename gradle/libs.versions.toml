@@ -17,7 +17,7 @@ exif = "1.0.1"
 #Room
 room = "2.8.4"
 #Goodwy
-right-commons = "eb4525b9e2"
+right-commons = "3e4d22538b"
 behavioRule = "1.0.1"
 rxAnimation = "2.1.1"
 #Gradle
@@ -29,16 +29,14 @@ animationAndroid = "3.0.5"
 glideCompiler = "5.0.5"
 zjupureWebpdecoder = "2.7.4.16.0"
 jxlDecoder = "2.6.0"
-gestureviews = "234ff1a0be"
+gestureviews = "4d35394d6c"
 androidsvgAar = "1.4"
-androidphotofilters = "193f2ae509"
 sanselan = "0.97-incubator"
 media3Exoplayer = "1.9.2"
 okhttp = "5.3.2" #4.10.0 not conflicts with maven { setUrl("https://artifactory-external.vkpartner.ru/artifactory/maven") }
 okio = "3.16.4"
 picasso = "2.71828"
 subsamplingScaleImageView = "ca5f76adc0"
-wasabeefTransformations = "4.3.0"
 #build
 app-build-compileSDKVersion = "36"
 app-build-targetSDK = "36"
@@ -71,10 +69,8 @@ rx-animation = { module = "com.mikhaellopez:rxanimation", version.ref = "rxAnima
 android-gif-drawable = { module = "pl.droidsonroids.gif:android-gif-drawable", version.ref = "androidGifDrawable" }
 android-image-cropper = { module = "com.vanniktech:android-image-cropper", version.ref = "androidImageCropper" }
 subsamplingscaleimageview = { module = "com.github.goodwy:subsampling-scale-image-view", version.ref = "subsamplingScaleImageView" }
-wasabeef-transformations = { module = "jp.wasabeef:glide-transformations", version.ref = "wasabeefTransformations" }
 androidsvg-aar = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvgAar" }
 gestureviews = { module = "com.github.goodwy:gestureviews", version.ref = "gestureviews" }
-androidphotofilters = { module = "com.github.naveensingh:androidphotofilters", version.ref = "androidphotofilters" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 sanselan = { module = "org.apache.sanselan:sanselan", version.ref = "sanselan" }
@@ -82,7 +78,6 @@ apng = { module = "com.github.penfeizhou.android.animation:apng", version.ref = 
 awebp = { module = "com.github.penfeizhou.android.animation:awebp", version.ref = "animationAndroid" }
 avif = { module = "com.github.penfeizhou.android.animation:avif", version.ref = "animationAndroid" }
 glide-compiler = { module = "com.github.bumptech.glide:ksp", version.ref = "glideCompiler" }
-glide-recyclerview = { group = "com.github.bumptech.glide", name = "recyclerview-integration", version.ref = "glideCompiler" }
 zjupure-webpdecoder = { module = "com.github.zjupure:webpdecoder", version.ref = "zjupureWebpdecoder" }
 picasso = { module = "com.squareup.picasso:picasso", version.ref = "picasso" }
 avif-integration = { group = "com.github.bumptech.glide", name = "avif-integration", version.ref = "glideCompiler" }

@@ -42,10 +42,6 @@ abstract class ViewPagerFragment : Fragment() {
         fun updatePlayPause(play: Boolean)
 
         fun isFullScreen(): Boolean
-
-        fun refreshMenuItems() {}
-
-
     }
 
     fun getMediumExtendedDetails(medium: Medium): String {

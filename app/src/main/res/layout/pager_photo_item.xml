@@ -4,25 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/photo_holder"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#000000">
-
-    <!-- Blur background exatamente igual ao BestGallery -->
-    <ImageView
-        android:id="@+id/photo_blur_bg"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:contentDescription="@null"
-        android:visibility="gone" />
-
-    <!-- Overlay preto 7% igual ao BestGallery (#11000000) -->
-    <View
-        android:id="@+id/photo_blur_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#11000000"
-        android:visibility="gone" />
+    android:layout_height="match_parent">
 
     <com.alexvasilkov.gestures.GestureImageView
         android:id="@+id/gestures_view"

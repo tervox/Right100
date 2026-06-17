@@ -48,10 +48,6 @@
         android:title="@string/rename"
         app:showAsAction="never" />
     <item
-        android:id="@+id/cab_bulk_rename"
-        android:title="@string/bulk_rename"
-        app:showAsAction="never" />
-    <item
         android:id="@+id/cab_hide"
         android:icon="@drawable/ic_hide_vector"
         android:title="@string/hide"
@@ -63,16 +59,14 @@
         app:showAsAction="ifRoom" />
     <item
         android:id="@+id/cab_copy_to"
-        android:icon="@drawable/ic_copy_vector"
-        android:showAsAction="always"
+        android:showAsAction="never"
         android:title="@string/copy_to"
-        app:showAsAction="always" />
+        app:showAsAction="never" />
     <item
         android:id="@+id/cab_move_to"
-        android:icon="@drawable/ic_move_vector"
-        android:showAsAction="always"
+        android:showAsAction="never"
         android:title="@string/move_to"
-        app:showAsAction="always" />
+        app:showAsAction="never" />
     <item
         android:id="@+id/cab_create_shortcut"
         android:showAsAction="never"

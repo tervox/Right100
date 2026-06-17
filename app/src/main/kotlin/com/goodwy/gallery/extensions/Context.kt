@@ -55,11 +55,6 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 
-// Cache de noMediaFolders — TTL de 60s para não repetir query cara ao MediaStore
-private var noMediaFoldersCache: ArrayList<String>? = null
-private var noMediaFoldersCacheTime: Long = 0L
-private const val NO_MEDIA_CACHE_TTL = 60_000L
-
 val Context.audioManager get() = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
 fun Context.getHumanizedFilename(path: String): String {
@@ -432,13 +427,8 @@ fun Context.getNoMediaFolders(callback: (folders: ArrayList<String>) -> Unit) {
 }
 
 fun Context.getNoMediaFoldersSync(): ArrayList<String> {
-    val now = System.currentTimeMillis()
-    val cached = noMediaFoldersCache
-    if (cached != null && (now - noMediaFoldersCacheTime) < NO_MEDIA_CACHE_TTL) {
-        return cached
-    }
-
     val folders = ArrayList<String>()
+
     val uri = Files.getContentUri("external")
     val projection = arrayOf(Files.FileColumns.DATA)
     val selection = "${Files.FileColumns.MEDIA_TYPE} = ? AND ${Files.FileColumns.TITLE} LIKE ?"
@@ -466,8 +456,6 @@ fun Context.getNoMediaFoldersSync(): ArrayList<String> {
         cursor?.close()
     }
 
-    noMediaFoldersCache = folders
-    noMediaFoldersCacheTime = now
     return folders
 }
 
@@ -575,7 +563,6 @@ fun Context.loadImage(
             signature = signature,
             skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
             animate = animateGifs,
-            isVideo = type == TYPE_VIDEOS,
             tryLoadingWithPicasso = type == TYPE_IMAGES && path.isPng(),
             onError = onError
         )
@@ -624,7 +611,6 @@ fun Context.loadImageBase(
     signature: ObjectKey,
     skipMemoryCacheAtPaths: ArrayList<String>? = null,
     animate: Boolean = false,
-    isVideo: Boolean = false,
     tryLoadingWithPicasso: Boolean = false,
     crossFadeDuration: Int = THUMBNAIL_FADE_DURATION_MS,
     onError: (() -> Unit)? = null
@@ -632,7 +618,7 @@ fun Context.loadImageBase(
     val options = RequestOptions()
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
-        .priority(Priority.NORMAL)
+        .priority(Priority.LOW)
         .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
         .format(DecodeFormat.PREFER_ARGB_8888)
 
@@ -651,12 +637,6 @@ fun Context.loadImageBase(
     if (animate && roundCorners == ROUNDED_CORNERS_NONE && (path.isGif() || path.isWebP())) {
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
-        if (path.isGif()) {
-            // GIF: limita resolução, baixa prioridade e cache — evita travar a UI
-            options.priority(Priority.LOW)
-            options.diskCacheStrategy(DiskCacheStrategy.DATA)
-            options.override(300, 300)  // decodifica no máximo 300x300 — evita GIFs grandes travarem
-        }
     } else {
         options.dontAnimate()
         // don't animate is not enough for webp files, decode as bitmap forces first frame use in animated webps
@@ -935,24 +915,6 @@ fun Context.getCachedMedia(
 
         val pathToUse = path.ifEmpty { SHOW_ALL }
         mediaFetcher.sortMedia(media, config.getFolderSorting(pathToUse))
-
-        // Se showThumbnailVideoDuration está ativo e há vídeos sem duração no DB,
-        // busca as durações agora (query rápida por pasta) para não mostrar 00:00 nem esperar o async task
-        if (config.showThumbnailVideoDuration && path.isNotEmpty() && path != FAVORITES && path != RECYCLE_BIN) {
-            val missingDuration = media.any { it.isVideo() && it.videoDuration == 0 }
-            if (missingDuration) {
-                val durations = mediaFetcher.getVideoDurationsForFolder(path)
-                if (durations.isNotEmpty()) {
-                    media.forEach { medium ->
-                        if (medium.isVideo() && medium.videoDuration == 0) {
-                            val dur = durations[medium.path]
-                            if (dur != null && dur > 0) medium.videoDuration = dur
-                        }
-                    }
-                }
-            }
-        }
-
         val grouped = mediaFetcher.groupMedia(media, pathToUse)
         callback(grouped.clone() as ArrayList<ThumbnailItem>)
         val OTGPath = config.OTGPath

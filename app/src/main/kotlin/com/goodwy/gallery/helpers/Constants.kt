@@ -19,7 +19,6 @@ const val AUTOPLAY_VIDEOS = "autoplay_videos"
 const val REMEMBER_LAST_VIDEO_POSITION = "remember_last_video_position"
 const val LOOP_VIDEOS = "loop_videos"
 const val MUTE_VIDEOS = "mute_videos"
-const val VIDEO_FILL_MODE = "video_fill_mode"
 const val GESTURE_VIDEO_PLAYER = "open_videos_on_separate_screen"
 const val VIDEO_PLAYER_TYPE = "video_player_type"
 const val ANIMATE_GIFS = "animate_gifs"
@@ -32,9 +31,6 @@ const val SHOW_THUMBNAIL_VIDEO_DURATION = "show_thumbnail_video_duration"
 const val SCREEN_ROTATION = "screen_rotation"
 const val DISPLAY_FILE_NAMES = "display_file_names"
 const val BLACK_BACKGROUND = "dark_background"
-const val BLUR_BACKGROUND_PHOTO = "blur_background_photo"
-const val BLUR_BACKGROUND_VIDEO = "blur_background_video"
-const val VIDEO_FILL_SCREEN = "video_fill_screen"
 const val PINNED_FOLDERS = "pinned_folders"
 const val FILTER_MEDIA = "filter_media"
 const val DEFAULT_FOLDER = "default_folder"
@@ -69,7 +65,6 @@ const val LAST_COPY_PATH = "last_copy_path"
 const val TEMP_SKIP_DELETE_CONFIRMATION = "temp_skip_delete_confirmation"
 const val TEMP_SKIP_RECYCLE_BIN = "temp_skip_recycle_bin"
 const val BOTTOM_ACTIONS = "bottom_actions"
-const val BOTTOM_ACTIONS_ORDER = "bottom_actions_order"
 const val LAST_VIDEO_POSITION_PREFIX = "last_video_position_"
 const val VISIBLE_BOTTOM_ACTIONS = "visible_bottom_actions"
 const val WERE_FAVORITES_PINNED = "were_favorites_pinned"
@@ -104,7 +99,6 @@ const val EDITOR_BRUSH_SIZE = "editor_brush_size"
 const val WERE_FAVORITES_MIGRATED = "were_favorites_migrated"
 const val FOLDER_THUMBNAIL_STYLE = "folder_thumbnail_style"
 const val FOLDER_MEDIA_COUNT = "folder_media_count"
-const val SHOW_FOLDER_SIZE = "show_folder_size"
 const val LIMIT_FOLDER_TITLE = "folder_limit_title"
 const val THUMBNAIL_SPACING = "thumbnail_spacing"
 const val FILE_ROUNDED_CORNERS = "file_rounded_corners"
@@ -114,7 +108,6 @@ const val SEARCH_ALL_FILES_BY_DEFAULT = "search_all_files_by_default"
 const val LAST_EXPORTED_FAVORITES_FOLDER = "last_exported_favorites_folder"
 const val SHOW_PERMISSION_RATIONALE = "show_permission_rationale"
 const val SHOW_WARNING = "show_warning"
-const val MARK_WATCHED_ITEMS = "mark_watched_items"
 // Goodwy
 const val HIDE_GROUPING_BAR = "hide_grouping_bar"
 const val HIDE_GROUPING_BUTTON = "hide_grouping_button"
@@ -138,12 +131,6 @@ const val SLIDESHOW_START_ON_ENTER = "slideshow_start_on_enter"
 const val SLIDESHOW_ANIMATION_NONE = 0
 const val SLIDESHOW_ANIMATION_SLIDE = 1
 const val SLIDESHOW_ANIMATION_FADE = 2
-const val SLIDESHOW_ANIMATION_ZOOM_IN = 3
-const val SLIDESHOW_ANIMATION_ZOOM_OUT = 4
-const val SLIDESHOW_ANIMATION_FLIP = 5
-const val SLIDESHOW_ANIMATION_CUBE = 6
-const val SLIDESHOW_ANIMATION_DEPTH = 7
-const val SLIDESHOW_ANIMATION_RANDOM = 8
 
 const val RECYCLE_BIN = "recycle_bin"
 const val SHOW_FAVORITES = "show_favorites"
@@ -170,7 +157,6 @@ const val EXOPLAYER_MIN_BUFFER_MS = 2000
 const val EXOPLAYER_MAX_BUFFER_MS = 8000
 
 const val DIRECTORY = "directory"
-const val DIR_SIZE = "dir_size"
 const val MEDIUM = "medium"
 const val PATH = "path"
 const val GET_IMAGE_INTENT = "get_image_intent"
@@ -262,7 +248,6 @@ const val BOTTOM_ACTION_MOVE = 8192
 const val BOTTOM_ACTION_RESIZE = 16384
 const val BOTTOM_ACTION_PLAY_PAUSE = 32768
 const val BOTTOM_ACTION_MUTE = 65536
-const val BOTTOM_ACTION_EXTRACT_TEXT = 131072
 
 const val DEFAULT_BOTTOM_ACTIONS = BOTTOM_ACTION_SHARE or BOTTOM_ACTION_TOGGLE_FAVORITE or BOTTOM_ACTION_PROPERTIES or BOTTOM_ACTION_DELETE
 
@@ -308,8 +293,6 @@ fun getPermissionsToRequest(): Collection<Int> {
     return permissions
 }
 
-const val SHOW_SELECT_ALL_FAB = "show_select_all_fab"
-
 const val TAB_ONE = 0
 const val TAB_TWO = 2
 const val TAB_THREE = 4
@@ -324,5 +307,6 @@ fun whatsNewList(): ArrayList<Release> {
         add(Release(650, R.string.release_650))
         add(Release(700, R.string.release_700))
         add(Release(820, R.string.release_820))
+        add(Release(830, R.string.release_830))
     }
 }

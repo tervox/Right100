@@ -38,9 +38,6 @@ import com.bumptech.glide.load.resource.bitmap.Rotate
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
-import jp.wasabeef.glide.transformations.BlurTransformation
-import com.bumptech.glide.load.MultiTransformation
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.davemorrissey.labs.subscaleview.DecoderFactory
 import com.davemorrissey.labs.subscaleview.ImageDecoder
 import com.davemorrissey.labs.subscaleview.ImageRegionDecoder
@@ -139,8 +136,6 @@ class PhotoFragment : ViewPagerFragment() {
         binding.apply {
             subsamplingView.setOnClickListener { photoClicked() }
             gesturesView.setOnClickListener { photoClicked() }
-            // Fundo transparente desde o início para o blur aparecer nas bordas
-            gesturesView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
             gifView.setOnClickListener { photoClicked() }
             instantPrevItem.setOnClickListener { listener?.goToPrevItem() }
             instantNextItem.setOnClickListener { listener?.goToNextItem() }
@@ -232,7 +227,6 @@ class PhotoFragment : ViewPagerFragment() {
             binding.bottomActionsDummy.beGone()
         }
         loadImage()
-        loadBlurBackground()
         initExtendedDetails()
         mWasInit = true
         updateInstantSwitchWidths()
@@ -424,25 +418,6 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-    private fun loadBlurBackground() {
-        val ctx = context ?: return
-        val shouldBlur = !mMedium.isSVG() && !ctx.config.blackBackground && ctx.config.blurBackgroundPhoto
-        if (shouldBlur) {
-            binding.photoBlurBg.beVisible()
-            binding.photoBlurOverlay.beVisible()
-            // MultiTransformation: CenterCrop preenche sem distorcer + BlurTransformation
-            val options = RequestOptions()
-                .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
-            Glide.with(ctx)
-                .load(mMedium.path)
-                .apply(options)
-                .into(binding.photoBlurBg)
-        } else {
-            binding.photoBlurBg.beGone()
-            binding.photoBlurOverlay.beGone()
-        }
-    }
-
     private fun loadGif() {
         try {
             val pathToLoad = getPathToLoad(mMedium)
@@ -538,9 +513,6 @@ class PhotoFragment : ViewPagerFragment() {
             .listener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {
                     resetColorModeIfVisible()
-                    if (e != null) {
-                        activity?.showErrorToast(e)
-                    }
                     if (activity != null && !activity!!.isDestroyed && !activity!!.isFinishing) {
                         tryLoadingWithPicasso(addZoomableView)
                     }
@@ -557,8 +529,6 @@ class PhotoFragment : ViewPagerFragment() {
                     applyProperColorMode(resource)
                     val allowZoomingImages = context?.config?.allowZoomingImages ?: true
                     binding.gesturesView.controller.settings.isZoomEnabled = mMedium.isRaw() || mCurrentRotationDegrees != 0 || allowZoomingImages == false
-                    // Fundo transparente para mostrar o blur atrás da imagem
-                    binding.gesturesView.background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
                     if (mIsFragmentVisible && addZoomableView) {
                         scheduleZoomableView()
                     }
@@ -602,7 +572,6 @@ class PhotoFragment : ViewPagerFragment() {
                         // TODO: Implement panorama using a FOSS library
                         // checkIfPanorama()
                     } else {
-                        activity?.showErrorToast(e ?: Exception("Picasso: falha desconhecida ao carregar imagem"))
                         binding.errorMessageHolder.errorMessage.apply {
                             setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
                             fadeIn()
@@ -610,8 +579,7 @@ class PhotoFragment : ViewPagerFragment() {
                     }
                 }
             })
-        } catch (e: Exception) {
-            activity?.showErrorToast(e)
+        } catch (_: Exception) {
         }
     }
 
@@ -803,8 +771,11 @@ class PhotoFragment : ViewPagerFragment() {
 
             onImageEventListener = object : SubsamplingScaleImageView.OnImageEventListener {
                 override fun onReady() {
-                    // Keep transparent so blur background shows through
-                    background = Color.TRANSPARENT.toDrawable()
+                    background = if (config.blackBackground) {
+                        Color.BLACK
+                    } else {
+                        context.getProperBackgroundColor()
+                    }.toDrawable()
 
                     val useWidth = if (mImageOrientation == ORIENTATION_ROTATE_90 || mImageOrientation == ORIENTATION_ROTATE_270) sHeight else sWidth
                     val useHeight = if (mImageOrientation == ORIENTATION_ROTATE_90 || mImageOrientation == ORIENTATION_ROTATE_270) sWidth else sHeight
@@ -812,7 +783,6 @@ class PhotoFragment : ViewPagerFragment() {
                 }
 
                 override fun onImageLoadError(e: Exception) {
-                    activity?.showErrorToast(e)
                     binding.gesturesView.controller.settings.isZoomEnabled = true
                     background = Color.TRANSPARENT.toDrawable()
                     mIsSubsamplingVisible = false
@@ -1036,11 +1006,5 @@ class PhotoFragment : ViewPagerFragment() {
                 resetColorModeIfVisible()
             }
         }
-    }
-
-    fun handlePhotoGesture(event: MotionEvent) {
-        // Removido: duplicava a lógica do gesto de descida já tratada pelo
-        // touch listener de gesturesView (linha ~168), que chama handleEvent()
-        // corretamente usando mCurrentGestureViewZoom/mInitialZoom.
     }
 }

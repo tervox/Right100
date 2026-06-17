@@ -31,6 +31,7 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
         } else {
             PhotoFragment()
         }
+
         fragment.arguments = bundle
         return fragment
     }
@@ -39,7 +40,10 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
 
     override fun instantiateItem(container: ViewGroup, position: Int): Any {
         val fragment = super.instantiateItem(container, position) as ViewPagerFragment
+
+        // getItem() might not be called if the activity is recreated, so the listener must be set here
         fragment.listener = activity
+
         fragments[position] = fragment
         return fragment
     }
@@ -57,6 +61,7 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
         }
     }
 
+    // try fixing TransactionTooLargeException crash on Android Nougat, tip from https://stackoverflow.com/a/43193425/1967672
     override fun saveState(): Parcelable? {
         val bundle = super.saveState() as Bundle?
         bundle?.putParcelableArray("states", null)

@@ -18,24 +18,6 @@ import java.util.Arrays
 import java.util.Locale
 
 class Config(context: Context) : BaseConfig(context) {
-    var blurBackgroundPhoto: Boolean
-        get() = prefs.getBoolean("blur_background_photo", false)
-        set(value) = prefs.edit { putBoolean("blur_background_photo", value) }
-
-    var blurBackgroundVideo: Boolean
-        get() = prefs.getBoolean("blur_background_video", false)
-        set(value) = prefs.edit { putBoolean("blur_background_video", value) }
-
-    var showSelectAllFab: Boolean
-        get() = prefs.getBoolean("show_select_all_fab", false)
-        set(value) = prefs.edit { putBoolean("show_select_all_fab", value) }
-
-    
-    
-    
-    
-    
-    
     companion object {
         fun newInstance(context: Context) = Config(context)
     }
@@ -188,12 +170,6 @@ class Config(context: Context) : BaseConfig(context) {
     var animateGifs: Boolean
         get() = prefs.getBoolean(ANIMATE_GIFS, false)
         set(animateGifs) = prefs.edit { putBoolean(ANIMATE_GIFS, animateGifs) }
-
-    var showFolderSize: Boolean
-        get() = prefs.getBoolean(SHOW_FOLDER_SIZE, false)
-        set(showFolderSize) = prefs.edit { putBoolean(SHOW_FOLDER_SIZE, showFolderSize) }
-
-
 
     var maxBrightness: Boolean
         get() = prefs.getBoolean(MAX_BRIGHTNESS, false)
@@ -483,15 +459,6 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getInt(VISIBLE_BOTTOM_ACTIONS, DEFAULT_BOTTOM_ACTIONS)
         set(visibleBottomActions) = prefs.edit { putInt(VISIBLE_BOTTOM_ACTIONS, visibleBottomActions) }
 
-    var bottomActionsOrder: String
-        get() = prefs.getString(BOTTOM_ACTIONS_ORDER, "") ?: ""
-        set(value) = prefs.edit { putString(BOTTOM_ACTIONS_ORDER, value) }
-
-    // Ordem dos botões da bottom bar de seleção (IDs separados por vírgula)
-    var selectionBarOrder: String
-        get() = prefs.getString("selection_bar_order", "") ?: ""
-        set(value) = prefs.edit { putString("selection_bar_order", value) }
-
     // if a user hides a folder, then enables temporary hidden folder displaying, make sure we show it properly
     var everShownFolders: Set<String>
         get() = prefs.getStringSet(EVER_SHOWN_FOLDERS, getEverShownFolders())!!
@@ -659,16 +626,4 @@ class Config(context: Context) : BaseConfig(context) {
     var fontSizeDir: Int
         get() = prefs.getInt(FONT_SIZE_DIR, FONT_SIZE_MEDIUM)
         set(size) = prefs.edit { putInt(FONT_SIZE_DIR, size) }
-
-    var videoFillScreen: Boolean
-        get() = prefs.getBoolean(VIDEO_FILL_SCREEN, false)
-        set(videoFillScreen) = prefs.edit { putBoolean(VIDEO_FILL_SCREEN, videoFillScreen) }
-
-    var markWatchedItems: Boolean
-        get() = prefs.getBoolean("mark_watched_items", false)
-        set(markWatchedItems) = prefs.edit { putBoolean("mark_watched_items", markWatchedItems) }
-
-    var videoFillMode: Int
-        get() = prefs.getInt("video_fill_mode", 0)
-        set(value) = prefs.edit { putInt("video_fill_mode", value) }
 }

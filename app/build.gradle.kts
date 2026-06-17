@@ -15,8 +15,7 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 val properties = Properties().apply {
-    val localProps = rootProject.file("local.properties")
-    if (localProps.exists()) load(localProps.reader())
+    load(rootProject.file("local.properties").reader())
 }
 
 fun hasSigningVars(): Boolean {
@@ -40,16 +39,16 @@ android {
         targetSdk = project.libs.versions.app.build.targetSDK.get().toInt()
         versionName = project.property("VERSION_NAME").toString()
         versionCode = project.property("VERSION_CODE").toString().toInt()
-        buildConfigField("String", "PRODUCT_ID_X1", "\"${properties.getProperty("PRODUCT_ID_X1", "")}\"")
-        buildConfigField("String", "PRODUCT_ID_X2", "\"${properties.getProperty("PRODUCT_ID_X2", "")}\"")
-        buildConfigField("String", "PRODUCT_ID_X3", "\"${properties.getProperty("PRODUCT_ID_X3", "")}\"")
-        buildConfigField("String", "PRODUCT_ID_X4", "\"${properties.getProperty("PRODUCT_ID_X4", "")}\"")
-        buildConfigField("String", "SUBSCRIPTION_ID_X1", "\"${properties.getProperty("SUBSCRIPTION_ID_X1", "")}\"")
-        buildConfigField("String", "SUBSCRIPTION_ID_X2", "\"${properties.getProperty("SUBSCRIPTION_ID_X2", "")}\"")
-        buildConfigField("String", "SUBSCRIPTION_ID_X3", "\"${properties.getProperty("SUBSCRIPTION_ID_X3", "")}\"")
-        buildConfigField("String", "SUBSCRIPTION_YEAR_ID_X1", "\"${properties.getProperty("SUBSCRIPTION_YEAR_ID_X1", "")}\"")
-        buildConfigField("String", "SUBSCRIPTION_YEAR_ID_X2", "\"${properties.getProperty("SUBSCRIPTION_YEAR_ID_X2", "")}\"")
-        buildConfigField("String", "SUBSCRIPTION_YEAR_ID_X3", "\"${properties.getProperty("SUBSCRIPTION_YEAR_ID_X3", "")}\"")
+        buildConfigField("String", "PRODUCT_ID_X1", "\"${properties["PRODUCT_ID_X1"]}\"")
+        buildConfigField("String", "PRODUCT_ID_X2", "\"${properties["PRODUCT_ID_X2"]}\"")
+        buildConfigField("String", "PRODUCT_ID_X3", "\"${properties["PRODUCT_ID_X3"]}\"")
+        buildConfigField("String", "PRODUCT_ID_X4", "\"${properties["PRODUCT_ID_X4"]}\"")
+        buildConfigField("String", "SUBSCRIPTION_ID_X1", "\"${properties["SUBSCRIPTION_ID_X1"]}\"")
+        buildConfigField("String", "SUBSCRIPTION_ID_X2", "\"${properties["SUBSCRIPTION_ID_X2"]}\"")
+        buildConfigField("String", "SUBSCRIPTION_ID_X3", "\"${properties["SUBSCRIPTION_ID_X3"]}\"")
+        buildConfigField("String", "SUBSCRIPTION_YEAR_ID_X1", "\"${properties["SUBSCRIPTION_YEAR_ID_X1"]}\"")
+        buildConfigField("String", "SUBSCRIPTION_YEAR_ID_X2", "\"${properties["SUBSCRIPTION_YEAR_ID_X2"]}\"")
+        buildConfigField("String", "SUBSCRIPTION_YEAR_ID_X3", "\"${properties["SUBSCRIPTION_YEAR_ID_X3"]}\"")
     }
 
     signingConfigs {
@@ -79,11 +78,7 @@ android {
 
     buildTypes {
         debug {
-            // Sem applicationIdSuffix para manter o mesmo ID que o release
-            // e permitir atualização sem desinstalar
-            if (keystorePropertiesFile.exists() || hasSigningVars()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            applicationIdSuffix = ".debug"
         }
         release {
             isMinifyEnabled = true
@@ -171,9 +166,6 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.sanselan)
-    implementation(libs.androidphotofilters)
-    implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation(libs.androidsvg.aar)
     implementation(libs.gestureviews)
     implementation(libs.subsamplingscaleimageview)
@@ -192,9 +184,7 @@ dependencies {
     compileOnly(libs.okhttp)
 
     ksp(libs.glide.compiler)
-    implementation(libs.glide.recyclerview)
     implementation(libs.zjupure.webpdecoder)
-    implementation(libs.wasabeef.transformations)
 
     implementation(libs.bundles.room)
     ksp(libs.androidx.room.compiler)

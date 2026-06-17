@@ -5,9 +5,7 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.database.ContentObserver
 import android.os.Handler
-import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.Video
@@ -89,10 +87,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mLastMediaFetcher: MediaFetcher? = null
     private var mDirs = ArrayList<Directory>()
     private var mDirsIgnoringSearch = ArrayList<Directory>()
-
-    // Observer que detecta novas mídias automaticamente sem recarregar tudo
-    private var mMediaStoreObserver: ContentObserver? = null
-    private val mMediaObserverHandler = Handler(Looper.getMainLooper())
 
     private var mStoredAnimateGifs = true
     private var mStoredCropThumbnails = true
@@ -291,31 +285,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         newAppRecommendation()
-
-        // Registrar observer para detectar novas mídias automaticamente
-        if (mMediaStoreObserver == null) {
-            val observer = object : ContentObserver(mMediaObserverHandler) {
-                private var pendingRefresh: Runnable? = null
-                override fun onChange(selfChange: Boolean) {
-                    // Debounce: espera 4s após a última mudança e só dispara se não há scan em curso
-                    pendingRefresh?.let { mMediaObserverHandler.removeCallbacks(it) }
-                    val r = Runnable {
-                        if (!isDestroyed && !isFinishing && !mIsGettingDirs) {
-                            getDirectories()
-                        }
-                    }
-                    pendingRefresh = r
-                    mMediaObserverHandler.postDelayed(r, 4000)
-                }
-            }
-            contentResolver.registerContentObserver(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer
-            )
-            contentResolver.registerContentObserver(
-                MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer
-            )
-            mMediaStoreObserver = observer
-        }
     }
 
     override fun onPause() {
@@ -324,9 +293,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mIsGettingDirs = false
         storeStateVariables()
         mLastMediaHandler.removeCallbacksAndMessages(null)
-        // Desregistrar observer ao sair
-        mMediaStoreObserver?.let { contentResolver.unregisterContentObserver(it) }
-        mMediaStoreObserver = null
     }
 
     override fun onStop() {
@@ -1078,13 +1044,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         resultIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
-    private fun itemClicked(path: String, dirSize: Long = 0L) {
+    private fun itemClicked(path: String) {
         handleLockedFolderOpening(path) { success ->
             if (success) {
                 Intent(this, MediaActivity::class.java).apply {
                     putExtra(SKIP_AUTHENTICATION, true)
                     putExtra(DIRECTORY, path)
-                    if (dirSize > 0) putExtra(DIR_SIZE, dirSize)
                     handleMediaIntent(this)
                 }
             }
@@ -1147,7 +1112,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val includedFolders = config.includedFolders
         val noMediaFolders = getNoMediaFoldersSync()
         val tempFolderPath = config.tempFolderPath
-        val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0 || config.showFolderSize
+        val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0
         val dirPathsToRemove = ArrayList<String>()
         val lastModifieds = mLastMediaFetcher!!.getLastModifieds()
         val dateTakens = mLastMediaFetcher!!.getDateTakens()
@@ -1260,6 +1225,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     sortValue = getDirectorySortingValue(curMedia, path, name, size, mediaCnt)
                 }
 
+                setupAdapter(dirs)
+
                 // update directories and media files in the local db, delete invalid items. Intentionally creating a new thread
                 updateDBDirectory(directory)
                 if (!directory.isRecycleBin() && !directory.areFavorites()) {
@@ -1294,9 +1261,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     directoryDB.deleteDirPath(it.path)
                 }
                 dirs.removeAll(dirsToRemove)
+                setupAdapter(dirs)
             }
-            // Atualização única após o loop — evita N re-renders por pasta
-            setupAdapter(dirs)
         } catch (_: Exception) {
         }
 
@@ -1375,7 +1341,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 noMediaFolders = noMediaFolders
             )
             dirs.add(newDir)
-            // Não chama setupAdapter aqui — acumulamos e atualizamos em batch abaixo
+            setupAdapter(dirs)
 
             // make sure to create a new thread for these operations, dont just use the common bg thread
             Thread {
@@ -1387,11 +1353,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 } catch (_: Exception) {
                 }
             }.start()
-        }
-
-        // Atualização em batch após descobrir todas as novas pastas — evita jank por N chamadas dentro do loop
-        if (dirs.isNotEmpty()) {
-            setupAdapter(dirs)
         }
 
         mLoadedInitialPhotos = true
@@ -1524,7 +1485,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 val path = clickedDir.path
                 if (clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
                     if (path != config.tempFolderPath) {
-                        itemClicked(path, clickedDir.size)
+                        itemClicked(path)
                     }
                 } else {
                     mCurrentPathPrefix = path

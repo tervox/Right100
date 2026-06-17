@@ -73,7 +73,6 @@ class DirectoryAdapter(
     private var startReorderDragListener: StartReorderDragListener? = null
 
     private var showMediaCount = config.showFolderMediaCount
-    private var showFolderSize = config.showFolderSize
     private var folderStyle = config.folderStyle
     private var limitFolderTitle = config.limitFolderTitle
     var directorySorting = config.directorySorting
@@ -82,7 +81,6 @@ class DirectoryAdapter(
     private val fontSizeDir = config.fontSizeDir
 
     private val keyToPositionCache = mutableMapOf<Int, Int>()
-
 
     init {
         setupDragListener(true)
@@ -806,8 +804,6 @@ class DirectoryAdapter(
                 dirCheck.applyColorFilter(contrastColor)
             }
 
-
-
             if (isListViewType) {
                 dirHolder.isSelected = isSelected
             }
@@ -873,21 +869,8 @@ class DirectoryAdapter(
             }
 
             val itemCount = directory.subfoldersMediaCount
-            photoCnt.text = activity.resources.getQuantityString(com.goodwy.commons.R.plurals.items, itemCount, itemCount)
+            photoCnt.text = activity.resources.getQuantityString(com.goodwy.commons.R.plurals.items, itemCount, itemCount) //directory.subfoldersMediaCount.toString()
             photoCnt.beVisibleIf(showMediaCount == FOLDER_MEDIA_CNT_LINE)
-
-            // Show folder size badge
-            dirSize?.apply {
-                if (showFolderSize && directory.size > 0) {
-                    text = directory.size.formatSize()
-                    beVisible()
-                    if (isListViewType || folderStyle == FOLDER_STYLE_ROUNDED_CORNERS) {
-                        setTextColor(textColor)
-                    }
-                } else {
-                    beGone()
-                }
-            }
 
             if (limitFolderTitle) {
                 dirName.setSingleLine()
@@ -967,9 +950,6 @@ class DirectoryAdapter(
     }
 
     override fun onChange(position: Int) = dirs.getOrNull(position)?.getBubbleText(directorySorting, activity, dateFormat, timeFormat) ?: ""
-
-
-
 
     private fun bindItem(view: View): DirectoryItemBinding {
         return when {
