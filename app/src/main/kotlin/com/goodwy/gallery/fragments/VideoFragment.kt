@@ -749,7 +749,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun initExoPlayer() {
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
-        if (shouldSkipInit) return
+        if (shouldSkipInit) {
+            if (mExoPlayer == null) {
+                activity?.showErrorToast(
+                    Exception("initExoPlayer skip: activityNull=${activity == null} gestureVideoPlayer=${mConfig.gestureVideoPlayer} isPanorama=$mIsPanorama")
+                )
+            }
+            return
+        }
 
         val isContentUri = mMedium.path.startsWith("content://")
         val uri = if (isContentUri) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
@@ -849,6 +856,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             override fun onPlayerErrorChanged(error: PlaybackException?) {
                 binding.errorMessageHolder.errorMessage.apply {
                     if (error != null) {
+                        activity?.showErrorToast(error)
                         binding.videoPreview.beGone()
                         binding.videoPlayOutline.beGone()
                         text = error.getFriendlyMessage(context)

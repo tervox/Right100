@@ -83,6 +83,7 @@ open class PhotoVideoActivity : BaseViewerActivity() {
             overflowIcon = resources.getColoredDrawableWithColor(com.goodwy.commons.R.drawable.ic_three_dots_vector, Color.WHITE)
             navigationIcon = resources.getColoredDrawableWithColor(com.goodwy.commons.R.drawable.ic_chevron_left_vector, Color.WHITE)
             setNavigationOnClickListener { finish() }
+            inflateMenu(R.menu.photo_video_menu)
         }
 
         updateMenuItemColors(binding.mediumViewerToolbar.menu, forceWhiteIcons = true)

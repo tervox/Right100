@@ -538,6 +538,9 @@ class PhotoFragment : ViewPagerFragment() {
             .listener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {
                     resetColorModeIfVisible()
+                    if (e != null) {
+                        activity?.showErrorToast(e)
+                    }
                     if (activity != null && !activity!!.isDestroyed && !activity!!.isFinishing) {
                         tryLoadingWithPicasso(addZoomableView)
                     }
@@ -599,6 +602,7 @@ class PhotoFragment : ViewPagerFragment() {
                         // TODO: Implement panorama using a FOSS library
                         // checkIfPanorama()
                     } else {
+                        activity?.showErrorToast(e ?: Exception("Picasso: falha desconhecida ao carregar imagem"))
                         binding.errorMessageHolder.errorMessage.apply {
                             setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
                             fadeIn()
@@ -606,7 +610,8 @@ class PhotoFragment : ViewPagerFragment() {
                     }
                 }
             })
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            activity?.showErrorToast(e)
         }
     }
 
@@ -807,6 +812,7 @@ class PhotoFragment : ViewPagerFragment() {
                 }
 
                 override fun onImageLoadError(e: Exception) {
+                    activity?.showErrorToast(e)
                     binding.gesturesView.controller.settings.isZoomEnabled = true
                     background = Color.TRANSPARENT.toDrawable()
                     mIsSubsamplingVisible = false
