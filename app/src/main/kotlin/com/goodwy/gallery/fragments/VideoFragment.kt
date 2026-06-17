@@ -697,48 +697,68 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun initBlurPlayer() {
-        val path = mMedium.path
-        val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
+        try {
+            val path = mMedium.path
+            val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.setRenderEffect(
-                RenderEffect.createBlurEffect(50f, 50f, Shader.TileMode.CLAMP)
-            )
-            binding.videoBlurSurface.alpha = 0.5f
-        }
-
-        val blurLoadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(1500, 5000, 500, 500)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
-
-        mBlurPlayer = ExoPlayer.Builder(requireContext())
-            .setLoadControl(blurLoadControl)
-            .build().apply {
-                setMediaItem(MediaItem.fromUri(uri))
-                volume = 0f
-                repeatMode = Player.REPEAT_MODE_ONE
-                prepare()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                binding.videoBlurSurface.setRenderEffect(
+                    RenderEffect.createBlurEffect(50f, 50f, Shader.TileMode.CLAMP)
+                )
+                binding.videoBlurSurface.alpha = 0.5f
             }
 
-        binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
-                mBlurPlayer?.setVideoSurface(Surface(st))
+            val blurLoadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(1500, 5000, 500, 500)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+
+            mBlurPlayer = ExoPlayer.Builder(requireContext())
+                .setLoadControl(blurLoadControl)
+                .build().apply {
+                    setMediaItem(MediaItem.fromUri(uri))
+                    volume = 0f
+                    repeatMode = Player.REPEAT_MODE_ONE
+                    addListener(object : Player.Listener {
+                        override fun onPlayerErrorChanged(error: PlaybackException?) {
+                            if (error != null) {
+                                activity?.showErrorToast(error)
+                                releaseBlurPlayer()
+                                binding.videoBlurSurface.beGone()
+                                binding.videoBlurOverlay.beGone()
+                            }
+                        }
+                    })
+                    prepare()
+                }
+
+            binding.videoBlurSurface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
+                    mBlurPlayer?.setVideoSurface(Surface(st))
+                    mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
+                    mBlurPlayer?.playWhenReady = mExoPlayer?.playWhenReady ?: false
+                    mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+                }
+                override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
+                override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                    mBlurPlayer?.setVideoSurface(null); return true
+                }
+                override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+            }
+            if (binding.videoBlurSurface.isAvailable) {
+                mBlurPlayer?.setVideoSurface(Surface(binding.videoBlurSurface.surfaceTexture!!))
                 mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
                 mBlurPlayer?.playWhenReady = mExoPlayer?.playWhenReady ?: false
                 mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
             }
-            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
-            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-                mBlurPlayer?.setVideoSurface(null); return true
-            }
-            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
-        }
-        if (binding.videoBlurSurface.isAvailable) {
-            mBlurPlayer?.setVideoSurface(Surface(binding.videoBlurSurface.surfaceTexture!!))
-            mBlurPlayer?.seekTo(mExoPlayer?.currentPosition ?: 0L)
-            mBlurPlayer?.playWhenReady = mExoPlayer?.playWhenReady ?: false
-            mBlurPlayer?.setPlaybackSpeed(mExoPlayer?.playbackParameters?.speed ?: 1f)
+        } catch (e: Exception) {
+            // Segundo decoder de video (fundo borrado) pode falhar em aparelhos com poucos
+            // decoders de hardware disponiveis simultaneamente. Nao deve derrubar o app:
+            // so desiste do efeito de blur e segue mostrando o video normalmente.
+            activity?.showErrorToast(e)
+            releaseBlurPlayer()
+            binding.videoBlurSurface.beGone()
+            binding.videoBlurOverlay.beGone()
         }
     }
 
