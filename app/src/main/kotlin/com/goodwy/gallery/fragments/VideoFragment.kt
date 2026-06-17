@@ -91,6 +91,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
+        // TEMPORARIAMENTE DESATIVADO A PEDIDO DO TERVOX. Usado em loadBlurBackground() e
+        // setVideoSize() - um desses dois lugares ainda dependia da config antiga e causava
+        // crash assincrono no callback de tamanho do video. Pra reativar, troque pra false
+        // com cuidado, revisando os dois pontos de uso.
+        private const val BLUR_BACKGROUND_VIDEO_DISABLED = true
     }
 
     private var mIsFullscreen = false
@@ -676,7 +681,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // sendo investigado como possivel causa de crash no visualizador de video. Pra
         // reativar, e so remover este "return" (o resto da logica de blur continua abaixo,
         // intacta, incluindo o try/catch que protege contra falha do segundo decoder).
-        if (true) {
+        if (BLUR_BACKGROUND_VIDEO_DISABLED) {
             binding.videoBlurBg.beGone()
             binding.videoBlurSurface.beGone()
             binding.videoBlurOverlay.beGone()
@@ -875,9 +880,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             override fun onPlaybackStateChanged(@Player.State playbackState: Int) {
-                when (playbackState) {
-                    Player.STATE_READY -> videoPrepared()
-                    Player.STATE_ENDED -> videoCompleted()
+                try {
+                    when (playbackState) {
+                        Player.STATE_READY -> videoPrepared()
+                        Player.STATE_ENDED -> videoCompleted()
+                    }
+                } catch (e: Exception) {
+                    activity?.showErrorToast(e)
                 }
             }
 
@@ -1014,22 +1023,49 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun setVideoSize() {
         if (activity == null || mConfig.gestureVideoPlayer) return
+        try {
+            val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
+            val display = requireActivity().windowManager.defaultDisplay
+            val screenWidth: Int
+            val screenHeight: Int
 
-        val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-        val display = requireActivity().windowManager.defaultDisplay
-        val screenWidth: Int
-        val screenHeight: Int
+            val realMetrics = DisplayMetrics()
+            display.getRealMetrics(realMetrics)
+            screenWidth = realMetrics.widthPixels
+            screenHeight = realMetrics.heightPixels
 
-        val realMetrics = DisplayMetrics()
-        display.getRealMetrics(realMetrics)
-        screenWidth = realMetrics.widthPixels
-        screenHeight = realMetrics.heightPixels
+            val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
 
-        val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
+            mTextureView.layoutParams.apply {
+                when {
+                    mConfig.videoFillScreen -> {
+                        if (videoProportion > screenProportion) {
+                            width = (videoProportion * screenHeight.toFloat()).toInt()
+                            height = screenHeight
+                        } else {
+                            width = screenWidth
+                            height = (screenWidth.toFloat() / videoProportion).toInt()
+                        }
+                    }
+                    mConfig.videoFillMode == 2 -> {
+                        width = screenWidth
+                        height = screenHeight
+                    }
+                    else -> {
+                        if (videoProportion > screenProportion) {
+                            width = screenWidth
+                            height = (screenWidth.toFloat() / videoProportion).toInt()
+                        } else {
+                            width = (videoProportion * screenHeight.toFloat()).toInt()
+                            height = screenHeight
+                        }
+                    }
+                }
+                mTextureView.layoutParams = this
+            }
 
-        mTextureView.layoutParams.apply {
-            when {
-                mConfig.videoFillScreen -> {
+            if (!BLUR_BACKGROUND_VIDEO_DISABLED && mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                binding.videoBlurSurface.layoutParams.apply {
                     if (videoProportion > screenProportion) {
                         width = (videoProportion * screenHeight.toFloat()).toInt()
                         height = screenHeight
@@ -1037,35 +1073,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                         width = screenWidth
                         height = (screenWidth.toFloat() / videoProportion).toInt()
                     }
-                }
-                mConfig.videoFillMode == 2 -> {
-                    width = screenWidth
-                    height = screenHeight
-                }
-                else -> {
-                    if (videoProportion > screenProportion) {
-                        width = screenWidth
-                        height = (screenWidth.toFloat() / videoProportion).toInt()
-                    } else {
-                        width = (videoProportion * screenHeight.toFloat()).toInt()
-                        height = screenHeight
-                    }
+                    binding.videoBlurSurface.layoutParams = this
                 }
             }
-            mTextureView.layoutParams = this
-        }
-
-        if (mConfig.blurBackgroundVideo && !mConfig.blackBackground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            binding.videoBlurSurface.layoutParams.apply {
-                if (videoProportion > screenProportion) {
-                    width = (videoProportion * screenHeight.toFloat()).toInt()
-                    height = screenHeight
-                } else {
-                    width = screenWidth
-                    height = (screenWidth.toFloat() / videoProportion).toInt()
-                }
-                binding.videoBlurSurface.layoutParams = this
-            }
+        } catch (e: Exception) {
+            activity?.showErrorToast(e)
         }
     }
 

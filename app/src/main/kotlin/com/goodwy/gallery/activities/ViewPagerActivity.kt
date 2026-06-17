@@ -74,6 +74,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun setupBottomActions() {
+        applyProperBottomInsets(binding.bottomActions.root)
         binding.bottomActions.apply {
             bottomShare.setOnClickListener { getCurrentMedium()?.let { shareMediumPath(it.path) } }
             bottomFavorite.setOnClickListener { toggleCurrentFavorite() }
