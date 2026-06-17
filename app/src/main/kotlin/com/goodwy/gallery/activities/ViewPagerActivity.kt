@@ -101,7 +101,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             bottomShare.beVisibleIf(visible and BOTTOM_ACTION_SHARE != 0)
             bottomFavorite.beVisibleIf(visible and BOTTOM_ACTION_TOGGLE_FAVORITE != 0)
             bottomFavorite.setImageResource(
-                if (medium?.isFavorite == true) R.drawable.ic_star_vector else R.drawable.ic_star_outline_vector
+                if (medium?.isFavorite == true) com.goodwy.commons.R.drawable.ic_star_vector else com.goodwy.commons.R.drawable.ic_star_outline_vector
             )
             bottomProperties.beVisibleIf(visible and BOTTOM_ACTION_PROPERTIES != 0)
             bottomDelete.beVisibleIf(visible and BOTTOM_ACTION_DELETE != 0)
