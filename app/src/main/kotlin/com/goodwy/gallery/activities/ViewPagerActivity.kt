@@ -32,6 +32,13 @@ import com.google.android.material.appbar.AppBarLayout
 import java.io.File
 
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
+    companion object {
+        // Passar a lista inteira de Medium por Intent (Serializable) estoura o limite do
+        // Binder em galerias grandes e trava o app. Como estamos no mesmo processo, passamos
+        // a referencia direto em memoria em vez de serializar.
+        var pendingMediums: ArrayList<Medium>? = null
+    }
+
     private var mMediums = ArrayList<Medium>()
     private var mPos = 0
     private var mIsFullScreen = false
@@ -56,7 +63,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
 
         mPos = intent.getIntExtra("pos", 0)
-        mMediums = intent.getSerializableExtra("mediums") as? ArrayList<Medium> ?: ArrayList()
+        mMediums = pendingMediums ?: (intent.getSerializableExtra("mediums") as? ArrayList<Medium> ?: ArrayList())
+        pendingMediums = null
 
         setupOptionsMenu()
         initViewPager()
