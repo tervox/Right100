@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.exifinterface.media.ExifInterface
 import androidx.viewpager.widget.ViewPager
 import com.goodwy.commons.extensions.*
+import com.goodwy.commons.dialogs.PropertiesDialog
 import com.goodwy.commons.helpers.*
 import com.goodwy.gallery.R
 import com.goodwy.gallery.adapters.MyPagerAdapter
@@ -67,7 +68,96 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         pendingMediums = null
 
         setupOptionsMenu()
+        setupBottomActions()
         initViewPager()
+        updateBottomActionsForCurrentItem()
+    }
+
+    private fun setupBottomActions() {
+        binding.bottomActions.apply {
+            bottomShare.setOnClickListener { getCurrentMedium()?.let { shareMediumPath(it.path) } }
+            bottomFavorite.setOnClickListener { toggleCurrentFavorite() }
+            bottomProperties.setOnClickListener {
+                getCurrentMedium()?.let { PropertiesDialog(this@ViewPagerActivity, it.path, config.shouldShowHidden) }
+            }
+            bottomDelete.setOnClickListener { deleteCurrentMedium() }
+            bottomEdit.setOnClickListener { getCurrentMedium()?.let { openEditor(it.path) } }
+            bottomSetAs.setOnClickListener { getCurrentMedium()?.let { setAs(it.path) } }
+            // bottom_rotate, bottom_change_orientation, bottom_slideshow, bottom_show_on_map,
+            // bottom_toggle_file_visibility, bottom_rename, bottom_copy, bottom_move, bottom_resize:
+            // ainda sem acao cadastrada (ficam ocultos por padrao; se habilitados manualmente
+            // nas configuracoes, aparecem mas o toque nao faz nada ainda - proxima rodada).
+            // bottom_play_pause / bottom_mute: o VideoFragment ja tem seus proprios controles
+            // de video, por isso ficam sempre ocultos aqui pra nao duplicar.
+        }
+    }
+
+    private fun updateBottomActionsForCurrentItem() {
+        val medium = getCurrentMedium()
+        val visible = config.visibleBottomActions
+        val isVideo = medium?.isVideo() == true
+
+        binding.bottomActions.apply {
+            bottomShare.beVisibleIf(visible and BOTTOM_ACTION_SHARE != 0)
+            bottomFavorite.beVisibleIf(visible and BOTTOM_ACTION_TOGGLE_FAVORITE != 0)
+            bottomFavorite.setImageResource(
+                if (medium?.isFavorite == true) R.drawable.ic_star_vector else R.drawable.ic_star_outline_vector
+            )
+            bottomProperties.beVisibleIf(visible and BOTTOM_ACTION_PROPERTIES != 0)
+            bottomDelete.beVisibleIf(visible and BOTTOM_ACTION_DELETE != 0)
+            bottomEdit.beVisibleIf(visible and BOTTOM_ACTION_EDIT != 0 && !isVideo)
+            bottomRotate.beVisibleIf(visible and BOTTOM_ACTION_ROTATE != 0 && !isVideo)
+            bottomChangeOrientation.beVisibleIf(visible and BOTTOM_ACTION_CHANGE_ORIENTATION != 0 && !isVideo)
+            bottomSlideshow.beVisibleIf(visible and BOTTOM_ACTION_SLIDESHOW != 0)
+            bottomShowOnMap.beVisibleIf(visible and BOTTOM_ACTION_SHOW_ON_MAP != 0)
+            bottomToggleFileVisibility.beVisibleIf(visible and BOTTOM_ACTION_TOGGLE_VISIBILITY != 0)
+            bottomRename.beVisibleIf(visible and BOTTOM_ACTION_RENAME != 0)
+            bottomSetAs.beVisibleIf(visible and BOTTOM_ACTION_SET_AS != 0 && !isVideo)
+            bottomCopy.beVisibleIf(visible and BOTTOM_ACTION_COPY != 0)
+            bottomMove.beVisibleIf(visible and BOTTOM_ACTION_MOVE != 0)
+            bottomExtractText.beVisibleIf(visible and BOTTOM_ACTION_EXTRACT_TEXT != 0)
+            bottomResize.beVisibleIf(visible and BOTTOM_ACTION_RESIZE != 0 && !isVideo)
+            // Sempre ocultos aqui: o VideoFragment ja tem seus proprios botoes de play/pause e mudo.
+            bottomPlayPause.beGone()
+            bottomMute.beGone()
+        }
+    }
+
+    private fun toggleCurrentFavorite() {
+        val medium = getCurrentMedium() ?: return
+        medium.isFavorite = !medium.isFavorite
+        updateFavorite(medium.path, medium.isFavorite)
+        updateBottomActionsForCurrentItem()
+    }
+
+    private fun deleteCurrentMedium() {
+        val medium = getCurrentMedium() ?: return
+        val fileDirItem = medium.toFileDirItem()
+        if (config.useRecycleBin && !medium.path.startsWith(recycleBinPath)) {
+            movePathsInRecycleBin(arrayListOf(medium.path)) { success ->
+                if (success) onCurrentMediumRemoved()
+            }
+        } else {
+            deleteFiles(arrayListOf(fileDirItem)) { success ->
+                if (success) onCurrentMediumRemoved()
+            }
+        }
+    }
+
+    private fun onCurrentMediumRemoved() {
+        if (mPos < mMediums.size) {
+            mMediums.removeAt(mPos)
+        }
+        if (mMediums.isEmpty()) {
+            finish()
+            return
+        }
+        if (mPos >= mMediums.size) {
+            mPos = mMediums.size - 1
+        }
+        (binding.viewPager.adapter as? MyPagerAdapter)?.notifyDataSetChanged()
+        binding.viewPager.currentItem = mPos
+        updateBottomActionsForCurrentItem()
     }
 
     private fun setupOptionsMenu() {
@@ -97,7 +187,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
-    override fun onPageSelected(position: Int) { mPos = position }
+    override fun onPageSelected(position: Int) {
+        mPos = position
+        updateBottomActionsForCurrentItem()
+    }
     override fun onPageScrollStateChanged(state: Int) {}
 
     private fun getCurrentMedium(): Medium? = if (mPos < mMediums.size) mMediums[mPos] else null
@@ -231,6 +324,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val newAlpha = if (mIsFullScreen) 0f else 1f
         binding.topShadow.animate().alpha(newAlpha).start()
         binding.mediumViewerToolbar.animate().alpha(newAlpha).start()
+        binding.bottomActions.root.animate().alpha(newAlpha).start()
     }
 
     override fun videoEnded() = false

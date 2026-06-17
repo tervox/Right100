@@ -672,6 +672,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun loadBlurBackground() {
+        // TEMPORARIAMENTE DESATIVADO A PEDIDO DO TERVOX: o segundo player de blur estava
+        // sendo investigado como possivel causa de crash no visualizador de video. Pra
+        // reativar, e so remover este "return" (o resto da logica de blur continua abaixo,
+        // intacta, incluindo o try/catch que protege contra falha do segundo decoder).
+        if (true) {
+            binding.videoBlurBg.beGone()
+            binding.videoBlurSurface.beGone()
+            binding.videoBlurOverlay.beGone()
+            return
+        }
         if (mConfig.blackBackground || !mConfig.blurBackgroundVideo) {
             binding.videoBlurBg.beGone()
             binding.videoBlurSurface.beGone()
@@ -813,34 +823,40 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        mExoPlayer = ExoPlayer.Builder(requireContext())
-            .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
-            .setSeekParameters(SeekParameters.EXACT)
-            .setLoadControl(loadControl)
-            .build()
-            .apply {
-                if (mConfig.loopVideos && listener?.isSlideShowActive() == false) {
-                    repeatMode = Player.REPEAT_MODE_ONE
+        try {
+            mExoPlayer = ExoPlayer.Builder(requireContext())
+                .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
+                .setSeekParameters(SeekParameters.EXACT)
+                .setLoadControl(loadControl)
+                .build()
+                .apply {
+                    if (mConfig.loopVideos && listener?.isSlideShowActive() == false) {
+                        repeatMode = Player.REPEAT_MODE_ONE
+                    }
+                    setPlaybackSpeed(mConfig.playbackSpeed)
+                    setMediaSource(mediaSource)
+                    setAudioAttributes(
+                        AudioAttributes
+                            .Builder()
+                            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                            .build(), false
+                    )
+                    prepare()
+
+                    if (mTextureView.surfaceTexture != null) {
+                        setVideoSurface(Surface(mTextureView.surfaceTexture))
+                    }
+
+                    initListeners()
                 }
-                setPlaybackSpeed(mConfig.playbackSpeed)
-                setMediaSource(mediaSource)
-                setAudioAttributes(
-                    AudioAttributes
-                        .Builder()
-                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                        .build(), false
-                )
-                prepare()
 
-                if (mTextureView.surfaceTexture != null) {
-                    setVideoSurface(Surface(mTextureView.surfaceTexture))
-                }
-
-                initListeners()
-            }
-
-        updatePlayerMuteState()
-        loadBlurBackground()
+            updatePlayerMuteState()
+            loadBlurBackground()
+        } catch (e: Exception) {
+            activity?.showErrorToast(e)
+            mExoPlayer?.release()
+            mExoPlayer = null
+        }
     }
 
     private fun ExoPlayer.initListeners() {
