@@ -451,10 +451,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun startSlideshow() {
         if (mMedia.isNotEmpty()) {
             hideKeyboard()
+            val mediums = ArrayList((getMediaAdapter()?.media ?: mMedia).filterIsInstance<Medium>())
+            val item = mediums.firstOrNull() ?: return
             Intent(this, ViewPagerActivity::class.java).apply {
-                val item = mMedia.firstOrNull { it is Medium } as? Medium ?: return
                 putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
                 putExtra(PATH, item.path)
+                putExtra("pos", 0)
+                putExtra("mediums", mediums)
                 putExtra(SHOW_ALL, mShowAll)
                 putExtra(SLIDESHOW_START_ON_ENTER, true)
                 startActivity(this)
@@ -1215,9 +1218,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun openInViewPager(path: String) {
+        val mediums = ArrayList((getMediaAdapter()?.media ?: mMedia).filterIsInstance<Medium>())
+        val pos = mediums.indexOfFirst { it.path == path }.coerceAtLeast(0)
         Intent(this, ViewPagerActivity::class.java).apply {
             putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
             putExtra(PATH, path)
+            putExtra("pos", pos)
+            putExtra("mediums", mediums)
             putExtra(SHOW_ALL, mShowAll)
             putExtra(SHOW_FAVORITES, mPath == FAVORITES)
             putExtra(SHOW_RECYCLE_BIN, mPath == RECYCLE_BIN)
