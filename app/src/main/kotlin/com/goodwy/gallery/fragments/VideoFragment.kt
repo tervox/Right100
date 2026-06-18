@@ -784,14 +784,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun initExoPlayer() {
         val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
-        if (shouldSkipInit) {
-            if (mExoPlayer == null) {
-                activity?.showErrorToast(
-                    Exception("initExoPlayer skip: activityNull=${activity == null} gestureVideoPlayer=${mConfig.gestureVideoPlayer} isPanorama=$mIsPanorama")
-                )
-            }
-            return
-        }
+        if (shouldSkipInit) return
 
         val isContentUri = mMedium.path.startsWith("content://")
         val uri = if (isContentUri) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
@@ -828,40 +821,33 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        try {
-            mExoPlayer = ExoPlayer.Builder(requireContext())
-                .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
-                .setSeekParameters(SeekParameters.EXACT)
-                .setLoadControl(loadControl)
-                .build()
-                .apply {
-                    if (mConfig.loopVideos && listener?.isSlideShowActive() == false) {
-                        repeatMode = Player.REPEAT_MODE_ONE
-                    }
-                    setPlaybackSpeed(mConfig.playbackSpeed)
-                    setMediaSource(mediaSource)
-                    setAudioAttributes(
-                        AudioAttributes
-                            .Builder()
-                            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                            .build(), false
-                    )
-                    prepare()
+        mExoPlayer = ExoPlayer.Builder(requireContext())
+            .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
+            .setSeekParameters(SeekParameters.EXACT)
+            .setLoadControl(loadControl)
+            .build()
+            .apply {
+                if (mConfig.loopVideos && listener?.isSlideShowActive() == false) {
+                    repeatMode = Player.REPEAT_MODE_ONE
+                }
+                setPlaybackSpeed(mConfig.playbackSpeed)
+                setMediaSource(mediaSource)
+                setAudioAttributes(
+                    AudioAttributes
+                        .Builder()
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .build(), false
+                )
+                prepare()
 
-                    if (mTextureView.surfaceTexture != null) {
-                        setVideoSurface(Surface(mTextureView.surfaceTexture))
-                    }
-
-                    initListeners()
+                if (mTextureView.surfaceTexture != null) {
+                    setVideoSurface(Surface(mTextureView.surfaceTexture))
                 }
 
-            updatePlayerMuteState()
-            loadBlurBackground()
-        } catch (e: Exception) {
-            activity?.showErrorToast(e)
-            mExoPlayer?.release()
-            mExoPlayer = null
-        }
+                initListeners()
+            }
+
+        updatePlayerMuteState()
     }
 
     private fun ExoPlayer.initListeners() {
@@ -891,10 +877,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
-                if (videoSize.width == 0 || videoSize.height == 0) return
-                val ratio = videoSize.pixelWidthHeightRatio.takeIf { it > 0f } ?: 1f
                 mVideoSize.x = videoSize.width
-                mVideoSize.y = (videoSize.height / ratio).toInt().coerceAtLeast(1)
+                mVideoSize.y = (videoSize.height / videoSize.pixelWidthHeightRatio).toInt()
                 setVideoSize()
             }
 

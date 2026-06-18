@@ -19,10 +19,6 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.ListPreloader
-import com.bumptech.glide.RequestBuilder
-import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
-import com.bumptech.glide.util.FixedPreloadSizeProvider
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.SimpleTarget
@@ -567,14 +563,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val currAdapter = binding.mediaGrid.adapter
         if (currAdapter == null) {
             initZoomListener()
-
-            // Otimizações de RecyclerView para scroll suave
-            binding.mediaGrid.setHasFixedSize(true)
-            binding.mediaGrid.setItemViewCacheSize(20)
-            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(0, 20)
-            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(1, 20)
-            binding.mediaGrid.recycledViewPool.setMaxRecycledViews(2, 20)
-
             MediaAdapter(
                 activity = this,
                 media = mMedia.clone() as ArrayList<ThumbnailItem>,
@@ -589,40 +577,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     itemClicked(it.path)
                 }
             }.apply {
-                setHasStableIds(true)
                 setupZoomListener(mZoomListener)
                 binding.mediaGrid.adapter = this
-
-                // Preloader: pré-carrega thumbnails antes do scroll chegar
-                // Tamanho fixo por célula do grid — garante que o cache key do preloader
-                // bata exatamente com o que o adapter vai pedir, maximizando cache hits no scroll
-                val screenWidth = resources.displayMetrics.widthPixels
-                val spanCount = config.mediaColumnCnt.coerceAtLeast(1)
-                val thumbSize = screenWidth / spanCount
-                val sizeProvider = FixedPreloadSizeProvider<ThumbnailItem>(thumbSize, thumbSize)
-                val preloader = RecyclerViewPreloader(
-                    com.bumptech.glide.Glide.with(this@MediaActivity),
-                    object : ListPreloader.PreloadModelProvider<ThumbnailItem> {
-                        override fun getPreloadItems(position: Int): List<ThumbnailItem> {
-                            return listOf(mMedia.getOrNull(position) ?: return emptyList())
-                        }
-                        override fun getPreloadRequestBuilder(item: ThumbnailItem): RequestBuilder<*>? {
-                            if (item !is Medium) return null
-                            return com.bumptech.glide.Glide.with(this@MediaActivity)
-                                .load(item.path)
-                                .override(thumbSize, thumbSize)
-                                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
-                                .format(com.bumptech.glide.load.DecodeFormat.PREFER_ARGB_8888)
-                        }
-                    },
-                    sizeProvider,
-                    20
-                )
-                binding.mediaGrid.addOnScrollListener(preloader)
             }
 
-            // Remove animação de layout e item animator — reduz delay inicial de aparecimento
-            binding.mediaGrid.itemAnimator = null
             setupLayoutManager()
             handleGridSpacing()
         } else if (mLastSearchedText.isEmpty()) {
