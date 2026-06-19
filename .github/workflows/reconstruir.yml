@@ -1,0 +1,21 @@
+name: Agente de Reconstrução
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run GitHub Agent
+        uses: githubnext/agentics-action@v0.0.1
+        with:
+          agent: github-agent
+          task: .github/workflows/reconstruir.md
