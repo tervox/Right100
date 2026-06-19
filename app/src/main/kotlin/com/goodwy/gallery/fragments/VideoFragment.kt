@@ -1083,4 +1083,53 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         return true
     }
     override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+
+    private fun checkIfPanorama() {
+        try {
+            val fis = java.io.FileInputStream(File(mMedium.path))
+            fis.use {
+                requireContext().parseFileChannel(mMedium.path, it.channel, 0, 0, 0) {
+                    mIsPanorama = true
+                }
+            }
+        } catch (_: Exception) {
+        } catch (_: OutOfMemoryError) {
+        }
+    }
+
+    private fun handleTouchHoldEvent(event: android.view.MotionEvent) {
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                if (mIsPlaying && event.pointerCount == 1) {
+                    mInitialX = event.x
+                    mInitialY = event.y
+                    mTimerHandler.postDelayed(mTouchHoldRunnable, TOUCH_HOLD_DURATION_MS)
+                }
+            }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                val deltaX = kotlin.math.abs(event.x - mInitialX)
+                val deltaY = kotlin.math.abs(event.y - mInitialY)
+                if (!mIsLongPressActive && (deltaX > mTouchSlop || deltaY > mTouchSlop)) {
+                    mTimerHandler.removeCallbacks(mTouchHoldRunnable)
+                }
+            }
+            android.view.MotionEvent.ACTION_POINTER_DOWN -> {
+                if (!mIsLongPressActive) {
+                    mTimerHandler.removeCallbacks(mTouchHoldRunnable)
+                }
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                mTimerHandler.removeCallbacks(mTouchHoldRunnable)
+                stopHoldSpeedMultiplierGesture()
+            }
+        }
+    }
+
+    private fun stopHoldSpeedMultiplierGesture() {
+        if (mIsLongPressActive) {
+            updatePlaybackSpeed(mOriginalPlaybackSpeed)
+            mIsLongPressActive = false
+            mPlaybackSpeedPill.fadeOut()
+        }
+    }
 }
