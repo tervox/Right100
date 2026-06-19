@@ -188,7 +188,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         mVolumeController?.destroy()
     }
 
-    fun refreshMenuItems() {
+    override fun refreshMenuItems() {
         val currentMedium = getCurrentMedium() ?: return
         currentMedium.isFavorite = mFavoritePaths.contains(currentMedium.path)
         val visibleBottomActions = if (config.bottomActions) config.visibleBottomActions else 0
@@ -1362,7 +1362,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val path = getCurrentPath()
         if (path.isEmpty()) return
 
-        toast(getString(R.string.loading))
+        toast(com.goodwy.commons.R.string.loading)
 
         ensureBackgroundThread {
             try {
@@ -1413,7 +1413,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             .setPositiveButton(com.goodwy.commons.R.string.copy) { _, _ ->
                 val clipboard = getSystemService(ClipboardManager::class.java) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("text", text))
-                toast(com.goodwy.commons.R.string.copied_to_clipboard)
+                toast(com.goodwy.commons.R.string.value_copied_to_clipboard)
             }
             .setNegativeButton(com.goodwy.commons.R.string.ok, null)
             .show()
