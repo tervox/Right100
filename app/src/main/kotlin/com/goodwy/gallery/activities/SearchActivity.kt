@@ -211,6 +211,7 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
     private fun openInViewPager(path: String) {
         val mediums = ArrayList((getMediaAdapter()?.media ?: mAllMedia).filterIsInstance<Medium>())
         val pos = mediums.indexOfFirst { it.path == path }.coerceAtLeast(0)
+        ViewPagerActivity.pendingMediums = mediums
         Intent(this, ViewPagerActivity::class.java).apply {
             putExtra(PATH, path)
             putExtra("pos", pos)

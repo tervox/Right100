@@ -449,6 +449,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             hideKeyboard()
             val mediums = ArrayList((getMediaAdapter()?.media ?: mMedia).filterIsInstance<Medium>())
             val item = mediums.firstOrNull() ?: return
+            ViewPagerActivity.pendingMediums = mediums
             Intent(this, ViewPagerActivity::class.java).apply {
                 putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
                 putExtra(PATH, item.path)
@@ -1177,6 +1178,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun openInViewPager(path: String) {
         val mediums = ArrayList((getMediaAdapter()?.media ?: mMedia).filterIsInstance<Medium>())
         val pos = mediums.indexOfFirst { it.path == path }.coerceAtLeast(0)
+        ViewPagerActivity.pendingMediums = mediums
         Intent(this, ViewPagerActivity::class.java).apply {
             putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
             putExtra(PATH, path)
