@@ -197,61 +197,91 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val iconColor = Color.WHITE
         val medium = getCurrentMedium()
         val visible = config.visibleBottomActions
+        val isImage = medium?.isImage() == true
+        val isVideo = medium?.isVideo() == true || medium?.isGIF() == true
+        val isInRecycleBin = medium?.getIsInRecycleBin() == true
 
+        // Esconde todos primeiro, mostra só o que deve aparecer
+        listOf(
+            binding.bottomActions.bottomShare,
+            binding.bottomActions.bottomFavorite,
+            binding.bottomActions.bottomDelete,
+            binding.bottomActions.bottomEdit,
+            binding.bottomActions.bottomProperties,
+            binding.bottomActions.bottomSetAs,
+            binding.bottomActions.bottomCopy,
+            binding.bottomActions.bottomMove,
+            binding.bottomActions.bottomRename,
+            binding.bottomActions.bottomSlideshow,
+            binding.bottomActions.bottomShowOnMap,
+            binding.bottomActions.bottomExtractText,
+            binding.bottomActions.bottomPlayPause,
+            binding.bottomActions.bottomMute,
+            binding.bottomActions.bottomRotate,
+            binding.bottomActions.bottomChangeOrientation,
+            binding.bottomActions.bottomToggleFileVisibility,
+            binding.bottomActions.bottomResize
+        ).forEach { it.beGone(); it.applyColorFilter(iconColor) }
+
+        // Agora mostra os que devem aparecer e conecta cliques
         binding.bottomActions.bottomShare.beVisibleIf(visible and BOTTOM_ACTION_SHARE != 0)
         binding.bottomActions.bottomShare.setOnClickListener { shareMediumPath(getCurrentPath()) }
+        binding.bottomActions.bottomShare.setOnLongClickListener { toast(com.goodwy.commons.R.string.share); true }
 
-        binding.bottomActions.bottomFavorite.beVisibleIf(visible and BOTTOM_ACTION_TOGGLE_FAVORITE != 0 && medium?.getIsInRecycleBin() == false)
+        binding.bottomActions.bottomFavorite.beVisibleIf(visible and BOTTOM_ACTION_TOGGLE_FAVORITE != 0 && !isInRecycleBin)
         binding.bottomActions.bottomFavorite.setOnClickListener { toggleFavorite() }
+        binding.bottomActions.bottomFavorite.setOnLongClickListener { toast(R.string.toggle_favorite); true }
 
         binding.bottomActions.bottomDelete.beVisibleIf(visible and BOTTOM_ACTION_DELETE != 0)
         binding.bottomActions.bottomDelete.setOnClickListener { askConfirmDelete() }
+        binding.bottomActions.bottomDelete.setOnLongClickListener { toast(com.goodwy.commons.R.string.delete); true }
 
-        binding.bottomActions.bottomEdit.beVisibleIf(visible and BOTTOM_ACTION_EDIT != 0 && medium?.isImage() == true)
+        binding.bottomActions.bottomEdit.beVisibleIf(visible and BOTTOM_ACTION_EDIT != 0 && isImage)
         binding.bottomActions.bottomEdit.setOnClickListener { openEditor(getCurrentPath()) }
+        binding.bottomActions.bottomEdit.setOnLongClickListener { toast(R.string.edit); true }
 
         binding.bottomActions.bottomProperties.beVisibleIf(visible and BOTTOM_ACTION_PROPERTIES != 0)
         binding.bottomActions.bottomProperties.setOnClickListener { PropertiesDialog(this, getCurrentPath(), config.shouldShowHidden) }
+        binding.bottomActions.bottomProperties.setOnLongClickListener { toast(com.goodwy.commons.R.string.properties); true }
 
-        binding.bottomActions.bottomSetAs.beVisibleIf(visible and BOTTOM_ACTION_SET_AS != 0)
+        binding.bottomActions.bottomSetAs.beVisibleIf(visible and BOTTOM_ACTION_SET_AS != 0 && isImage)
         binding.bottomActions.bottomSetAs.setOnClickListener { setAs(getCurrentPath()) }
+        binding.bottomActions.bottomSetAs.setOnLongClickListener { toast(R.string.set_as); true }
 
         binding.bottomActions.bottomCopy.beVisibleIf(visible and BOTTOM_ACTION_COPY != 0)
         binding.bottomActions.bottomCopy.setOnClickListener { copyMoveTo(true) }
+        binding.bottomActions.bottomCopy.setOnLongClickListener { toast(com.goodwy.commons.R.string.copy); true }
 
         binding.bottomActions.bottomMove.beVisibleIf(visible and BOTTOM_ACTION_MOVE != 0)
         binding.bottomActions.bottomMove.setOnClickListener { copyMoveTo(false) }
+        binding.bottomActions.bottomMove.setOnLongClickListener { toast(com.goodwy.commons.R.string.move); true }
 
-        binding.bottomActions.bottomRename.beVisibleIf(visible and BOTTOM_ACTION_RENAME != 0 && medium?.getIsInRecycleBin() == false)
+        binding.bottomActions.bottomRename.beVisibleIf(visible and BOTTOM_ACTION_RENAME != 0 && !isInRecycleBin)
         binding.bottomActions.bottomRename.setOnClickListener { renameCurrentFile() }
+        binding.bottomActions.bottomRename.setOnLongClickListener { toast(com.goodwy.commons.R.string.rename); true }
 
         binding.bottomActions.bottomSlideshow.beVisibleIf(visible and BOTTOM_ACTION_SLIDESHOW != 0)
         binding.bottomActions.bottomSlideshow.setOnClickListener { initSlideshow() }
+        binding.bottomActions.bottomSlideshow.setOnLongClickListener { toast(R.string.slideshow); true }
 
         binding.bottomActions.bottomShowOnMap.beVisibleIf(visible and BOTTOM_ACTION_SHOW_ON_MAP != 0)
         binding.bottomActions.bottomShowOnMap.setOnClickListener { showFileOnMap(getCurrentPath()) }
+        binding.bottomActions.bottomShowOnMap.setOnLongClickListener { toast(R.string.show_on_map); true }
 
-        binding.bottomActions.bottomExtractText.beVisibleIf(visible and BOTTOM_ACTION_EXTRACT_TEXT != 0 && medium?.isImage() == true)
+        binding.bottomActions.bottomExtractText.beVisibleIf(visible and BOTTOM_ACTION_EXTRACT_TEXT != 0 && (isImage || isVideo))
         binding.bottomActions.bottomExtractText.setOnClickListener { extractTextFromCurrentMedia() }
+        binding.bottomActions.bottomExtractText.setOnLongClickListener { toast(R.string.extract_text); true }
 
-        binding.bottomActions.bottomPlayPause.beVisibleIf((medium?.isVideo() == true || medium?.isGIF() == true) && visible and BOTTOM_ACTION_PLAY_PAUSE != 0)
+        binding.bottomActions.bottomPlayPause.beVisibleIf(isVideo && visible and BOTTOM_ACTION_PLAY_PAUSE != 0)
         binding.bottomActions.bottomPlayPause.setOnClickListener { (getCurrentFragment() as? VideoFragment)?.togglePlayPause() }
 
-        binding.bottomActions.bottomMute.beVisibleIf((medium?.isVideo() == true || medium?.isGIF() == true) && visible and BOTTOM_ACTION_MUTE != 0)
+        binding.bottomActions.bottomMute.beVisibleIf(isVideo && visible and BOTTOM_ACTION_MUTE != 0)
         binding.bottomActions.bottomMute.setOnClickListener {
             config.muteVideos = !config.muteVideos
             updatePlayerMuteState()
         }
 
-        arrayListOf(
-            binding.bottomActions.bottomShare, binding.bottomActions.bottomFavorite,
-            binding.bottomActions.bottomDelete, binding.bottomActions.bottomEdit,
-            binding.bottomActions.bottomProperties, binding.bottomActions.bottomSetAs,
-            binding.bottomActions.bottomCopy, binding.bottomActions.bottomMove,
-            binding.bottomActions.bottomRename, binding.bottomActions.bottomSlideshow,
-            binding.bottomActions.bottomShowOnMap, binding.bottomActions.bottomExtractText,
-            binding.bottomActions.bottomPlayPause, binding.bottomActions.bottomMute
-        ).forEach { it.applyColorFilter(iconColor) }
+        if (medium != null) updateBottomActionIcons(medium)
     }
 
     private fun updateBottomActionIcons(medium: Medium) {
@@ -584,22 +614,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     override fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
         if (mIsFullScreen) hideSystemUI() else { stopSlideshow(); showSystemUI() }
+
+        // Notifica o fragment pra ele esconder/mostrar seus controles internos
+        (binding.viewPager.adapter as? MyPagerAdapter)
+            ?.getCurrentFragment(mPos)
+            ?.fullscreenToggled(mIsFullScreen)
+
         fullscreenToggled()
     }
 
     private fun fullscreenToggled() {
         val newAlpha = if (mIsFullScreen) 0f else 1f
         binding.topShadow.animate().alpha(newAlpha).start()
-        binding.mediumViewerAppbar.animate().alpha(newAlpha).withStartAction {
-            binding.mediumViewerAppbar.beVisible()
-        }.withEndAction {
-            binding.mediumViewerAppbar.beVisibleIf(newAlpha == 1f)
-        }.start()
-        binding.bottomActions.root.animate().alpha(newAlpha).withStartAction {
-            binding.bottomActions.root.beVisible()
-        }.withEndAction {
-            binding.bottomActions.root.beVisibleIf(newAlpha == 1f)
-        }.start()
+        binding.mediumViewerToolbar.animate().alpha(newAlpha).start()
+        if (config.bottomActions) {
+            binding.bottomActions.root.animate().alpha(newAlpha).withStartAction {
+                binding.bottomActions.root.beVisible()
+            }.withEndAction {
+                binding.bottomActions.root.beVisibleIf(newAlpha == 1f)
+            }.start()
+        }
     }
 
     override fun videoEnded(): Boolean {
