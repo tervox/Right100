@@ -92,7 +92,22 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         initViewPager()
         applyProperBottomInsets(binding.bottomActions.root)
         initBottomActions()
+
+        // A configuração "Esconder barra de sistema" auto-esconde a interface após um delay
+        if (config.hideSystemUI) {
+            binding.viewPager.post {
+                Handler().postDelayed({
+                    if (!isDestroyed && !mIsFullScreen) fragmentClicked()
+                }, HIDE_SYSTEM_UI_DELAY)
+            }
+        }
     }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("saved_path", getCurrentPath())
+    }
+
 
     override fun onResume() {
         super.onResume()
@@ -614,19 +629,19 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     override fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
         if (mIsFullScreen) hideSystemUI() else { stopSlideshow(); showSystemUI() }
-
-        // Notifica o fragment pra ele esconder/mostrar seus controles internos
-        (binding.viewPager.adapter as? MyPagerAdapter)
-            ?.getCurrentFragment(mPos)
-            ?.fullscreenToggled(mIsFullScreen)
-
+        (binding.viewPager.adapter as? MyPagerAdapter)?.toggleFullscreen(mIsFullScreen)
         fullscreenToggled()
     }
 
     private fun fullscreenToggled() {
         val newAlpha = if (mIsFullScreen) 0f else 1f
         binding.topShadow.animate().alpha(newAlpha).start()
-        binding.mediumViewerToolbar.animate().alpha(newAlpha).start()
+        // Anima o AppBarLayout inteiro (não só o Toolbar) para esconder completamente
+        binding.mediumViewerAppbar.animate().alpha(newAlpha).withStartAction {
+            binding.mediumViewerAppbar.beVisible()
+        }.withEndAction {
+            binding.mediumViewerAppbar.beVisibleIf(newAlpha == 1f)
+        }.start()
         if (config.bottomActions) {
             binding.bottomActions.root.animate().alpha(newAlpha).withStartAction {
                 binding.bottomActions.root.beVisible()
