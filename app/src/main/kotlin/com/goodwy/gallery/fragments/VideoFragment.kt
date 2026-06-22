@@ -652,6 +652,34 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mTimeHolder.beGoneIf(mIsFullscreen)
         mTimeHolder.alpha = if (mIsFullscreen) 0f else 1f
         (activity as? BaseViewerActivity)?.applyProperHorizontalInsets(mTimeHolder)
+
+        binding.bottomVideoTimeHolder.apply {
+            // Botão "Tela esticada" — alterna videoFillMode entre 0 (fit) e 1 (crop)
+            try {
+                videoStretch.apply {
+                    beVisibleIf(!mConfig.gestureVideoPlayer)
+                    setImageResource(if (mConfig.videoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector)
+                    setOnClickListener {
+                        mConfig.videoFillMode = if (mConfig.videoFillMode == 0) 1 else 0
+                        setVideoSize()
+                        setImageResource(if (mConfig.videoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // Botão "Tela cheia" — força o vídeo a preencher a tela inteira
+            try {
+                videoFillScreen.apply {
+                    beVisibleIf(!mConfig.gestureVideoPlayer)
+                    setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
+                    setOnClickListener {
+                        mConfig.videoFillScreen = !mConfig.videoFillScreen
+                        setVideoSize()
+                        setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun checkIfPanorama() {

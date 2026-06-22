@@ -166,7 +166,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 findItem(R.id.menu_unhide)?.isVisible = medium.isHidden() && !isInRecycleBin && (!isRPlus() || isExternalStorageManager())
                 findItem(R.id.menu_restore_file)?.isVisible = isInRecycleBin
                 findItem(R.id.menu_open_with)?.isVisible = true
-                findItem(R.id.menu_extract_text)?.isVisible = isImage && !medium.isGIF()
+                findItem(R.id.menu_extract_text)?.isVisible = (isImage && !medium.isGIF()) || medium.isVideo()
             }
 
             if (config.bottomActions) updateBottomActionIcons(medium)
