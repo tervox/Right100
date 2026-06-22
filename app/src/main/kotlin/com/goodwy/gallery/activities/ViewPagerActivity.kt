@@ -422,15 +422,35 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun startSlideshow() {
         hideSystemUI()
         mIsFullScreen = true
+        (binding.viewPager.adapter as? MyPagerAdapter)?.toggleFullscreen(true)
         fullscreenToggled()
         mSlideshowInterval = config.slideshowInterval
         mSlideshowMoveBackwards = config.slideshowMoveBackwards
         mIsSlideshowActive = true
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        if (config.slideshowAnimation == SLIDESHOW_ANIMATION_FADE) {
-            binding.viewPager.setPageTransformer(false, FadePageTransformer())
+        // Embaralha a ordem se configurado
+        if (config.slideshowRandomOrder) {
+            mMediums.shuffle()
+            mPos = 0
+            initViewPager()
         }
+
+        // Aplica o transformador de animação
+        val transformer: ViewPager.PageTransformer? = when (config.slideshowAnimation) {
+            SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
+            SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
+            SLIDESHOW_ANIMATION_DEPTH -> DepthPageTransformer()
+            SLIDESHOW_ANIMATION_FLIP -> FlipPageTransformer()
+            SLIDESHOW_ANIMATION_ZOOM_IN -> ZoomInPageTransformer()
+            SLIDESHOW_ANIMATION_ZOOM_OUT -> ZoomOutPageTransformer()
+            SLIDESHOW_ANIMATION_RANDOM -> listOf(
+                FadePageTransformer(), CubePageTransformer(), DepthPageTransformer(),
+                FlipPageTransformer(), ZoomInPageTransformer(), ZoomOutPageTransformer()
+            ).random()
+            else -> null
+        }
+        binding.viewPager.setPageTransformer(false, transformer ?: DefaultPageTransformer())
         scheduleSwipe()
     }
 
@@ -552,14 +572,29 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun extractTextFromVideoFrame() {
-        val fragment = getCurrentFragment() as? VideoFragment ?: run { toast(R.string.no_text_found); return }
+        val fragment = getCurrentFragment() as? VideoFragment
+            ?: run { toast(R.string.no_text_found); return }
+
         fun findTexture(v: android.view.View): TextureView? {
             if (v is TextureView) return v
-            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) findTexture(v.getChildAt(i))?.let { return it }
+            if (v is android.view.ViewGroup) {
+                for (i in 0 until v.childCount) {
+                    findTexture(v.getChildAt(i))?.let { return it }
+                }
+            }
             return null
         }
-        val texture = fragment.view?.let { findTexture(it) } ?: run { toast(R.string.no_text_found); return }
-        val raw = texture.bitmap ?: run { toast(R.string.no_text_found); return }
+
+        val texture = fragment.view?.let { findTexture(it) }
+            ?: run { toast(R.string.no_text_found); return }
+
+        // getBitmap() força captura do frame atual mesmo com vídeo pausado
+        val raw = if (texture.width > 0 && texture.height > 0) {
+            texture.getBitmap(texture.width, texture.height)
+        } else {
+            texture.bitmap
+        } ?: run { toast(R.string.no_text_found); return }
+
         toast(R.string.extracting_text)
         val client = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
         client.process(InputImage.fromBitmap(raw, 0))

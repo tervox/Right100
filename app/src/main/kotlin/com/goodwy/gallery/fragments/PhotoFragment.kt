@@ -63,6 +63,9 @@ import com.goodwy.gallery.helpers.*
 import com.goodwy.gallery.models.Medium
 import com.goodwy.gallery.svg.SvgSoftwareLayerSetter
 import com.squareup.picasso.Callback
+import com.bumptech.glide.load.MultiTransformation
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import jp.wasabeef.glide.transformations.BlurTransformation
 import com.squareup.picasso.Picasso
 import it.sephiroth.android.library.exif2.ExifInterface
 import org.apache.sanselan.common.byteSources.ByteSourceInputStream
@@ -227,6 +230,7 @@ class PhotoFragment : ViewPagerFragment() {
             binding.bottomActionsDummy.beGone()
         }
         loadImage()
+        loadBlurBackground()
         initExtendedDetails()
         mWasInit = true
         updateInstantSwitchWidths()
@@ -394,6 +398,21 @@ class PhotoFragment : ViewPagerFragment() {
             matrix.setRotate(degrees)
             Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
         }
+    }
+
+    private fun loadBlurBackground() {
+        val ctx = context ?: return
+        if (mMedium.isSVG() || ctx.config.blackBackground || !ctx.config.blurBackgroundPhoto) {
+            binding.photoBlurBg.beGone()
+            binding.photoBlurOverlay.beGone()
+            return
+        }
+        binding.photoBlurBg.beVisible()
+        binding.photoBlurOverlay.beVisible()
+        com.bumptech.glide.Glide.with(ctx)
+            .load(mMedium.path)
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+            .into(binding.photoBlurBg)
     }
 
     private fun loadImage() {

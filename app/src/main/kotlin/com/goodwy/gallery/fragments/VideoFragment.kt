@@ -654,28 +654,32 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         (activity as? BaseViewerActivity)?.applyProperHorizontalInsets(mTimeHolder)
 
         binding.bottomVideoTimeHolder.apply {
-            // Botão "Tela esticada" — alterna videoFillMode entre 0 (fit) e 1 (crop)
+            // Botão "Tela esticada" — cicla: normal → crop fill → stretch → normal
             try {
                 videoStretch.apply {
                     beVisibleIf(!mConfig.gestureVideoPlayer)
                     setImageResource(if (mConfig.videoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector)
                     setOnClickListener {
-                        mConfig.videoFillMode = if (mConfig.videoFillMode == 0) 1 else 0
+                        mConfig.videoFillMode = (mConfig.videoFillMode + 1) % 3
+                        mConfig.videoFillScreen = false
                         setVideoSize()
-                        setImageResource(if (mConfig.videoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
+                        setImageResource(if (mConfig.videoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector)
+                        videoFillScreen.setImageResource(R.drawable.ic_crop_free)
                     }
                 }
             } catch (_: Exception) {}
 
-            // Botão "Tela cheia" — força o vídeo a preencher a tela inteira
+            // Botão "Tela cheia" — preenche cortando bordas sem distorcer
             try {
                 videoFillScreen.apply {
                     beVisibleIf(!mConfig.gestureVideoPlayer)
                     setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
                     setOnClickListener {
                         mConfig.videoFillScreen = !mConfig.videoFillScreen
+                        if (mConfig.videoFillScreen) mConfig.videoFillMode = 0
                         setVideoSize()
                         setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
+                        videoStretch.setImageResource(R.drawable.ic_maximize_vector)
                     }
                 }
             } catch (_: Exception) {}
@@ -1008,24 +1012,52 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (activity == null || mConfig.gestureVideoPlayer) return
 
         val videoProportion = mVideoSize.x.toFloat() / mVideoSize.y.toFloat()
-        val display = requireActivity().windowManager.defaultDisplay
-        val screenWidth: Int
-        val screenHeight: Int
+        if (videoProportion == 0f) return
 
         val realMetrics = DisplayMetrics()
-        display.getRealMetrics(realMetrics)
-        screenWidth = realMetrics.widthPixels
-        screenHeight = realMetrics.heightPixels
-
+        @Suppress("DEPRECATION")
+        requireActivity().windowManager.defaultDisplay.getRealMetrics(realMetrics)
+        val screenWidth = realMetrics.widthPixels
+        val screenHeight = realMetrics.heightPixels
         val screenProportion = screenWidth.toFloat() / screenHeight.toFloat()
 
         mTextureView.layoutParams.apply {
-            if (videoProportion > screenProportion) {
-                width = screenWidth
-                height = (screenWidth.toFloat() / videoProportion).toInt()
-            } else {
-                width = (videoProportion * screenHeight.toFloat()).toInt()
-                height = screenHeight
+            when {
+                // Preencher tela (cortar bordas para não deixar barras pretas)
+                mConfig.videoFillScreen -> {
+                    if (videoProportion > screenProportion) {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    } else {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                }
+                // Esticar (distorce para ocupar tela toda)
+                mConfig.videoFillMode == 2 -> {
+                    width = screenWidth
+                    height = screenHeight
+                }
+                // Crop fill (igual fillScreen mas via modo 1)
+                mConfig.videoFillMode == 1 -> {
+                    if (videoProportion > screenProportion) {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    } else {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    }
+                }
+                // Padrão: ajustar mantendo proporção (barras pretas nas laterais/topo)
+                else -> {
+                    if (videoProportion > screenProportion) {
+                        width = screenWidth
+                        height = (screenWidth.toFloat() / videoProportion).toInt()
+                    } else {
+                        width = (videoProportion * screenHeight.toFloat()).toInt()
+                        height = screenHeight
+                    }
+                }
             }
             mTextureView.layoutParams = this
         }
