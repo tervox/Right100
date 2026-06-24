@@ -440,13 +440,41 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val transformer: ViewPager.PageTransformer? = when (config.slideshowAnimation) {
             SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
             SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
-            SLIDESHOW_ANIMATION_DEPTH -> DepthPageTransformer()
+            SLIDESHOW_ANIMATION_DEPTH -> object : ViewPager.PageTransformer {
+                override fun transformPage(view: android.view.View, position: Float) {
+                    when {
+                        position < -1f -> view.alpha = 0f
+                        position <= 0f -> { view.alpha = 1f; view.translationX = 0f; view.scaleX = 1f; view.scaleY = 1f }
+                        position <= 1f -> {
+                            view.alpha = 1f - position
+                            view.translationX = view.width * -position
+                            val scale = 0.75f + 0.25f * (1f - kotlin.math.abs(position))
+                            view.scaleX = scale; view.scaleY = scale
+                        }
+                        else -> view.alpha = 0f
+                    }
+                }
+            }
             SLIDESHOW_ANIMATION_FLIP -> FlipPageTransformer()
             SLIDESHOW_ANIMATION_ZOOM_IN -> ZoomInPageTransformer()
-            SLIDESHOW_ANIMATION_ZOOM_OUT -> ZoomOutPageTransformer()
+            SLIDESHOW_ANIMATION_ZOOM_OUT -> object : ViewPager.PageTransformer {
+                override fun transformPage(view: android.view.View, position: Float) {
+                    val pw = view.width.toFloat(); val ph = view.height.toFloat()
+                    when {
+                        position < -1f -> view.alpha = 0f
+                        position <= 1f -> {
+                            val s = (0.85f).coerceAtLeast(1f - kotlin.math.abs(position))
+                            val vm = ph * (1f - s) / 2f; val hm = pw * (1f - s) / 2f
+                            view.translationX = if (position < 0f) hm - vm / 2f else -hm + vm / 2f
+                            view.scaleX = s; view.scaleY = s
+                            view.alpha = 0.5f + (s - 0.85f) / 0.15f * 0.5f
+                        }
+                        else -> view.alpha = 0f
+                    }
+                }
+            }
             SLIDESHOW_ANIMATION_RANDOM -> listOf(
-                FadePageTransformer(), CubePageTransformer(), DepthPageTransformer(),
-                FlipPageTransformer(), ZoomInPageTransformer(), ZoomOutPageTransformer()
+                FadePageTransformer(), CubePageTransformer(), FlipPageTransformer(), ZoomInPageTransformer()
             ).random()
             else -> null
         }
