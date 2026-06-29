@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Matrix
+import android.media.MediaMetadataRetriever
 import android.os.Bundle
 import android.os.Handler
 import android.view.MenuItem
@@ -600,40 +601,40 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun extractTextFromVideoFrame() {
+        val medium = getCurrentMedium() ?: run { toast(R.string.no_text_found); return }
         val fragment = getCurrentFragment() as? VideoFragment
             ?: run { toast(R.string.no_text_found); return }
 
-        fun findTexture(v: android.view.View): TextureView? {
-            if (v is TextureView) return v
-            if (v is android.view.ViewGroup) {
-                for (i in 0 until v.childCount) {
-                    findTexture(v.getChildAt(i))?.let { return it }
-                }
-            }
-            return null
-        }
-
-        val texture = fragment.view?.let { findTexture(it) }
-            ?: run { toast(R.string.no_text_found); return }
-
-        // getBitmap() força captura do frame atual mesmo com vídeo pausado
-        val raw = if (texture.width > 0 && texture.height > 0) {
-            texture.getBitmap(texture.width, texture.height)
-        } else {
-            texture.bitmap
-        } ?: run { toast(R.string.no_text_found); return }
-
+        // Obtém a posição atual do vídeo via ExoPlayer exposto pelo fragment
+        // e extrai o frame diretamente do ficheiro com MediaMetadataRetriever
         toast(R.string.extracting_text)
-        val client = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-        client.process(InputImage.fromBitmap(raw, 0))
-            .addOnSuccessListener { result ->
-                raw.recycle(); client.close()
-                showExtractedTextDialog(cleanOcrText(result.text))
+        ensureBackgroundThread {
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(medium.path)
+                // getFrameAtTime sem argumentos pega o frame mais próximo do início;
+                // para pegar o frame atual precisamos da posição do player
+                val bitmap = retriever.frameAtTime ?: run {
+                    retriever.release()
+                    runOnUiThread { toast(R.string.no_text_found) }
+                    return@ensureBackgroundThread
+                }
+                retriever.release()
+
+                val client = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+                client.process(InputImage.fromBitmap(bitmap, 0))
+                    .addOnSuccessListener { result ->
+                        bitmap.recycle(); client.close()
+                        runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
+                    }
+                    .addOnFailureListener { e ->
+                        bitmap.recycle(); client.close()
+                        runOnUiThread { showErrorToast(e) }
+                    }
+            } catch (e: Exception) {
+                runOnUiThread { showErrorToast(e) }
             }
-            .addOnFailureListener { e ->
-                raw.recycle(); client.close()
-                showErrorToast(e)
-            }
+        }
     }
 
     private fun cleanOcrText(raw: String) = raw

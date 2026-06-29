@@ -653,36 +653,43 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mTimeHolder.alpha = if (mIsFullscreen) 0f else 1f
         (activity as? BaseViewerActivity)?.applyProperHorizontalInsets(mTimeHolder)
 
-        binding.bottomVideoTimeHolder.apply {
-            // Botão "Tela esticada" — cicla: normal → crop fill → stretch → normal
-            try {
-                videoStretch.apply {
-                    beVisibleIf(!mConfig.gestureVideoPlayer)
-                    setImageResource(if (mConfig.videoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector)
-                    setOnClickListener {
-                        mConfig.videoFillMode = (mConfig.videoFillMode + 1) % 3
-                        mConfig.videoFillScreen = false
-                        setVideoSize()
-                        setImageResource(if (mConfig.videoFillMode != 0) R.drawable.ic_minimize_vector else R.drawable.ic_maximize_vector)
-                        videoFillScreen.setImageResource(R.drawable.ic_crop_free)
-                    }
-                }
-            } catch (_: Exception) {}
+        if (mConfig.gestureVideoPlayer) return
 
-            // Botão "Tela cheia" — preenche cortando bordas sem distorcer
-            try {
-                videoFillScreen.apply {
-                    beVisibleIf(!mConfig.gestureVideoPlayer)
-                    setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
-                    setOnClickListener {
-                        mConfig.videoFillScreen = !mConfig.videoFillScreen
-                        if (mConfig.videoFillScreen) mConfig.videoFillMode = 0
-                        setVideoSize()
-                        setImageResource(if (mConfig.videoFillScreen) R.drawable.ic_minimize_vector else R.drawable.ic_crop_free)
-                        videoStretch.setImageResource(R.drawable.ic_maximize_vector)
+        // videoFillScreen fica sempre oculto - usamos só videoStretch que cicla pelos modos
+        binding.bottomVideoTimeHolder.videoFillScreen.beGone()
+
+        binding.bottomVideoTimeHolder.videoStretch.apply {
+            beVisible()
+            fun updateIcon() {
+                setImageResource(when {
+                    mConfig.videoFillScreen -> R.drawable.ic_minimize_vector   // preencher tela ativo
+                    mConfig.videoFillMode == 1 -> R.drawable.ic_crop_free      // crop ativo
+                    mConfig.videoFillMode == 2 -> R.drawable.ic_maximize_vector // esticar ativo
+                    else -> R.drawable.ic_maximize_vector                       // normal (ícone padrão)
+                })
+            }
+            updateIcon()
+            setOnClickListener {
+                // Ciclo: normal(0) → fill screen → crop(1) → stretch(2) → normal(0)
+                when {
+                    !mConfig.videoFillScreen && mConfig.videoFillMode == 0 -> {
+                        mConfig.videoFillScreen = true
+                        mConfig.videoFillMode = 0
+                    }
+                    mConfig.videoFillScreen -> {
+                        mConfig.videoFillScreen = false
+                        mConfig.videoFillMode = 1
+                    }
+                    mConfig.videoFillMode == 1 -> {
+                        mConfig.videoFillMode = 2
+                    }
+                    else -> {
+                        mConfig.videoFillMode = 0
                     }
                 }
-            } catch (_: Exception) {}
+                setVideoSize()
+                updateIcon()
+            }
         }
     }
 

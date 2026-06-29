@@ -19,7 +19,7 @@ import java.util.Locale
 
 class Config(context: Context) : BaseConfig(context) {
     var blurBackgroundPhoto: Boolean
-        get() = prefs.getBoolean("blur_background_photo", false)
+        get() = prefs.getBoolean("blur_background_photo", true)
         set(value) = prefs.edit { putBoolean("blur_background_photo", value) }
 
     var blurBackgroundVideo: Boolean
