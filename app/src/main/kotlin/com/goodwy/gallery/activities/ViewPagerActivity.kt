@@ -349,17 +349,20 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
         if (config.useRecycleBin && !skipRecycleBin && !medium.getIsInRecycleBin()) {
             movePathsInRecycleBin(arrayListOf(path)) { success ->
-                if (success) onCurrentFileRemoved()
-                else toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                runOnUiThread {
+                    if (success) onCurrentFileRemoved()
+                    else toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                }
             }
         } else {
             tryDeleteFileDirItem(fileDirItem, false, true) { success ->
-                if (success) onCurrentFileRemoved()
+                runOnUiThread { if (success) onCurrentFileRemoved() }
             }
         }
     }
 
     private fun onCurrentFileRemoved() {
+        if (mPos < 0 || mPos >= mMediums.size) return
         mMediums.removeAt(mPos)
         if (mMediums.isEmpty()) { finish(); return }
         if (mPos >= mMediums.size) mPos = mMediums.size - 1
@@ -409,10 +412,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val path = getCurrentPath()
         val fileDirItems = arrayListOf(FileDirItem(path, path.getFilenameFromPath()))
         tryCopyMoveFilesTo(fileDirItems, isCopy) { destination ->
-            config.tempFolderPath = ""
-            if (!isCopy) {
-                onCurrentFileRemoved()
-                updateFavoritePaths(fileDirItems, destination)
+            runOnUiThread {
+                config.tempFolderPath = ""
+                if (!isCopy) {
+                    onCurrentFileRemoved()
+                    updateFavoritePaths(fileDirItems, destination)
+                }
             }
         }
     }
