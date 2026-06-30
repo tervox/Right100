@@ -822,6 +822,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mIsDragged = false
     }
 
+    fun getCurrentVideoPositionMs(): Long = mExoPlayer?.currentPosition ?: mCurrTime
+
     fun togglePlayPause() {
         if (activity == null || !isAdded) {
             return

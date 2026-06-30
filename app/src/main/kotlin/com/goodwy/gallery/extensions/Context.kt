@@ -652,10 +652,12 @@ fun Context.loadImageBase(
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
         if (path.isGif()) {
-            // GIF: limita resolução, baixa prioridade e cache — evita travar a UI
+            // GIF: resolução bem reduzida (ícone de capa, não precisa de qualidade alta),
+            // prioridade baixa e RGB_565 (metade da memória do ARGB_8888) — evita travar a UI
             options.priority(Priority.LOW)
             options.diskCacheStrategy(DiskCacheStrategy.DATA)
-            options.override(300, 300)  // decodifica no máximo 300x300 — evita GIFs grandes travarem
+            options.override(150, 150)
+            options.format(DecodeFormat.PREFER_RGB_565)
         }
     } else {
         options.dontAnimate()

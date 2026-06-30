@@ -442,50 +442,63 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             initViewPager()
         }
 
-        // Aplica o transformador de animação
-        val transformer: ViewPager.PageTransformer? = when (config.slideshowAnimation) {
-            SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
-            SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
-            SLIDESHOW_ANIMATION_DEPTH -> object : ViewPager.PageTransformer {
-                override fun transformPage(view: android.view.View, position: Float) {
-                    when {
-                        position < -1f -> view.alpha = 0f
-                        position <= 0f -> { view.alpha = 1f; view.translationX = 0f; view.scaleX = 1f; view.scaleY = 1f }
-                        position <= 1f -> {
-                            view.alpha = 1f - position
-                            view.translationX = view.width * -position
-                            val scale = 0.75f + 0.25f * (1f - kotlin.math.abs(position))
-                            view.scaleX = scale; view.scaleY = scale
-                        }
-                        else -> view.alpha = 0f
-                    }
-                }
-            }
-            SLIDESHOW_ANIMATION_FLIP -> FlipPageTransformer()
-            SLIDESHOW_ANIMATION_ZOOM_IN -> ZoomInPageTransformer()
-            SLIDESHOW_ANIMATION_ZOOM_OUT -> object : ViewPager.PageTransformer {
-                override fun transformPage(view: android.view.View, position: Float) {
-                    val pw = view.width.toFloat(); val ph = view.height.toFloat()
-                    when {
-                        position < -1f -> view.alpha = 0f
-                        position <= 1f -> {
-                            val s = (0.85f).coerceAtLeast(1f - kotlin.math.abs(position))
-                            val vm = ph * (1f - s) / 2f; val hm = pw * (1f - s) / 2f
-                            view.translationX = if (position < 0f) hm - vm / 2f else -hm + vm / 2f
-                            view.scaleX = s; view.scaleY = s
-                            view.alpha = 0.5f + (s - 0.85f) / 0.15f * 0.5f
-                        }
-                        else -> view.alpha = 0f
-                    }
-                }
-            }
-            SLIDESHOW_ANIMATION_RANDOM -> listOf(
-                FadePageTransformer(), CubePageTransformer(), FlipPageTransformer(), ZoomInPageTransformer()
-            ).random()
-            else -> null
-        }
-        binding.viewPager.setPageTransformer(false, transformer ?: DefaultPageTransformer())
+        applySlideshowTransformer()
         scheduleSwipe()
+    }
+
+    private fun buildTransformer(animation: Int): ViewPager.PageTransformer? = when (animation) {
+        SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
+        SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
+        SLIDESHOW_ANIMATION_DEPTH -> object : ViewPager.PageTransformer {
+            override fun transformPage(view: android.view.View, position: Float) {
+                when {
+                    position < -1f -> view.alpha = 0f
+                    position <= 0f -> { view.alpha = 1f; view.translationX = 0f; view.scaleX = 1f; view.scaleY = 1f }
+                    position <= 1f -> {
+                        view.alpha = 1f - position
+                        view.translationX = view.width * -position
+                        val scale = 0.75f + 0.25f * (1f - kotlin.math.abs(position))
+                        view.scaleX = scale; view.scaleY = scale
+                    }
+                    else -> view.alpha = 0f
+                }
+            }
+        }
+        SLIDESHOW_ANIMATION_FLIP -> FlipPageTransformer()
+        SLIDESHOW_ANIMATION_ZOOM_IN -> ZoomInPageTransformer()
+        SLIDESHOW_ANIMATION_ZOOM_OUT -> object : ViewPager.PageTransformer {
+            override fun transformPage(view: android.view.View, position: Float) {
+                val pw = view.width.toFloat(); val ph = view.height.toFloat()
+                when {
+                    position < -1f -> view.alpha = 0f
+                    position <= 1f -> {
+                        val s = (0.85f).coerceAtLeast(1f - kotlin.math.abs(position))
+                        val vm = ph * (1f - s) / 2f; val hm = pw * (1f - s) / 2f
+                        view.translationX = if (position < 0f) hm - vm / 2f else -hm + vm / 2f
+                        view.scaleX = s; view.scaleY = s
+                        view.alpha = 0.5f + (s - 0.85f) / 0.15f * 0.5f
+                    }
+                    else -> view.alpha = 0f
+                }
+            }
+        }
+        else -> null
+    }
+
+    private val mRandomAnimations = listOf(
+        SLIDESHOW_ANIMATION_FADE, SLIDESHOW_ANIMATION_CUBE, SLIDESHOW_ANIMATION_DEPTH,
+        SLIDESHOW_ANIMATION_FLIP, SLIDESHOW_ANIMATION_ZOOM_IN, SLIDESHOW_ANIMATION_ZOOM_OUT
+    )
+
+    // No modo aleatório, sorteia uma animação diferente a cada chamada (cada transição)
+    private fun applySlideshowTransformer() {
+        val animation = if (config.slideshowAnimation == SLIDESHOW_ANIMATION_RANDOM) {
+            mRandomAnimations.random()
+        } else {
+            config.slideshowAnimation
+        }
+        val transformer = buildTransformer(animation)
+        binding.viewPager.setPageTransformer(false, transformer ?: DefaultPageTransformer())
     }
 
     private fun stopSlideshow() {
@@ -512,6 +525,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun swipeToNext() {
+        applySlideshowTransformer()
         if (config.slideshowAnimation == SLIDESHOW_ANIMATION_NONE) {
             goToNextMedium(!mSlideshowMoveBackwards)
         } else {
@@ -567,16 +581,28 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     // ── OCR ────────────────────────────────────────────────────────────────────
 
+    private var mOcrInProgress = false
+
     private fun extractTextFromCurrentMedia() {
+        if (mOcrInProgress) {
+            toast(R.string.extracting_text)
+            return
+        }
         val medium = getCurrentMedium() ?: return
         if (medium.isVideo()) { extractTextFromVideoFrame(); return }
 
+        mOcrInProgress = true
+        val requestedPath = medium.path
         toast(R.string.extracting_text)
         ensureBackgroundThread {
             try {
                 val rawBmp = BitmapFactory.decodeFile(medium.path)
                     ?.copy(Bitmap.Config.ARGB_8888, true)
-                    ?: run { runOnUiThread { toast(com.goodwy.commons.R.string.unknown_error_occurred) }; return@ensureBackgroundThread }
+                    ?: run {
+                        mOcrInProgress = false
+                        runOnUiThread { toast(com.goodwy.commons.R.string.unknown_error_occurred) }
+                        return@ensureBackgroundThread
+                    }
 
                 val exif = try { ExifInterface(medium.path) } catch (_: Throwable) { null }
                 val deg = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) ?: 1) {
@@ -593,50 +619,83 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 client.process(InputImage.fromBitmap(bmp, 0))
                     .addOnSuccessListener { result ->
                         bmp.recycle(); client.close()
-                        runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
+                        mOcrInProgress = false
+                        // Só mostra o resultado se o usuário ainda estiver na mesma mídia
+                        if (getCurrentPath() == requestedPath) {
+                            runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
+                        }
                     }
                     .addOnFailureListener { e ->
                         bmp.recycle(); client.close()
+                        mOcrInProgress = false
                         runOnUiThread { showErrorToast(e) }
                     }
             } catch (e: Throwable) {
+                mOcrInProgress = false
                 runOnUiThread { showErrorToast(e.localizedMessage ?: "") }
             }
         }
     }
 
     private fun extractTextFromVideoFrame() {
+        if (mOcrInProgress) {
+            toast(R.string.extracting_text)
+            return
+        }
         val medium = getCurrentMedium() ?: run { toast(R.string.no_text_found); return }
-        val fragment = getCurrentFragment() as? VideoFragment
-            ?: run { toast(R.string.no_text_found); return }
+        if (getCurrentFragment() as? VideoFragment == null) {
+            toast(R.string.no_text_found); return
+        }
 
-        // Obtém a posição atual do vídeo via ExoPlayer exposto pelo fragment
-        // e extrai o frame diretamente do ficheiro com MediaMetadataRetriever
+        mOcrInProgress = true
+        val requestedPath = medium.path
+        // Pega a posição atual de reprodução do vídeo, se disponível
+        val currentPositionMs = (getCurrentFragment() as? VideoFragment)?.getCurrentVideoPositionMs() ?: 0L
+
         toast(R.string.extracting_text)
         ensureBackgroundThread {
+            val retriever = android.media.MediaMetadataRetriever()
             try {
-                val retriever = android.media.MediaMetadataRetriever()
                 retriever.setDataSource(medium.path)
-                // getFrameAtTime sem argumentos pega o frame mais próximo do início;
-                // para pegar o frame atual precisamos da posição do player
-                val bitmap = retriever.frameAtTime ?: run {
-                    retriever.release()
+                val timeUs = currentPositionMs * 1000L
+
+                // getScaledFrameAtTime é muito mais rápido que frameAtTime pois decodifica
+                // direto em resolução reduzida, sem precisar redimensionar um bitmap gigante depois
+                val bitmap = if (android.os.Build.VERSION.SDK_INT >= 27) {
+                    retriever.getScaledFrameAtTime(
+                        timeUs,
+                        android.media.MediaMetadataRetriever.OPTION_CLOSEST,
+                        1280, 1280
+                    )
+                } else {
+                    retriever.getFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST)
+                }
+
+                retriever.release()
+
+                if (bitmap == null) {
+                    mOcrInProgress = false
                     runOnUiThread { toast(R.string.no_text_found) }
                     return@ensureBackgroundThread
                 }
-                retriever.release()
 
                 val client = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
                 client.process(InputImage.fromBitmap(bitmap, 0))
                     .addOnSuccessListener { result ->
                         bitmap.recycle(); client.close()
-                        runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
+                        mOcrInProgress = false
+                        if (getCurrentPath() == requestedPath) {
+                            runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
+                        }
                     }
                     .addOnFailureListener { e ->
                         bitmap.recycle(); client.close()
+                        mOcrInProgress = false
                         runOnUiThread { showErrorToast(e) }
                     }
             } catch (e: Exception) {
+                try { retriever.release() } catch (_: Exception) {}
+                mOcrInProgress = false
                 runOnUiThread { showErrorToast(e) }
             }
         }
