@@ -48,6 +48,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.MultiTransformation
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import jp.wasabeef.glide.transformations.BlurTransformation
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
 import com.goodwy.commons.helpers.ensureBackgroundThread
@@ -101,6 +104,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     var mIsPlaying = false
 
     private var mExoPlayer: ExoPlayer? = null
+    private var mBlurLoaded  = false   // true após o 1º carregamento do blur
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
 
@@ -271,6 +275,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         updatePlaybackSpeed(mConfig.playbackSpeed)
         storeStateVariables()
         Glide.with(context).load(mMedium.path).into(binding.videoPreview)
+        setupBlurBackground()  // fundo desfocado (igual ao das fotos)
 
         // setMenuVisibility is not called at VideoActivity (third party intent)
         if (!mIsFragmentVisible && activity is VideoActivity) {
@@ -1000,11 +1005,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun releaseExoPlayer() {
         mIsPlayerPrepared = false
-        mExoPlayer?.apply {
-            stop()
-            release()
-        }
+        mExoPlayer?.apply { stop(); release() }
         mExoPlayer = null
+        mBlurLoaded = false
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
@@ -1015,6 +1018,46 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
         mExoPlayer?.setVideoSurface(Surface(mTextureView.surfaceTexture))
+    }
+
+    /**
+     * Fundo desfocado para vídeos — igual ao das fotos (Glide + BlurTransformation).
+     * Não usa segundo ExoPlayer → sem conflito de codec, funciona em qualquer API.
+     * mBlurLoaded evita recarregar a cada rotação de tela.
+     */
+    private fun setupBlurBackground() {
+        if (!mConfig.blurBackgroundVideo || mConfig.blackBackground) {
+            binding.videoBlurBg.beGone()
+            binding.videoBlurOverlay.beGone()
+            binding.videoBlurSurface.beGone()
+            return
+        }
+        if (mBlurLoaded) return
+
+        binding.videoBlurSurface.beGone()      // TextureView: reservado para implementação futura
+        binding.videoBlurBg.beVisible()
+        binding.videoBlurOverlay.beVisible()
+
+        // Carrega o primeiro frame do vídeo e aplica blur de raio 25
+        // Mesmo padrão de PhotoFragment — comprovadamente estável
+        Glide.with(requireContext())
+            .load(mMedium.path)
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+            .into(binding.videoBlurBg)
+
+        mBlurLoaded = true
+    }
+
+    /**
+     * Libera o ExoPlayer ANTES de operações de arquivo (mover/deletar).
+     * Sem isso o player mantém o file descriptor aberto →
+     * IllegalArgumentException no tryDeleteFileDirItem / tryCopyMoveFilesTo.
+     */
+    fun releasePlayerForFileOp() {
+        mExoPlayer?.apply { stop(); release() }
+        mExoPlayer = null
+        mIsPlayerPrepared = false
+        mBlurLoaded = false
     }
 
     private fun setVideoSize() {

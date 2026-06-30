@@ -23,7 +23,7 @@ class Config(context: Context) : BaseConfig(context) {
         set(value) = prefs.edit { putBoolean("blur_background_photo", value) }
 
     var blurBackgroundVideo: Boolean
-        get() = prefs.getBoolean("blur_background_video", false)
+        get() = prefs.getBoolean("blur_background_video", true)
         set(value) = prefs.edit { putBoolean("blur_background_video", value) }
 
     var showSelectAllFab: Boolean

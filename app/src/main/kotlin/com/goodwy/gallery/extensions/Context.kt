@@ -31,6 +31,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.FitCenter
+import com.bumptech.glide.load.resource.bitmap.DownsampleStrategy
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
@@ -652,12 +653,11 @@ fun Context.loadImageBase(
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
         if (path.isGif()) {
-            // GIF: resolução bem reduzida (ícone de capa, não precisa de qualidade alta),
-            // prioridade baixa e RGB_565 (metade da memória do ARGB_8888) — evita travar a UI
+            // Decodifica cada frame do GIF no tamanho do thumbnail (não no tamanho original do arquivo).
+            // Ex: GIF 500×500 em thumbnail 180×180 → 87% menos memória por frame; animação mantida.
+            // Diferente de override(150,150): CENTER_INSIDE usa o tamanho real do ImageView, não hard-coded.
+            options.downsample(DownsampleStrategy.CENTER_INSIDE)
             options.priority(Priority.LOW)
-            options.diskCacheStrategy(DiskCacheStrategy.DATA)
-            options.override(150, 150)
-            options.format(DecodeFormat.PREFER_RGB_565)
         }
     } else {
         options.dontAnimate()

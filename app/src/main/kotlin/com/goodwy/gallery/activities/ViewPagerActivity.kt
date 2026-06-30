@@ -341,6 +341,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun deleteCurrentFile(skipRecycleBin: Boolean) {
+        // Libera o player antes: sem isso, deletar vídeo em reprodução causa IllegalArgumentException
+        (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
         val medium = getCurrentMedium() ?: return
         val path = medium.path
         val fileDirItem = medium.toFileDirItem()
@@ -402,6 +404,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun copyMoveTo(isCopy: Boolean) {
+        // Libera o player antes: mover arquivo em reprodução pode causar IllegalArgumentException
+        if (!isCopy) (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
         val path = getCurrentPath()
         val fileDirItems = arrayListOf(FileDirItem(path, path.getFilenameFromPath()))
         tryCopyMoveFilesTo(fileDirItems, isCopy) { destination ->
