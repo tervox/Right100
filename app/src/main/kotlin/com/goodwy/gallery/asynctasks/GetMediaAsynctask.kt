@@ -34,6 +34,8 @@ class GetMediaAsynctask(
     }
 
     override fun doInBackground(vararg params: Void): ArrayList<ThumbnailItem> {
+        // Aumenta prioridade desta thread → 1ª visita a uma pasta abre visivelmente mais rápido
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE)
         val pathToUse = if (showAll) SHOW_ALL else mPath
         val folderGrouping = context.config.getFolderGrouping(pathToUse)
         val folderSorting = context.config.getFolderSorting(pathToUse)

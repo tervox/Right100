@@ -18,6 +18,7 @@ import android.widget.RelativeLayout
 import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.goodwy.commons.dialogs.CreateNewFolderDialog
 import com.goodwy.commons.dialogs.FilePickerDialog
 import com.goodwy.commons.dialogs.RadioGroupDialog
@@ -154,6 +155,20 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 surfaceColor = useSurfaceColor
             )
         }
+
+        // Pausa Glide (e GIFs animadas) durante fling → elimina jank nas capas de pasta
+        // Retoma imediatamente ao soltar o dedo (IDLE) ou ao arrastar (DRAGGING)
+        binding.directoriesGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                try {
+                    if (newState == RecyclerView.SCROLL_STATE_SETTLING) {
+                        Glide.with(this@MainActivity).pauseRequests()
+                    } else {
+                        Glide.with(this@MainActivity).resumeRequests()
+                    }
+                } catch (_: Exception) {}
+            }
+        })
 
         binding.directoriesRefreshLayout.setOnRefreshListener { getDirectories() }
         storeStateVariables()

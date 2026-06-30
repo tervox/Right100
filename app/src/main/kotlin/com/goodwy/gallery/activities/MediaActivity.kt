@@ -607,6 +607,19 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             private var lastY = 0
             private val SCROLL_THRESHOLD = 10 // Minimal movement for reaction
 
+            // Pausa Glide durante fling rápido → thumbnails não carregam itens já passados
+            // Retoma ao parar (IDLE) ou ao arrastar devagar (DRAGGING)
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                try {
+                    val glide = com.bumptech.glide.Glide.with(this@MediaActivity)
+                    if (newState == RecyclerView.SCROLL_STATE_SETTLING) {
+                        glide.pauseRequests()
+                    } else {
+                        glide.resumeRequests()
+                    }
+                } catch (_: Exception) {}
+            }
+
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
 

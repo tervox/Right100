@@ -647,24 +647,45 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
         val medium = getCurrentMedium() ?: run { toast(R.string.no_text_found); return }
-        if (getCurrentFragment() as? VideoFragment == null) {
+        val videoFragment = getCurrentFragment() as? VideoFragment ?: run {
             toast(R.string.no_text_found); return
         }
 
         mOcrInProgress = true
         val requestedPath = medium.path
-        // Pega a posição atual de reprodução do vídeo, se disponível
-        val currentPositionMs = (getCurrentFragment() as? VideoFragment)?.getCurrentVideoPositionMs() ?: 0L
-
         toast(R.string.extracting_text)
+
+        // ── Caminho RÁPIDO: captura o frame já renderizado na GPU ──────────────────
+        // TextureView.getBitmap() é instantâneo (sem I/O, sem seek de vídeo).
+        // Funciona enquanto o vídeo estiver visível (tocando ou pausado com frame).
+        val fastFrame = videoFragment.captureCurrentFrame()
+        if (fastFrame != null) {
+            val client = com.google.mlkit.vision.text.TextRecognition
+                .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
+            client.process(com.google.mlkit.vision.common.InputImage.fromBitmap(fastFrame, 0))
+                .addOnSuccessListener { result ->
+                    fastFrame.recycle(); client.close()
+                    mOcrInProgress = false
+                    if (getCurrentPath() == requestedPath)
+                        runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
+                }
+                .addOnFailureListener { e ->
+                    fastFrame.recycle(); client.close()
+                    mOcrInProgress = false
+                    runOnUiThread { showErrorToast(e) }
+                }
+            return
+        }
+
+        // ── Fallback LENTO: MediaMetadataRetriever ────────────────────────────────
+        // Usado quando a TextureView não tem frame (ex: vídeo ainda não iniciou).
+        val currentPositionMs = videoFragment.getCurrentVideoPositionMs()
         ensureBackgroundThread {
             val retriever = android.media.MediaMetadataRetriever()
             try {
                 retriever.setDataSource(medium.path)
                 val timeUs = currentPositionMs * 1000L
 
-                // getScaledFrameAtTime é muito mais rápido que frameAtTime pois decodifica
-                // direto em resolução reduzida, sem precisar redimensionar um bitmap gigante depois
                 val bitmap = if (android.os.Build.VERSION.SDK_INT >= 27) {
                     retriever.getScaledFrameAtTime(
                         timeUs,

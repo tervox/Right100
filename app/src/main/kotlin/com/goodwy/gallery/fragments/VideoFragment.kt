@@ -829,6 +829,15 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     fun getCurrentVideoPositionMs(): Long = mExoPlayer?.currentPosition ?: mCurrTime
 
+    /**
+     * Captura o frame atual direto da GPU (TextureView.getBitmap).
+     * Retorno instantâneo — sem I/O de disco, sem seek de vídeo.
+     * Usado pelo OCR como caminho rápido antes de tentar MediaMetadataRetriever.
+     */
+    fun captureCurrentFrame(): android.graphics.Bitmap? =
+        try { mTextureView.getBitmap() } catch (_: Exception) { null }
+
+
     fun togglePlayPause() {
         if (activity == null || !isAdded) {
             return
