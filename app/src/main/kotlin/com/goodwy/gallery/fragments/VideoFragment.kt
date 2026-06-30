@@ -1069,7 +1069,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         // Android 12+: RenderEffect aplica blur Gaussiano na GPU a cada frame do ImageView
         if (android.os.Build.VERSION.SDK_INT >= 31) {
-            @androidx.annotation.RequiresApi(31)
             binding.videoBlurBg.setRenderEffect(
                 android.graphics.RenderEffect.createBlurEffect(
                     40f, 40f, android.graphics.Shader.TileMode.CLAMP
