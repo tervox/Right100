@@ -104,9 +104,25 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     var mIsPlaying = false
 
     private var mExoPlayer: ExoPlayer? = null
-    private var mBlurLoaded  = false   // true após o 1º carregamento do blur
     private var mVideoSize = Point(1, 1)
     private var mTimerHandler = Handler()
+
+    // ── Blur animado ───────────────────────────────────────────────────────────
+    // getBitmap(32,18) captura um frame 32×18 px (minúsculo) da TextureView.
+    // Quando a ImageView exibe esse bitmap em fullscreen (centerCrop + bilinear),
+    // o upscale cria um efeito de blur gratuito — sem RenderScript, sem ExoPlayer extra.
+    // No Android 12+, RenderEffect.createBlurEffect() suaviza ainda mais via GPU.
+    private val mBlurHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val mBlurFrameRunnable = object : Runnable {
+        override fun run() {
+            if (!isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
+            try {
+                val frame = mTextureView.getBitmap(32, 18)  // 32×18 → 2 KB por frame
+                binding.videoBlurBg.setImageBitmap(frame)
+            } catch (_: Exception) {}
+            if (mExoPlayer?.isPlaying == true) mBlurHandler.postDelayed(this, 100L)  // 10fps
+        }
+    }
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -910,6 +926,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
         mExoPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        startLiveBlurUpdates()  // blur começa a seguir o vídeo
     }
 
     private fun pauseVideo() {
@@ -927,6 +944,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         mPositionAtPause = mExoPlayer?.currentPosition ?: 0L
+        stopLiveBlurUpdates()  // para captura de frames quando pausa
     }
 
     private fun videoEnded(): Boolean {
@@ -1014,9 +1032,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun releaseExoPlayer() {
         mIsPlayerPrepared = false
+        stopLiveBlurUpdates()
         mExoPlayer?.apply { stop(); release() }
         mExoPlayer = null
-        mBlurLoaded = false
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
@@ -1030,9 +1048,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     /**
-     * Fundo desfocado para vídeos — igual ao das fotos (Glide + BlurTransformation).
-     * Não usa segundo ExoPlayer → sem conflito de codec, funciona em qualquer API.
-     * mBlurLoaded evita recarregar a cada rotação de tela.
+     * Configura o fundo animado desfocado do vídeo.
+     *
+     * Técnica: getBitmap(32,18) captura frames minúsculos da TextureView a 10fps.
+     * O upscale pela ImageView (bilinear/centerCrop) cria blur gratuito.
+     * Android 12+: RenderEffect.createBlurEffect() suaviza via GPU.
+     * Resultado: blur que SEGUE o vídeo, sem 2º player, sem conflito de codec.
      */
     private fun setupBlurBackground() {
         if (!mConfig.blurBackgroundVideo || mConfig.blackBackground) {
@@ -1041,20 +1062,38 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             binding.videoBlurSurface.beGone()
             return
         }
-        if (mBlurLoaded) return
 
-        binding.videoBlurSurface.beGone()      // TextureView: reservado para implementação futura
+        binding.videoBlurSurface.beGone()
         binding.videoBlurBg.beVisible()
         binding.videoBlurOverlay.beVisible()
 
-        // Carrega o primeiro frame do vídeo e aplica blur de raio 25
-        // Mesmo padrão de PhotoFragment — comprovadamente estável
+        // Android 12+: RenderEffect aplica blur Gaussiano na GPU a cada frame do ImageView
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            @androidx.annotation.RequiresApi(31)
+            binding.videoBlurBg.setRenderEffect(
+                android.graphics.RenderEffect.createBlurEffect(
+                    40f, 40f, android.graphics.Shader.TileMode.CLAMP
+                )
+            )
+        }
+
+        // Mostra 1º frame com blur imediatamente (antes do player iniciar)
         Glide.with(requireContext())
             .load(mMedium.path)
             .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
             .into(binding.videoBlurBg)
+    }
 
-        mBlurLoaded = true
+    /** Inicia as atualizações do blur animado — chamar quando o vídeo começa a tocar. */
+    private fun startLiveBlurUpdates() {
+        if (!mConfig.blurBackgroundVideo || mConfig.blackBackground) return
+        mBlurHandler.removeCallbacks(mBlurFrameRunnable)
+        mBlurHandler.postDelayed(mBlurFrameRunnable, 100L)
+    }
+
+    /** Para as atualizações — chamar ao pausar, parar ou destruir. */
+    private fun stopLiveBlurUpdates() {
+        mBlurHandler.removeCallbacks(mBlurFrameRunnable)
     }
 
     /**
@@ -1063,10 +1102,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
      * IllegalArgumentException no tryDeleteFileDirItem / tryCopyMoveFilesTo.
      */
     fun releasePlayerForFileOp() {
+        stopLiveBlurUpdates()
         mExoPlayer?.apply { stop(); release() }
         mExoPlayer = null
         mIsPlayerPrepared = false
-        mBlurLoaded = false
     }
 
     private fun setVideoSize() {
