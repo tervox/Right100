@@ -102,6 +102,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 }, HIDE_SYSTEM_UI_DELAY)
             }
         }
+
+        // Quando vem do botão "Apresentação" da tela de pastas, mostra o diálogo de opções
+        if (intent.getBooleanExtra(SLIDESHOW_START_ON_ENTER, false)) {
+            binding.viewPager.post { initSlideshow() }
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
