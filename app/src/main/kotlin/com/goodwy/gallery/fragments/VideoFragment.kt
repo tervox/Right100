@@ -682,31 +682,20 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         binding.bottomVideoTimeHolder.videoStretch.apply {
             beVisible()
             fun updateIcon() {
-                setImageResource(when {
-                    mConfig.videoFillScreen -> R.drawable.ic_minimize_vector   // preencher tela ativo
-                    mConfig.videoFillMode == 1 -> R.drawable.ic_crop_free      // crop ativo
-                    mConfig.videoFillMode == 2 -> R.drawable.ic_maximize_vector // esticar ativo
-                    else -> R.drawable.ic_maximize_vector                       // normal (ícone padrão)
-                })
+                setImageResource(if (mConfig.videoFillMode == 2)
+                    R.drawable.ic_maximize_vector
+                else
+                    R.drawable.ic_crop_free)
             }
             updateIcon()
             setOnClickListener {
-                // Ciclo: normal(0) → fill screen → crop(1) → stretch(2) → normal(0)
-                when {
-                    !mConfig.videoFillScreen && mConfig.videoFillMode == 0 -> {
-                        mConfig.videoFillScreen = true
-                        mConfig.videoFillMode = 0
-                    }
-                    mConfig.videoFillScreen -> {
-                        mConfig.videoFillScreen = false
-                        mConfig.videoFillMode = 1
-                    }
-                    mConfig.videoFillMode == 1 -> {
-                        mConfig.videoFillMode = 2
-                    }
-                    else -> {
-                        mConfig.videoFillMode = 0
-                    }
+                // 2 modos: normal (0) <-> esticado (2)
+                if (mConfig.videoFillMode == 2) {
+                    mConfig.videoFillMode = 0
+                    mConfig.videoFillScreen = false
+                } else {
+                    mConfig.videoFillMode = 2
+                    mConfig.videoFillScreen = false
                 }
                 setVideoSize()
                 updateIcon()
@@ -1071,7 +1060,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (android.os.Build.VERSION.SDK_INT >= 31) {
             binding.videoBlurBg.setRenderEffect(
                 android.graphics.RenderEffect.createBlurEffect(
-                    40f, 40f, android.graphics.Shader.TileMode.CLAMP
+                    15f, 15f, android.graphics.Shader.TileMode.CLAMP
                 )
             )
         }
@@ -1079,7 +1068,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // Mostra 1º frame com blur imediatamente (antes do player iniciar)
         Glide.with(requireContext())
             .load(mMedium.path)
-            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(15, 3)))
             .into(binding.videoBlurBg)
     }
 

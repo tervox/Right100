@@ -161,10 +161,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         binding.directoriesGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 try {
-                    if (newState == RecyclerView.SCROLL_STATE_SETTLING) {
-                        Glide.with(this@MainActivity).pauseRequests()
-                    } else {
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         Glide.with(this@MainActivity).resumeRequests()
+                    } else {
+                        Glide.with(this@MainActivity).pauseRequests()
                     }
                 } catch (_: Exception) {}
             }

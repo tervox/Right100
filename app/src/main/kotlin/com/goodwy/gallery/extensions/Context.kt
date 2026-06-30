@@ -658,6 +658,7 @@ fun Context.loadImageBase(
             // Diferente de override(150,150): CENTER_INSIDE usa o tamanho real do ImageView, não hard-coded.
             options.downsample(DownsampleStrategy.CENTER_INSIDE)
             options.priority(Priority.LOW)
+            options.override(320, 320)
         }
     } else {
         options.dontAnimate()

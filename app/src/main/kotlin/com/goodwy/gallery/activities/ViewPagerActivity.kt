@@ -605,8 +605,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         toast(R.string.extracting_text)
         ensureBackgroundThread {
             try {
-                val rawBmp = BitmapFactory.decodeFile(medium.path)
-                    ?.copy(Bitmap.Config.ARGB_8888, true)
+                val sampledOpts = android.graphics.BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                    BitmapFactory.decodeFile(medium.path, this)
+                    val d = maxOf(outWidth, outHeight)
+                    inSampleSize = if (d <= 1280) 1 else Integer.highestOneBit(d / 1280)
+                    inJustDecodeBounds = false
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+                val rawBmp = BitmapFactory.decodeFile(medium.path, sampledOpts)
                     ?: run {
                         mOcrInProgress = false
                         runOnUiThread { toast(com.goodwy.commons.R.string.unknown_error_occurred) }

@@ -411,7 +411,8 @@ class PhotoFragment : ViewPagerFragment() {
         binding.photoBlurOverlay.beVisible()
         com.bumptech.glide.Glide.with(ctx)
             .load(mMedium.path)
-            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 3)))
+            .thumbnail(0.2f)
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
             .into(binding.photoBlurBg)
     }
 
