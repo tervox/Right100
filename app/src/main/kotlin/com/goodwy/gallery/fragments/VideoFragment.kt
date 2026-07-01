@@ -117,10 +117,15 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         override fun run() {
             if (!isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
             try {
-                val frame = mTextureView.getBitmap(32, 18)  // 32×18 → 2 KB por frame
+                // 128x72 = 8x upscale em 1080p (vs 33x do 32x18) -> sem blocos
+                val frame = mTextureView.getBitmap(128, 72)
+                val prev = (binding.videoBlurBg.drawable
+                    as? android.graphics.drawable.BitmapDrawable)?.bitmap
                 binding.videoBlurBg.setImageBitmap(frame)
+                if (prev != null && prev !== frame) prev.recycle()
             } catch (_: Exception) {}
-            if (mExoPlayer?.isPlaying == true) mBlurHandler.postDelayed(this, 100L)  // 10fps
+            // 5fps: divide GPU com o decoder de video sem competir
+            if (mExoPlayer?.isPlaying == true) mBlurHandler.postDelayed(this, 200L)
         }
     }
 
@@ -682,20 +687,28 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         binding.bottomVideoTimeHolder.videoStretch.apply {
             beVisible()
             fun updateIcon() {
-                setImageResource(if (mConfig.videoFillMode == 2)
-                    R.drawable.ic_maximize_vector
-                else
-                    R.drawable.ic_crop_free)
+                setImageResource(when {
+                    mConfig.videoFillMode == 2 -> R.drawable.ic_maximize_vector
+                    mConfig.videoFillScreen    -> R.drawable.ic_minimize_vector
+                    else                       -> R.drawable.ic_crop_free
+                })
             }
             updateIcon()
             setOnClickListener {
-                // 2 modos: normal (0) <-> esticado (2)
-                if (mConfig.videoFillMode == 2) {
-                    mConfig.videoFillMode = 0
-                    mConfig.videoFillScreen = false
-                } else {
-                    mConfig.videoFillMode = 2
-                    mConfig.videoFillScreen = false
+                // 3 modos: normal -> esticado -> tela cheia -> normal
+                when {
+                    !mConfig.videoFillScreen && mConfig.videoFillMode != 2 -> {
+                        mConfig.videoFillMode = 2
+                        mConfig.videoFillScreen = false
+                    }
+                    mConfig.videoFillMode == 2 -> {
+                        mConfig.videoFillMode = 0
+                        mConfig.videoFillScreen = true
+                    }
+                    else -> {
+                        mConfig.videoFillMode = 0
+                        mConfig.videoFillScreen = false
+                    }
                 }
                 setVideoSize()
                 updateIcon()
@@ -1060,7 +1073,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (android.os.Build.VERSION.SDK_INT >= 31) {
             binding.videoBlurBg.setRenderEffect(
                 android.graphics.RenderEffect.createBlurEffect(
-                    15f, 15f, android.graphics.Shader.TileMode.CLAMP
+                    25f, 25f, android.graphics.Shader.TileMode.CLAMP
                 )
             )
         }

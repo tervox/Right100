@@ -119,6 +119,7 @@ class GetMediaAsynctask(
             // buscam duração via MediaMetadataRetriever sem bloquear o scan principal
             val videosWithoutDuration = media.filterIsInstance<Medium>()
                 .filter { it.isVideo() && it.videoDuration == 0 }
+            .take(20)
             if (videosWithoutDuration.isNotEmpty()) {
                 Thread {
                     videosWithoutDuration.forEach { medium ->

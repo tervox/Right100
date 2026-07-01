@@ -326,6 +326,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val medium = getCurrentMedium() ?: return
         val fileDirItem = medium.toFileDirItem()
         val isInRecycleBin = medium.getIsInRecycleBin()
+
+        // "Nao perguntar novamente" foi marcado -> executa direto, sem dialog
+        if (config.tempSkipDeleteConfirmation && !isInRecycleBin) {
+            deleteCurrentFile(skipRecycleBin = config.tempSkipRecycleBin)
+            return
+        }
+
         val baseString = if (config.useRecycleBin && !config.tempSkipRecycleBin && !isInRecycleBin)
             com.goodwy.commons.R.string.move_to_recycle_bin_confirmation
         else com.goodwy.commons.R.string.deletion_confirmation
@@ -335,7 +342,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val showSkipOption = config.useRecycleBin && !isInRecycleBin
 
         DeleteWithRememberDialog(this, question, showSkipOption) { remember, skipRecycleBin ->
-            if (remember) config.tempSkipRecycleBin = skipRecycleBin
+            if (remember) {
+                config.tempSkipRecycleBin = skipRecycleBin
+                config.tempSkipDeleteConfirmation = true  // salva o skip
+            }
             deleteCurrentFile(skipRecycleBin)
         }
     }
