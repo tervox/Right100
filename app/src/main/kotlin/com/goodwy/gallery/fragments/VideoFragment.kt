@@ -129,6 +129,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
+    // Blur sync: flag e timestamp para onSurfaceTextureUpdated
+    private var mBlurActive = false
+    private var mLastBlurUpdateMs = 0L
+
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
     private var mStoredBottomActions = true
@@ -1042,7 +1046,20 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        // Sincroniza blur exatamente com o frame renderizado (sem timer desacoplado)
+        if (!mBlurActive || !isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
+        val now = System.currentTimeMillis()
+        if (now - mLastBlurUpdateMs < 200L) return  // throttle 5fps
+        mLastBlurUpdateMs = now
+        try {
+            val frame = mTextureView.getBitmap(128, 72)
+            val prev = (binding.videoBlurBg.drawable
+                as? android.graphics.drawable.BitmapDrawable)?.bitmap
+            binding.videoBlurBg.setImageBitmap(frame)
+            if (prev != null && prev !== frame) prev.recycle()
+        } catch (_: Exception) {}
+    }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture) = false
 
@@ -1090,12 +1107,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun startLiveBlurUpdates() {
         if (!mConfig.blurBackgroundVideo || mConfig.blackBackground) return
         mBlurHandler.removeCallbacks(mBlurFrameRunnable)
-        mBlurHandler.postDelayed(mBlurFrameRunnable, 100L)
+        mBlurActive = true
+        mLastBlurUpdateMs = 0L  // proximo frame atualiza imediatamente
     }
 
     /** Para as atualizações — chamar ao pausar, parar ou destruir. */
     private fun stopLiveBlurUpdates() {
         mBlurHandler.removeCallbacks(mBlurFrameRunnable)
+        mBlurActive = false
     }
 
     /**

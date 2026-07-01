@@ -202,6 +202,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             R.id.menu_unhide -> toggleVisibility(false)
             R.id.menu_restore_file -> restoreCurrentFile()
             R.id.menu_extract_text -> extractTextFromCurrentMedia()
+            R.id.menu_settings -> startActivity(Intent(this, com.goodwy.gallery.activities.SettingsActivity::class.java))
             else -> return false
         }
         return true
@@ -303,6 +304,44 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
 
         if (medium != null) updateBottomActionIcons(medium)
+
+        // Aplica a ordem salva pelo usuario (bottomActionsOrder)
+        val orderStr = config.bottomActionsOrder
+        if (orderStr.isNotEmpty()) {
+            val actionToView = mapOf(
+                BOTTOM_ACTION_TOGGLE_FAVORITE to binding.bottomActions.bottomFavorite,
+                BOTTOM_ACTION_EDIT           to binding.bottomActions.bottomEdit,
+                BOTTOM_ACTION_SHARE          to binding.bottomActions.bottomShare,
+                BOTTOM_ACTION_DELETE         to binding.bottomActions.bottomDelete,
+                BOTTOM_ACTION_ROTATE         to binding.bottomActions.bottomRotate,
+                BOTTOM_ACTION_PROPERTIES     to binding.bottomActions.bottomProperties,
+                BOTTOM_ACTION_CHANGE_ORIENTATION to binding.bottomActions.bottomChangeOrientation,
+                BOTTOM_ACTION_SLIDESHOW       to binding.bottomActions.bottomSlideshow,
+                BOTTOM_ACTION_SHOW_ON_MAP    to binding.bottomActions.bottomShowOnMap,
+                BOTTOM_ACTION_TOGGLE_VISIBILITY to binding.bottomActions.bottomToggleFileVisibility,
+                BOTTOM_ACTION_RENAME         to binding.bottomActions.bottomRename,
+                BOTTOM_ACTION_SET_AS         to binding.bottomActions.bottomSetAs,
+                BOTTOM_ACTION_COPY           to binding.bottomActions.bottomCopy,
+                BOTTOM_ACTION_MOVE           to binding.bottomActions.bottomMove,
+                BOTTOM_ACTION_RESIZE         to binding.bottomActions.bottomResize,
+                BOTTOM_ACTION_PLAY_PAUSE     to binding.bottomActions.bottomPlayPause,
+                BOTTOM_ACTION_MUTE           to binding.bottomActions.bottomMute,
+                BOTTOM_ACTION_EXTRACT_TEXT   to binding.bottomActions.bottomExtractText
+            )
+            try {
+                val container = binding.bottomActions.root as? android.view.ViewGroup ?: return
+                val orderedIds = orderStr.split(",").mapNotNull { it.trim().toIntOrNull() }
+                var insertIndex = 0
+                for (actionId in orderedIds) {
+                    val view = actionToView[actionId] ?: continue
+                    if (view.parent == container) {
+                        container.removeView(view)
+                        container.addView(view, insertIndex)
+                        insertIndex++
+                    }
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun updateBottomActionIcons(medium: Medium) {
