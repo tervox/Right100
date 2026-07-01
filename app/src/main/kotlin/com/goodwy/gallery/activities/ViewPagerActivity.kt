@@ -526,7 +526,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             mSlideshowHandler.removeCallbacksAndMessages(null)
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             binding.viewPager.setPageTransformer(false, DefaultPageTransformer())
+            mIsFullScreen = false
             showSystemUI()
+            fullscreenToggled()  // restaura barra superior/inferior para swipe funcionar
         }
     }
 
@@ -641,7 +643,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     r
                 } else rawBmp
 
-                val client = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+                val client = TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
                 client.process(InputImage.fromBitmap(bmp, 0))
                     .addOnSuccessListener { result ->
                         bmp.recycle(); client.close()
@@ -683,7 +685,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val fastFrame = videoFragment.captureCurrentFrame()
         if (fastFrame != null) {
             val client = com.google.mlkit.vision.text.TextRecognition
-                .getClient(com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build())
+                .getClient(com.google.mlkit.vision.text.chinese.com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
             client.process(com.google.mlkit.vision.common.InputImage.fromBitmap(fastFrame, 0))
                 .addOnSuccessListener { result ->
                     fastFrame.recycle(); client.close()
@@ -726,7 +728,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     return@ensureBackgroundThread
                 }
 
-                val client = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+                val client = TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
                 client.process(InputImage.fromBitmap(bitmap, 0))
                     .addOnSuccessListener { result ->
                         bitmap.recycle(); client.close()
@@ -795,6 +797,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         updateTitle()
         refreshMenuItems()
         scheduleSwipe()
+        // Play direto no video novo, sem pause intermediario
+        val viewId = binding.viewPager.id
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            val tag = "android:switcher:$viewId:$position"
+            (supportFragmentManager.findFragmentByTag(tag) as? VideoFragment)?.playVideo()
+        }
     }
 
     override fun onPageScrollStateChanged(state: Int) {}

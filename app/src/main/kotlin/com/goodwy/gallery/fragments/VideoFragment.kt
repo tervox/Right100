@@ -570,7 +570,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         mExoPlayer = ExoPlayer.Builder(requireContext())
             .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
-            .setSeekParameters(SeekParameters.EXACT)
+            .setSeekParameters(SeekParameters.CLOSEST_SYNC)
             .setLoadControl(loadControl)
             .build()
             .apply {
@@ -823,7 +823,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mExoPlayer == null) {
             return
         }
-
+        // CLOSEST_SYNC: salta para keyframe -> seek suave durante arraste
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         mExoPlayer!!.playWhenReady = false
         mIsDragged = true
     }
