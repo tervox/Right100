@@ -853,6 +853,27 @@
                             tools:text="@string/screen_rotation_system_setting" />
 
                     </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_viewer_animation_holder"
+                        style="@style/SettingsHolderStyle">
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_viewer_animation_label"
+                            style="@style/SettingsTextLabelStyle"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@+id/settings_viewer_animation"
+                            android:text="@string/viewer_animation_setting" />
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_viewer_animation"
+                            style="@style/SettingsTextValueStyle"
+                            android:layout_alignParentEnd="true"
+                            android:layout_marginEnd="@dimen/settings_margin"
+                            tools:text="@string/slide" />
+
+                    </RelativeLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

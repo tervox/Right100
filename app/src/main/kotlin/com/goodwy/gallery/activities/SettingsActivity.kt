@@ -135,6 +135,7 @@ class SettingsActivity : SimpleActivity() {
         setupBlurBackgroundVideo()
         // setupVideoFillScreen()
         setupScreenRotation()
+        setupViewerAnimation()
         setupHideSystemUI()
         setupFileDeletionPasswordProtection()
         setupDeleteEmptyFolders()
@@ -982,6 +983,42 @@ class SettingsActivity : SimpleActivity() {
             ROTATE_BY_SYSTEM_SETTING -> R.string.screen_rotation_system_setting
             ROTATE_BY_DEVICE_ROTATION -> R.string.screen_rotation_device_rotation
             else -> R.string.screen_rotation_aspect_ratio
+        }
+    )
+
+    private fun setupViewerAnimation() {
+        binding.settingsViewerAnimation.text = getViewerAnimationText()
+        binding.settingsViewerAnimationHolder.setOnClickListener {
+            val items = arrayListOf(
+                RadioItem(SLIDESHOW_ANIMATION_NONE, getString(R.string.no_animation)),
+                RadioItem(SLIDESHOW_ANIMATION_SLIDE, getString(R.string.slide)),
+                RadioItem(SLIDESHOW_ANIMATION_FADE, getString(R.string.fade)),
+                RadioItem(SLIDESHOW_ANIMATION_ZOOM_IN, getString(R.string.zoom_in)),
+                RadioItem(SLIDESHOW_ANIMATION_ZOOM_OUT, getString(R.string.zoom_out)),
+                RadioItem(SLIDESHOW_ANIMATION_FLIP, getString(R.string.flip)),
+                RadioItem(SLIDESHOW_ANIMATION_CUBE, getString(R.string.cube)),
+                RadioItem(SLIDESHOW_ANIMATION_DEPTH, getString(R.string.depth)),
+                RadioItem(SLIDESHOW_ANIMATION_RANDOM, getString(R.string.random_animation))
+            )
+
+            RadioGroupDialog(this@SettingsActivity, items, config.viewerAnimation, R.string.viewer_animation_setting) {
+                config.viewerAnimation = it as Int
+                binding.settingsViewerAnimation.text = getViewerAnimationText()
+            }
+        }
+    }
+
+    private fun getViewerAnimationText() = getString(
+        when (config.viewerAnimation) {
+            SLIDESHOW_ANIMATION_NONE -> R.string.no_animation
+            SLIDESHOW_ANIMATION_FADE -> R.string.fade
+            SLIDESHOW_ANIMATION_ZOOM_IN -> R.string.zoom_in
+            SLIDESHOW_ANIMATION_ZOOM_OUT -> R.string.zoom_out
+            SLIDESHOW_ANIMATION_FLIP -> R.string.flip
+            SLIDESHOW_ANIMATION_CUBE -> R.string.cube
+            SLIDESHOW_ANIMATION_DEPTH -> R.string.depth
+            SLIDESHOW_ANIMATION_RANDOM -> R.string.random_animation
+            else -> R.string.slide
         }
     )
 

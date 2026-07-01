@@ -30,6 +30,10 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean("show_select_all_fab", false)
         set(value) = prefs.edit { putBoolean("show_select_all_fab", value) }
 
+    var viewerAnimation: Int
+        get() = prefs.getInt("viewer_animation", SLIDESHOW_ANIMATION_SLIDE)
+        set(value) = prefs.edit { putInt("viewer_animation", value) }
+
     
     
     

@@ -40,7 +40,6 @@ import com.goodwy.gallery.models.Medium
 import com.google.android.material.appbar.AppBarLayout
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import java.io.File
 
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
@@ -131,6 +130,19 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.viewPager.currentItem = mPos
         binding.viewPager.addOnPageChangeListener(this)
         binding.viewPager.offscreenPageLimit = 2
+        applyViewerTransformer()
+    }
+
+    // Animacao usada na navegacao normal (deslizar manualmente entre fotos e videos),
+    // independente da Apresentacao/Slideshow. Configuravel em Ajustes.
+    private fun applyViewerTransformer() {
+        val animation = if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) {
+            mRandomAnimations.random()
+        } else {
+            config.viewerAnimation
+        }
+        val transformer = buildTransformer(animation)
+        binding.viewPager.setPageTransformer(false, transformer ?: DefaultPageTransformer())
     }
 
     // ── Menu ──────────────────────────────────────────────────────────────────
@@ -564,7 +576,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             mIsSlideshowActive = false
             mSlideshowHandler.removeCallbacksAndMessages(null)
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            binding.viewPager.setPageTransformer(false, DefaultPageTransformer())
+            applyViewerTransformer()
             mIsFullScreen = false
             showSystemUI()
             fullscreenToggled()  // restaura barra superior/inferior para swipe funcionar
@@ -660,7 +672,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     inJustDecodeBounds = true
                     BitmapFactory.decodeFile(medium.path, this)
                     val d = maxOf(outWidth, outHeight)
-                    inSampleSize = if (d <= 1280) 1 else Integer.highestOneBit(d / 1280)
+                    inSampleSize = if (d <= 1600) 1 else Integer.highestOneBit(d / 1600)
                     inJustDecodeBounds = false
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                 }
@@ -724,7 +736,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val fastFrame = videoFragment.captureCurrentFrame()
         if (fastFrame != null) {
             val client = com.google.mlkit.vision.text.TextRecognition
-                .getClient(com.google.mlkit.vision.text.chinese.com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
+                .getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
             client.process(com.google.mlkit.vision.common.InputImage.fromBitmap(fastFrame, 0))
                 .addOnSuccessListener { result ->
                     fastFrame.recycle(); client.close()
@@ -753,7 +765,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     retriever.getScaledFrameAtTime(
                         timeUs,
                         android.media.MediaMetadataRetriever.OPTION_CLOSEST,
-                        1280, 1280
+                        1600, 1600
                     )
                 } else {
                     retriever.getFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST)
