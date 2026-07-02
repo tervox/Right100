@@ -148,7 +148,7 @@ class PhotoFragment : ViewPagerFragment() {
             instantNextItem.parentView = container
 
             photoBrightnessController.initialize(activity, slideInfo, true, container, singleTap = { x, y ->
-                val w = container.width
+                val w = container?.width ?: 0
                 val handled = context.config.allowInstantChange && w > 0 && when {
                     x < w / 3f -> { listener?.goToPrevItem(); true }
                     x > w * 2f / 3f -> { listener?.goToNextItem(); true }
