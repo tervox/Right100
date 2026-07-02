@@ -694,10 +694,23 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     r
                 } else rawBmp
 
+                // Grayscale + contraste: melhora á ã ç ñ . _ - etc
+                val ocrPaint = android.graphics.Paint().apply {
+                    colorFilter = android.graphics.ColorMatrixColorFilter(
+                        android.graphics.ColorMatrix().also { m ->
+                            m.setSaturation(0f)
+                            m.postConcat(android.graphics.ColorMatrix(floatArrayOf(
+                                1.8f,0f,0f,0f,-70f, 0f,1.8f,0f,0f,-70f,
+                                0f,0f,1.8f,0f,-70f, 0f,0f,0f,1f,0f)))
+                        })
+                }
+                val ocrBmp = android.graphics.Bitmap.createBitmap(bmp.width, bmp.height, android.graphics.Bitmap.Config.ARGB_8888)
+                android.graphics.Canvas(ocrBmp).drawBitmap(bmp, 0f, 0f, ocrPaint)
+                bmp.recycle()
                 val client = TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
-                client.process(InputImage.fromBitmap(bmp, 0))
+                client.process(InputImage.fromBitmap(ocrBmp, 0))
                     .addOnSuccessListener { result ->
-                        bmp.recycle(); client.close()
+                        ocrBmp.recycle(); client.close()
                         mOcrInProgress = false
                         // Só mostra o resultado se o usuário ainda estiver na mesma mídia
                         if (getCurrentPath() == requestedPath) {

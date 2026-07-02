@@ -90,6 +90,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     companion object {
         var mMedia = ArrayList<ThumbnailItem>()
         var mMediaPath = ""
+        // LRU: guarda ate MAX_FOLDERS pastas visitadas em memoria
+        private const val MAX_FOLDERS = 12
+        val folderCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(MAX_FOLDERS + 1, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>) = size > MAX_FOLDERS
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -799,8 +804,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
-        // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
-        // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
+        // Cache multi-pasta: qualquer pasta visitada anteriormente carrega instantaneo
+        val memCached = folderCache[mPath]
+        if (memCached != null && memCached.isNotEmpty() && mMediaPath != mPath) {
+            mMedia = memCached
+            mMediaPath = mPath
+        }
         if (mMedia.isNotEmpty() && mMediaPath == mPath) {
             runOnUiThread { setupAdapter() }
             getCachedMedia(
@@ -1220,6 +1229,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         checkLastMediaChanged()
         mMedia = media
         mMediaPath = mPath
+        folderCache[mPath] = media  // salva no cache multi-pasta
 
         runOnUiThread {
             binding.loadingIndicator.hide()
