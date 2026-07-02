@@ -612,7 +612,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 try {
                     val glide = com.bumptech.glide.Glide.with(this@MediaActivity)
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE || newState == RecyclerView.SCROLL_STATE_DRAGGING) {
                         glide.resumeRequests()
                     } else {
                         glide.pauseRequests()

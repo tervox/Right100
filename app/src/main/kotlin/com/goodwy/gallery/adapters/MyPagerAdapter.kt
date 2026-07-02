@@ -35,7 +35,13 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
         return fragment
     }
 
-    override fun getItemPosition(item: Any) = PagerAdapter.POSITION_NONE
+    override fun getItemPosition(item: Any): Int {
+        val fragment = item as? ViewPagerFragment ?: return PagerAdapter.POSITION_NONE
+        val medium = fragment.arguments?.getSerializable(MEDIUM) as? Medium
+            ?: return PagerAdapter.POSITION_NONE
+        return if (media.any { it.path == medium.path }) PagerAdapter.POSITION_UNCHANGED
+        else PagerAdapter.POSITION_NONE
+    }
 
     override fun instantiateItem(container: ViewGroup, position: Int): Any {
         val fragment = super.instantiateItem(container, position) as ViewPagerFragment

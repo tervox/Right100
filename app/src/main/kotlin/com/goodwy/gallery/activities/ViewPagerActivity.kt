@@ -469,7 +469,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun copyMoveTo(isCopy: Boolean) {
         // Libera o player antes: mover arquivo em reprodução pode causar IllegalArgumentException
-        if (!isCopy) (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
+        (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
         val path = getCurrentPath()
         val fileDirItems = arrayListOf(FileDirItem(path, path.getFilenameFromPath()))
         tryCopyMoveFilesTo(fileDirItems, isCopy) { destination ->
@@ -672,7 +672,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     inJustDecodeBounds = true
                     BitmapFactory.decodeFile(medium.path, this)
                     val d = maxOf(outWidth, outHeight)
-                    inSampleSize = if (d <= 1600) 1 else Integer.highestOneBit(d / 1600)
+                    inSampleSize = if (d <= 2400) 1 else Integer.highestOneBit(d / 2400)
                     inJustDecodeBounds = false
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                 }

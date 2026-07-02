@@ -81,7 +81,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     SeekBar.OnSeekBarChangeListener, PlaybackSpeedListener {
     companion object {
         private const val PROGRESS = "progress"
-        private const val UPDATE_INTERVAL_MS = 250L
+        private const val UPDATE_INTERVAL_MS = 16L
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
@@ -118,7 +118,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             if (!isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
             try {
                 // 128x72 = 8x upscale em 1080p (vs 33x do 32x18) -> sem blocos
-                val frame = mTextureView.getBitmap(128, 72)
+                val bAspect = if (mVideoSize.x > 0 && mVideoSize.y > 0) mVideoSize.x.toFloat() / mVideoSize.y else 16f / 9f
+                val bW = (72 * bAspect).toInt().coerceAtLeast(1)
+                val frame = mTextureView.getBitmap(bW, 72)
                 val prev = (binding.videoBlurBg.drawable
                     as? android.graphics.drawable.BitmapDrawable)?.bitmap
                 binding.videoBlurBg.setImageBitmap(frame)
@@ -844,6 +846,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
 
         if (mIsPlaying) {
+            mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
             mExoPlayer!!.playWhenReady = true
         }
 
@@ -1053,7 +1056,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (now - mLastBlurUpdateMs < 200L) return  // throttle 5fps
         mLastBlurUpdateMs = now
         try {
-            val frame = mTextureView.getBitmap(128, 72)
+            val bAspect = if (mVideoSize.x > 0 && mVideoSize.y > 0) mVideoSize.x.toFloat() / mVideoSize.y else 16f / 9f
+            val bW = (72 * bAspect).toInt().coerceAtLeast(1)
+            val frame = mTextureView.getBitmap(bW, 72)
             val prev = (binding.videoBlurBg.drawable
                 as? android.graphics.drawable.BitmapDrawable)?.bitmap
             binding.videoBlurBg.setImageBitmap(frame)
