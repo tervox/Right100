@@ -569,10 +569,9 @@ class MediaAdapter(
         val showSkipRecycleBinOption = config.useRecycleBin && !isRecycleBin
 
         DeleteWithRememberDialog(activity, question, showSkipRecycleBinOption) { remember, skipRecycleBin ->
-            config.tempSkipDeleteConfirmation = remember
-
             if (remember) {
                 config.tempSkipRecycleBin = skipRecycleBin
+                config.skipDeleteConfirmation = true  // permanente - antes usava a flag temp, que reseta a cada abertura do app
             }
 
             deleteFiles(skipRecycleBin)

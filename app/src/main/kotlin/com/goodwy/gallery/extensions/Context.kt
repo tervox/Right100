@@ -655,11 +655,12 @@ fun Context.loadImageBase(
         if (path.isGif()) {
             // Decodifica cada frame do GIF no tamanho do thumbnail (não no tamanho original do arquivo).
             // Ex: GIF 500×500 em thumbnail 180×180 → 87% menos memória por frame; animação mantida.
-            // Diferente de override(150,150): CENTER_INSIDE usa o tamanho real do ImageView, não hard-coded.
-            options.format(DecodeFormat.PREFER_RGB_565)
+            // RGB_565 (2 bytes/pixel) em vez de ARGB_8888 (4 bytes/pixel) = metade da memória por
+            // frame — capas de pasta raramente precisam de transparência.
             options.downsample(DownsampleStrategy.CENTER_INSIDE)
             options.priority(Priority.LOW)
-            options.override(240, 240)
+            options.override(180, 180)
+            options.format(DecodeFormat.PREFER_RGB_565)
         }
     } else {
         options.dontAnimate()

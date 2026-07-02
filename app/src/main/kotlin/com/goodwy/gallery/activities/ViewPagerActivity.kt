@@ -5,6 +5,7 @@ import android.animation.ValueAnimator
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -19,6 +20,7 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.exifinterface.media.ExifInterface
 import androidx.viewpager.widget.ViewPager
 import com.goodwy.commons.dialogs.PropertiesDialog
@@ -117,6 +119,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     override fun onResume() {
         super.onResume()
         refreshMenuItems()
+        initBottomActions()
     }
 
     override fun onPause() {
@@ -215,6 +218,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             R.id.menu_restore_file -> restoreCurrentFile()
             R.id.menu_extract_text -> extractTextFromCurrentMedia()
             R.id.menu_settings -> startActivity(Intent(this, com.goodwy.gallery.activities.SettingsActivity::class.java))
+            R.id.menu_change_orientation -> cycleChangeOrientation()
+            R.id.menu_resize -> launchResizeImageDialog(path)
             else -> return false
         }
         return true
@@ -315,45 +320,100 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             updatePlayerMuteState()
         }
 
-        if (medium != null) updateBottomActionIcons(medium)
+        // Estes 4 botões existiam no layout e na lista de reordenação, mas nunca tinham
+        // beVisibleIf()/clique conectados — ficavam sempre escondidos, não importa o que
+        // fosse ativado em "gerenciar botões".
+        binding.bottomActions.bottomRotate.beVisibleIf(visible and BOTTOM_ACTION_ROTATE != 0 && isImage)
+        binding.bottomActions.bottomRotate.setOnClickListener { rotateCurrentImage(90) }
+        binding.bottomActions.bottomRotate.setOnLongClickListener { toast(R.string.rotate); true }
 
-        // Aplica a ordem salva pelo usuario (bottomActionsOrder)
-        val orderStr = config.bottomActionsOrder
-        if (orderStr.isNotEmpty()) {
-            val actionToView = mapOf(
-                BOTTOM_ACTION_TOGGLE_FAVORITE to binding.bottomActions.bottomFavorite,
-                BOTTOM_ACTION_EDIT           to binding.bottomActions.bottomEdit,
-                BOTTOM_ACTION_SHARE          to binding.bottomActions.bottomShare,
-                BOTTOM_ACTION_DELETE         to binding.bottomActions.bottomDelete,
-                BOTTOM_ACTION_ROTATE         to binding.bottomActions.bottomRotate,
-                BOTTOM_ACTION_PROPERTIES     to binding.bottomActions.bottomProperties,
-                BOTTOM_ACTION_CHANGE_ORIENTATION to binding.bottomActions.bottomChangeOrientation,
-                BOTTOM_ACTION_SLIDESHOW       to binding.bottomActions.bottomSlideshow,
-                BOTTOM_ACTION_SHOW_ON_MAP    to binding.bottomActions.bottomShowOnMap,
-                BOTTOM_ACTION_TOGGLE_VISIBILITY to binding.bottomActions.bottomToggleFileVisibility,
-                BOTTOM_ACTION_RENAME         to binding.bottomActions.bottomRename,
-                BOTTOM_ACTION_SET_AS         to binding.bottomActions.bottomSetAs,
-                BOTTOM_ACTION_COPY           to binding.bottomActions.bottomCopy,
-                BOTTOM_ACTION_MOVE           to binding.bottomActions.bottomMove,
-                BOTTOM_ACTION_RESIZE         to binding.bottomActions.bottomResize,
-                BOTTOM_ACTION_PLAY_PAUSE     to binding.bottomActions.bottomPlayPause,
-                BOTTOM_ACTION_MUTE           to binding.bottomActions.bottomMute,
-                BOTTOM_ACTION_EXTRACT_TEXT   to binding.bottomActions.bottomExtractText
-            )
-            try {
-                val container = binding.bottomActions.root as? android.view.ViewGroup ?: return
-                val orderedIds = orderStr.split(",").mapNotNull { it.trim().toIntOrNull() }
-                var insertIndex = 0
-                for (actionId in orderedIds) {
-                    val view = actionToView[actionId] ?: continue
-                    if (view.parent == container) {
-                        container.removeView(view)
-                        container.addView(view, insertIndex)
-                        insertIndex++
-                    }
-                }
-            } catch (_: Exception) {}
+        binding.bottomActions.bottomChangeOrientation.beVisibleIf(visible and BOTTOM_ACTION_CHANGE_ORIENTATION != 0)
+        binding.bottomActions.bottomChangeOrientation.setOnClickListener { cycleChangeOrientation() }
+        binding.bottomActions.bottomChangeOrientation.setOnLongClickListener { toast(R.string.change_orientation); true }
+        updateChangeOrientationIcon()
+
+        binding.bottomActions.bottomToggleFileVisibility.beVisibleIf(visible and BOTTOM_ACTION_TOGGLE_VISIBILITY != 0 && !isInRecycleBin)
+        binding.bottomActions.bottomToggleFileVisibility.setOnClickListener { toggleVisibility(medium?.isHidden() != true) }
+        binding.bottomActions.bottomToggleFileVisibility.setOnLongClickListener { toast(R.string.toggle_file_visibility); true }
+
+        binding.bottomActions.bottomResize.beVisibleIf(visible and BOTTOM_ACTION_RESIZE != 0 && isImage)
+        binding.bottomActions.bottomResize.setOnClickListener { launchResizeImageDialog(getCurrentPath()) }
+        binding.bottomActions.bottomResize.setOnLongClickListener { toast(com.goodwy.commons.R.string.resize); true }
+
+        if (medium != null) updateBottomActionIcons(medium)
+        applyBottomActionsOrder()
+    }
+
+    // Mapa id-de-ação -> View real, usado para aplicar a ordem salva pelo usuário
+    private fun bottomActionViewFor(id: Int) = when (id) {
+        BOTTOM_ACTION_SHARE -> binding.bottomActions.bottomShare
+        BOTTOM_ACTION_TOGGLE_FAVORITE -> binding.bottomActions.bottomFavorite
+        BOTTOM_ACTION_PLAY_PAUSE -> binding.bottomActions.bottomPlayPause
+        BOTTOM_ACTION_MUTE -> binding.bottomActions.bottomMute
+        BOTTOM_ACTION_PROPERTIES -> binding.bottomActions.bottomProperties
+        BOTTOM_ACTION_DELETE -> binding.bottomActions.bottomDelete
+        BOTTOM_ACTION_EDIT -> binding.bottomActions.bottomEdit
+        BOTTOM_ACTION_ROTATE -> binding.bottomActions.bottomRotate
+        BOTTOM_ACTION_CHANGE_ORIENTATION -> binding.bottomActions.bottomChangeOrientation
+        BOTTOM_ACTION_SLIDESHOW -> binding.bottomActions.bottomSlideshow
+        BOTTOM_ACTION_SHOW_ON_MAP -> binding.bottomActions.bottomShowOnMap
+        BOTTOM_ACTION_TOGGLE_VISIBILITY -> binding.bottomActions.bottomToggleFileVisibility
+        BOTTOM_ACTION_RENAME -> binding.bottomActions.bottomRename
+        BOTTOM_ACTION_SET_AS -> binding.bottomActions.bottomSetAs
+        BOTTOM_ACTION_COPY -> binding.bottomActions.bottomCopy
+        BOTTOM_ACTION_MOVE -> binding.bottomActions.bottomMove
+        BOTTOM_ACTION_EXTRACT_TEXT -> binding.bottomActions.bottomExtractText
+        BOTTOM_ACTION_RESIZE -> binding.bottomActions.bottomResize
+        else -> null
+    }
+
+    // Ordem padrão original do XML, usada para qualquer ação que não esteja em bottomActionsOrder
+    private val mDefaultBottomActionOrder = listOf(
+        BOTTOM_ACTION_SHARE, BOTTOM_ACTION_TOGGLE_FAVORITE, BOTTOM_ACTION_PLAY_PAUSE, BOTTOM_ACTION_MUTE,
+        BOTTOM_ACTION_PROPERTIES, BOTTOM_ACTION_DELETE, BOTTOM_ACTION_EDIT, BOTTOM_ACTION_ROTATE,
+        BOTTOM_ACTION_CHANGE_ORIENTATION, BOTTOM_ACTION_SLIDESHOW, BOTTOM_ACTION_SHOW_ON_MAP,
+        BOTTOM_ACTION_TOGGLE_VISIBILITY, BOTTOM_ACTION_RENAME, BOTTOM_ACTION_SET_AS, BOTTOM_ACTION_COPY,
+        BOTTOM_ACTION_MOVE, BOTTOM_ACTION_EXTRACT_TEXT, BOTTOM_ACTION_RESIZE
+    )
+
+    // O código anterior tentava reordenar com removeView()+addView(index) — isso NÃO tem
+    // nenhum efeito visual num ConstraintLayout, já que a posição de cada view é definida
+    // pelas constraints (layout_constraintStart_toStartOf/EndOf), não pela ordem na lista de
+    // filhos do ViewGroup. Por isso a ordem salva pelo usuário nunca aparecia. A correção real
+    // exige reconstruir a corrente horizontal via ConstraintSet.
+    private fun applyBottomActionsOrder() {
+        val savedOrder = config.bottomActionsOrder
+        val orderIds = if (savedOrder.isNotBlank()) {
+            val parsed = savedOrder.split(",").mapNotNull { it.trim().toIntOrNull() }
+            parsed + mDefaultBottomActionOrder.filter { it !in parsed }
+        } else {
+            mDefaultBottomActionOrder
         }
+
+        val visibleViews = orderIds.mapNotNull { id -> bottomActionViewFor(id)?.takeIf { it.isVisible } }
+        if (visibleViews.isEmpty()) return
+
+        val wrapper = binding.bottomActions.bottomActionsWrapper
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(wrapper)
+
+        for (i in visibleViews.indices) {
+            val view = visibleViews[i]
+            constraintSet.clear(view.id, ConstraintSet.START)
+            constraintSet.clear(view.id, ConstraintSet.END)
+            if (i == 0) {
+                constraintSet.connect(view.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+            } else {
+                constraintSet.connect(view.id, ConstraintSet.START, visibleViews[i - 1].id, ConstraintSet.END)
+            }
+            if (i == visibleViews.lastIndex) {
+                constraintSet.connect(view.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+            } else {
+                constraintSet.connect(view.id, ConstraintSet.END, visibleViews[i + 1].id, ConstraintSet.START)
+            }
+            constraintSet.setHorizontalBias(view.id, 0.5f)
+        }
+        constraintSet.applyTo(wrapper)
     }
 
     private fun updateBottomActionIcons(medium: Medium) {
@@ -378,8 +438,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val fileDirItem = medium.toFileDirItem()
         val isInRecycleBin = medium.getIsInRecycleBin()
 
-        // "Nao perguntar novamente" foi marcado -> executa direto, sem dialog
-        if (config.tempSkipDeleteConfirmation && !isInRecycleBin) {
+        // "Nao perguntar novamente" -> usa a flag PERMANENTE (skipDeleteConfirmation), nao a
+        // temporaria (tempSkipDeleteConfirmation e resetada toda vez que o app abre do zero
+        // em MainActivity.onCreate, entao "nunca" ficava salva de fato).
+        if ((config.skipDeleteConfirmation || config.tempSkipDeleteConfirmation) && !isInRecycleBin) {
             deleteCurrentFile(skipRecycleBin = config.tempSkipRecycleBin)
             return
         }
@@ -395,7 +457,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         DeleteWithRememberDialog(this, question, showSkipOption) { remember, skipRecycleBin ->
             if (remember) {
                 config.tempSkipRecycleBin = skipRecycleBin
-                config.tempSkipDeleteConfirmation = true  // salva o skip
+                config.skipDeleteConfirmation = true  // permanente - sobrevive a reinicio do app
             }
             deleteCurrentFile(skipRecycleBin)
         }
@@ -447,6 +509,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         getCurrentPhotoFragment()?.rotateImageViewBy(degrees)
     }
 
+    // Cicla a orientação da tela: automática (sensor) -> retrato travado -> paisagem travada -> automática.
+    // Antes esse item de menu/botão existia na UI mas não tinha handler nenhum implementado.
+    private fun cycleChangeOrientation() {
+        requestedOrientation = when (requestedOrientation) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        updateChangeOrientationIcon()
+    }
+
+    private fun updateChangeOrientationIcon() {
+        val icon = when (requestedOrientation) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT -> R.drawable.ic_orientation_portrait_vector
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE -> R.drawable.ic_orientation_landscape_vector
+            else -> R.drawable.ic_orientation_auto_vector
+        }
+        binding.bottomActions.bottomChangeOrientation.setImageResource(icon)
+    }
+
     private fun toggleFavorite() {
         val medium = getCurrentMedium() ?: return
         medium.isFavorite = !medium.isFavorite
@@ -469,7 +551,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun copyMoveTo(isCopy: Boolean) {
         // Libera o player antes: mover arquivo em reprodução pode causar IllegalArgumentException
-        (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
+        if (!isCopy) (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
         val path = getCurrentPath()
         val fileDirItems = arrayListOf(FileDirItem(path, path.getFilenameFromPath()))
         tryCopyMoveFilesTo(fileDirItems, isCopy) { destination ->
@@ -576,6 +658,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             mIsSlideshowActive = false
             mSlideshowHandler.removeCallbacksAndMessages(null)
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // Se a apresentação foi interrompida NO MEIO de uma transição animada (cube girando,
+            // zoom, etc.), a view da página atual pode ter ficado com rotationY/scale/translation
+            // "sujos" daquele efeito. Isso não só parecia visualmente errado como também deslocava
+            // os limites de toque da view, quebrando o gesto de arrastar pra fechar o visualizador.
+            getCurrentFragment()?.view?.apply {
+                alpha = 1f; scaleX = 1f; scaleY = 1f
+                translationX = 0f; translationY = 0f
+                rotation = 0f; rotationX = 0f; rotationY = 0f
+            }
             applyViewerTransformer()
             mIsFullScreen = false
             showSystemUI()
@@ -672,7 +763,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     inJustDecodeBounds = true
                     BitmapFactory.decodeFile(medium.path, this)
                     val d = maxOf(outWidth, outHeight)
-                    inSampleSize = if (d <= 2400) 1 else Integer.highestOneBit(d / 2400)
+                    inSampleSize = if (d <= 1600) 1 else Integer.highestOneBit(d / 1600)
                     inJustDecodeBounds = false
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                 }
@@ -694,23 +785,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     r
                 } else rawBmp
 
-                // Grayscale + contraste: melhora á ã ç ñ . _ - etc
-                val ocrPaint = android.graphics.Paint().apply {
-                    colorFilter = android.graphics.ColorMatrixColorFilter(
-                        android.graphics.ColorMatrix().also { m ->
-                            m.setSaturation(0f)
-                            m.postConcat(android.graphics.ColorMatrix(floatArrayOf(
-                                1.8f,0f,0f,0f,-70f, 0f,1.8f,0f,0f,-70f,
-                                0f,0f,1.8f,0f,-70f, 0f,0f,0f,1f,0f)))
-                        })
-                }
-                val ocrBmp = android.graphics.Bitmap.createBitmap(bmp.width, bmp.height, android.graphics.Bitmap.Config.ARGB_8888)
-                android.graphics.Canvas(ocrBmp).drawBitmap(bmp, 0f, 0f, ocrPaint)
-                bmp.recycle()
                 val client = TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
-                client.process(InputImage.fromBitmap(ocrBmp, 0))
+                client.process(InputImage.fromBitmap(bmp, 0))
                     .addOnSuccessListener { result ->
-                        ocrBmp.recycle(); client.close()
+                        bmp.recycle(); client.close()
                         mOcrInProgress = false
                         // Só mostra o resultado se o usuário ainda estiver na mesma mídia
                         if (getCurrentPath() == requestedPath) {
@@ -861,12 +939,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         updateTitle()
         refreshMenuItems()
         scheduleSwipe()
-        // Play direto no video novo, sem pause intermediario
-        val viewId = binding.viewPager.id
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            val tag = "android:switcher:$viewId:$position"
-            (supportFragmentManager.findFragmentByTag(tag) as? VideoFragment)?.playVideo()
-        }
+        // Removido: chamada extra e redundante de playVideo() aqui. videoPrepared() (disparado
+        // pelo próprio callback STATE_READY do ExoPlayer) já chama playVideo() via mPlayOnPrepared
+        // para fragments recém-inicializados, e o framework (setMenuVisibility(true), chamado
+        // automaticamente pelo ViewPager ao trocar a página primária) já chama playVideo() de
+        // forma síncrona para fragments já inicializados. Essa chamada extra só adicionava um
+        // Handler().post() + busca de fragment por tag + re-execução completa de playVideo()
+        // exatamente no momento em que a resposta ao swipe precisa ser mais rápida.
     }
 
     override fun onPageScrollStateChanged(state: Int) {}

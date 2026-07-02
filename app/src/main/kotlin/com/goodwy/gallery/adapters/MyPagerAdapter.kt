@@ -35,12 +35,18 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
         return fragment
     }
 
+    // Antes: sempre retornava POSITION_NONE, o que forçava o FragmentStatePagerAdapter a
+    // destruir e recriar TODOS os fragments instanciados (atual + até 4 vizinhos, já que
+    // offscreenPageLimit=2) toda vez que notifyDataSetChanged() rodava — inclusive depois de
+    // cada exclusão/movimentação de arquivo. Isso destruía VideoFragments com ExoPlayer ativo
+    // desnecessariamente, causando a demora/instabilidade ao excluir ou mover.
+    // Agora: identifica cada fragment pelo path do Medium que foi originalmente vinculado a ele
+    // (guardado nos arguments em getItem()) e só reporta POSITION_NONE para o que realmente sumiu.
     override fun getItemPosition(item: Any): Int {
-        val fragment = item as? ViewPagerFragment ?: return PagerAdapter.POSITION_NONE
-        val medium = fragment.arguments?.getSerializable(MEDIUM) as? Medium
+        val medium = (item as? Fragment)?.arguments?.getSerializable(MEDIUM) as? Medium
             ?: return PagerAdapter.POSITION_NONE
-        return if (media.any { it.path == medium.path }) PagerAdapter.POSITION_UNCHANGED
-        else PagerAdapter.POSITION_NONE
+        val newIndex = media.indexOfFirst { it.path == medium.path }
+        return if (newIndex == -1) PagerAdapter.POSITION_NONE else newIndex
     }
 
     override fun instantiateItem(container: ViewGroup, position: Int): Any {

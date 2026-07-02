@@ -81,7 +81,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     SeekBar.OnSeekBarChangeListener, PlaybackSpeedListener {
     companion object {
         private const val PROGRESS = "progress"
-        private const val UPDATE_INTERVAL_MS = 16L
+        private const val UPDATE_INTERVAL_MS = 250L
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
@@ -108,30 +108,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mTimerHandler = Handler()
 
     // ── Blur animado ───────────────────────────────────────────────────────────
-    // getBitmap(32,18) captura um frame 32×18 px (minúsculo) da TextureView.
-    // Quando a ImageView exibe esse bitmap em fullscreen (centerCrop + bilinear),
-    // o upscale cria um efeito de blur gratuito — sem RenderScript, sem ExoPlayer extra.
+    // Captura frames pequenos da TextureView, sincronizados exatamente com cada frame real
+    // renderizado (via onSurfaceTextureUpdated, mais abaixo) — sem timer desacoplado que atrasa.
     // No Android 12+, RenderEffect.createBlurEffect() suaviza ainda mais via GPU.
-    private val mBlurHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val mBlurFrameRunnable = object : Runnable {
-        override fun run() {
-            if (!isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
-            try {
-                // 128x72 = 8x upscale em 1080p (vs 33x do 32x18) -> sem blocos
-                val bAspect = if (mVideoSize.x > 0 && mVideoSize.y > 0) mVideoSize.x.toFloat() / mVideoSize.y else 16f / 9f
-                val bW = (72 * bAspect).toInt().coerceAtLeast(1)
-                val frame = mTextureView.getBitmap(bW, 72)
-                val prev = (binding.videoBlurBg.drawable
-                    as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                binding.videoBlurBg.setImageBitmap(frame)
-                if (prev != null && prev !== frame) prev.recycle()
-            } catch (_: Exception) {}
-            // 5fps: divide GPU com o decoder de video sem competir
-            if (mExoPlayer?.isPlaying == true) mBlurHandler.postDelayed(this, 200L)
-        }
-    }
-
-    // Blur sync: flag e timestamp para onSurfaceTextureUpdated
     private var mBlurActive = false
     private var mLastBlurUpdateMs = 0L
 
@@ -808,6 +787,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         setPosition(newPosition)
     }
 
+    private var mLastSeekMs = 0L
+    private val mSeekThrottleMs = 60L
+
     override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
         if (fromUser) {
             val newPosition = progress.toLong()
@@ -815,7 +797,19 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (!mWasPlayerInited) {
                     mPositionWhenInit = newPosition
                 }
-                setPosition(newPosition)
+                // Atualiza a UI sempre (responsivo ao dedo), mas só manda seekTo() real pro
+                // player a cada ~60ms. Antes, cada pixel arrastado virava um seekTo() imediato,
+                // enfileirando dezenas de seeks conflitantes e deixando o vídeo "atrasado" em
+                // relação ao dedo / demorando pra carregar a posição escolhida.
+                mSeekBar.progress = newPosition.toInt()
+                mCurrTimeView.text = newPosition.getFormattedDuration()
+                if (!mIsPlaying) mPositionAtPause = newPosition
+
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - mLastSeekMs >= mSeekThrottleMs) {
+                    mLastSeekMs = now
+                    mExoPlayer?.seekTo(newPosition)
+                }
             }
 
             if (mExoPlayer == null) {
@@ -845,8 +839,15 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             return
         }
 
+        // Seek final preciso: o CLOSEST_SYNC usado durante o arraste era só uma aproximação
+        // por keyframe pra ficar fluido — antes esse EXACT nunca era restaurado, então o
+        // player ficava aproximando PARA SEMPRE, mesmo depois de soltar o dedo. Também garante
+        // que a posição final seja exatamente onde o dedo soltou, já que os seeks durante o
+        // arraste eram limitados por throttle e podem não ter alcançado a última posição.
+        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
+        mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
+
         if (mIsPlaying) {
-            mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
             mExoPlayer!!.playWhenReady = true
         }
 
@@ -1053,12 +1054,19 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // Sincroniza blur exatamente com o frame renderizado (sem timer desacoplado)
         if (!mBlurActive || !isAdded || mConfig.blackBackground || !mConfig.blurBackgroundVideo) return
         val now = System.currentTimeMillis()
-        if (now - mLastBlurUpdateMs < 200L) return  // throttle 5fps
+        if (now - mLastBlurUpdateMs < 100L) return  // throttle 10fps
         mLastBlurUpdateMs = now
         try {
-            val bAspect = if (mVideoSize.x > 0 && mVideoSize.y > 0) mVideoSize.x.toFloat() / mVideoSize.y else 16f / 9f
-            val bW = (72 * bAspect).toInt().coerceAtLeast(1)
-            val frame = mTextureView.getBitmap(bW, 72)
+            // Captura proporcional ao tamanho REAL da TextureView (que reflete a proporção
+            // real do vídeo, definida em setVideoSize()) - um tamanho fixo 128x72 (16:9) distorcia
+            // qualquer vídeo vertical/quadrado antes de o blur nem ser aplicado.
+            val tw = mTextureView.width
+            val th = mTextureView.height
+            if (tw <= 0 || th <= 0) return
+            val divisor = (maxOf(tw, th) / 128f).coerceAtLeast(1f)
+            val w = (tw / divisor).toInt().coerceAtLeast(4)
+            val h = (th / divisor).toInt().coerceAtLeast(4)
+            val frame = mTextureView.getBitmap(w, h)
             val prev = (binding.videoBlurBg.drawable
                 as? android.graphics.drawable.BitmapDrawable)?.bitmap
             binding.videoBlurBg.setImageBitmap(frame)
@@ -1111,14 +1119,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     /** Inicia as atualizações do blur animado — chamar quando o vídeo começa a tocar. */
     private fun startLiveBlurUpdates() {
         if (!mConfig.blurBackgroundVideo || mConfig.blackBackground) return
-        mBlurHandler.removeCallbacks(mBlurFrameRunnable)
         mBlurActive = true
         mLastBlurUpdateMs = 0L  // proximo frame atualiza imediatamente
     }
 
     /** Para as atualizações — chamar ao pausar, parar ou destruir. */
     private fun stopLiveBlurUpdates() {
-        mBlurHandler.removeCallbacks(mBlurFrameRunnable)
         mBlurActive = false
     }
 

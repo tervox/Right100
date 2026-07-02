@@ -90,10 +90,16 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     companion object {
         var mMedia = ArrayList<ThumbnailItem>()
         var mMediaPath = ""
-        // LRU: guarda ate MAX_FOLDERS pastas visitadas em memoria
-        private const val MAX_FOLDERS = 12
-        val folderCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(MAX_FOLDERS + 1, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>) = size > MAX_FOLDERS
+
+        // mMedia/mMediaPath só guardam a ÚLTIMA pasta visitada (1 slot). Navegando por
+        // várias pastas (A -> B -> A), a segunda visita a A já não batia nesse cache (porque
+        // mMediaPath virou B ao visitar B), caindo sempre na consulta ao banco de novo. Este
+        // mapa guarda as últimas pastas visitadas (LRU) para reaproveitar em qualquer uma delas.
+        private const val FOLDER_CACHE_MAX_SIZE = 5
+        val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>?): Boolean {
+                return size > FOLDER_CACHE_MAX_SIZE
+            }
         }
     }
 
@@ -568,6 +574,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val currAdapter = binding.mediaGrid.adapter
         if (currAdapter == null) {
             initZoomListener()
+            setupGlideScrollPause()
             MediaAdapter(
                 activity = this,
                 media = mMedia.clone() as ArrayList<ThumbnailItem>,
@@ -605,25 +612,35 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaFastscroller.setScrollVertically(!scrollHorizontally)
     }
 
+    // Antes esse pause/resume do Glide durante o scroll só existia dentro de setupTabsHide(),
+    // que só roda se config.hideGroupingBarWhenScroll estiver ativo — duas configurações sem
+    // relação nenhuma estavam amarradas juntas. A maioria dos usuários não tinha ESSA otimização
+    // de scroll nenhuma. Agora roda sempre, independente dessa configuração.
+    private fun setupGlideScrollPause() {
+        binding.mediaGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                try {
+                    val glide = com.bumptech.glide.Glide.with(this@MediaActivity)
+                    // Só pausa durante fling RÁPIDO (SETTLING) - durante um arraste lento
+                    // (DRAGGING) o usuário vê os itens passando devagar e se beneficia de
+                    // carregarem. O código anterior pausava em DRAGGING também, mesmo o
+                    // comentário dizendo o contrário.
+                    if (newState == RecyclerView.SCROLL_STATE_SETTLING) {
+                        glide.pauseRequests()
+                    } else {
+                        glide.resumeRequests()
+                    }
+                } catch (_: Exception) {}
+            }
+        })
+    }
+
     private fun setupTabsHide() {
         val tabsContainer = binding.mainTopTabsContainer
         val duration: Long = 400
         binding.mediaGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             private var lastY = 0
             private val SCROLL_THRESHOLD = 10 // Minimal movement for reaction
-
-            // Pausa Glide durante fling rápido → thumbnails não carregam itens já passados
-            // Retoma ao parar (IDLE) ou ao arrastar devagar (DRAGGING)
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                try {
-                    val glide = com.bumptech.glide.Glide.with(this@MediaActivity)
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE || newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                        glide.resumeRequests()
-                    } else {
-                        glide.pauseRequests()
-                    }
-                } catch (_: Exception) {}
-            }
 
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
@@ -804,13 +821,29 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
-        // Cache multi-pasta: qualquer pasta visitada anteriormente carrega instantaneo
-        val memCached = folderCache[mPath]
-        if (memCached != null && memCached.isNotEmpty() && mMediaPath != mPath) {
-            mMedia = memCached
-            mMediaPath = mPath
-        }
+        // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
+        // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
         if (mMedia.isNotEmpty() && mMediaPath == mPath) {
+            runOnUiThread { setupAdapter() }
+            getCachedMedia(
+                mPath,
+                mIsGetVideoIntent && !mIsGetImageIntent,
+                mIsGetImageIntent && !mIsGetVideoIntent
+            ) { cached ->
+                if (cached.isNotEmpty()) gotMedia(cached, true)
+                startAsyncTask()
+            }
+            mLoadedInitialPhotos = true
+            return
+        }
+
+        // Não é a última pasta visitada, mas está no cache multi-pasta (LRU das últimas 5) ->
+        // mostra instantâneo também, em vez de cair direto na consulta ao banco. Sem isso,
+        // navegar por várias pastas (A -> B -> A) nunca reaproveitava nada.
+        val folderCached = mFolderMediaCache[mPath]
+        if (!folderCached.isNullOrEmpty()) {
+            mMedia = folderCached
+            mMediaPath = mPath
             runOnUiThread { setupAdapter() }
             getCachedMedia(
                 mPath,
@@ -1229,8 +1262,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         checkLastMediaChanged()
         mMedia = media
         mMediaPath = mPath
-        folderCache[mPath] = media
-        folderCache[mPath] = media  // salva no cache multi-pasta
+        if (media.isNotEmpty()) {
+            mFolderMediaCache[mPath] = media
+        }
 
         runOnUiThread {
             binding.loadingIndicator.hide()
