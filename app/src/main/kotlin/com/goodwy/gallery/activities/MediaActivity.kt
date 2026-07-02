@@ -1229,6 +1229,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         checkLastMediaChanged()
         mMedia = media
         mMediaPath = mPath
+        folderCache[mPath] = media
         folderCache[mPath] = media  // salva no cache multi-pasta
 
         runOnUiThread {
