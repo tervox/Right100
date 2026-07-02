@@ -390,7 +390,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             mDefaultBottomActionOrder
         }
 
-        val visibleViews = orderIds.mapNotNull { id -> bottomActionViewFor(id)?.takeIf { it.isVisible } }
+        val visibleViews = orderIds.mapNotNull { id -> bottomActionViewFor(id)?.takeIf { it.isVisible() } }
         if (visibleViews.isEmpty()) return
 
         val wrapper = binding.bottomActions.bottomActionsWrapper

@@ -95,7 +95,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // várias pastas (A -> B -> A), a segunda visita a A já não batia nesse cache (porque
         // mMediaPath virou B ao visitar B), caindo sempre na consulta ao banco de novo. Este
         // mapa guarda as últimas pastas visitadas (LRU) para reaproveitar em qualquer uma delas.
-        private const val FOLDER_CACHE_MAX_SIZE = 5
+        // Medium é uma classe leve (3 Strings curtas + alguns números, ~300-500 bytes cada) -
+        // não guarda bitmaps, só metadados. Mesmo 30 pastas de ~1000 itens cada ficam na casa
+        // de poucos MB no total, então o cache pode ser generoso sem custar memória de verdade.
+        private const val FOLDER_CACHE_MAX_SIZE = 30
         val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>?): Boolean {
                 return size > FOLDER_CACHE_MAX_SIZE
