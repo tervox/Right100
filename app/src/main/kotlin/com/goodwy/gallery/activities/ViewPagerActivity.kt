@@ -77,7 +77,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         pendingMediums = null
 
         if (mMediums.isEmpty()) {
-            // fallback: cria lista com o arquivo único (ex: intent externo)
             val type = when {
                 path.isVideoFast() -> TYPE_VIDEOS
                 path.isGif() -> TYPE_GIFS
@@ -95,7 +94,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         applyProperBottomInsets(binding.bottomActions.root)
         initBottomActions()
 
-        // A configuração "Esconder barra de sistema" auto-esconde a interface após um delay
         if (config.hideSystemUI) {
             binding.viewPager.post {
                 Handler().postDelayed({
@@ -104,7 +102,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             }
         }
 
-        // Quando vem do botão "Apresentação" da tela de pastas, mostra o diálogo de opções
         if (intent.getBooleanExtra(SLIDESHOW_START_ON_ENTER, false)) {
             binding.viewPager.post { initSlideshow() }
         }
@@ -114,7 +111,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         super.onSaveInstanceState(outState)
         outState.putString("saved_path", getCurrentPath())
     }
-
 
     override fun onResume() {
         super.onResume()
@@ -136,8 +132,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         applyViewerTransformer()
     }
 
-    // Animacao usada na navegacao normal (deslizar manualmente entre fotos e videos),
-    // independente da Apresentacao/Slideshow. Configuravel em Ajustes.
     private fun applyViewerTransformer() {
         val animation = if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) {
             mRandomAnimations.random()
@@ -147,8 +141,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val transformer = buildTransformer(animation)
         binding.viewPager.setPageTransformer(false, transformer ?: DefaultPageTransformer())
     }
-
-    // ── Menu ──────────────────────────────────────────────────────────────────
 
     private fun setupOptionsMenu() {
         binding.mediumViewerToolbar.apply {
@@ -225,8 +217,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         return true
     }
 
-    // ── Bottom actions ─────────────────────────────────────────────────────────
-
     private fun initBottomActions() {
         if (!config.bottomActions) {
             binding.bottomActions.root.beGone()
@@ -240,7 +230,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val isVideo = medium?.isVideo() == true || medium?.isGIF() == true
         val isInRecycleBin = medium?.getIsInRecycleBin() == true
 
-        // Esconde todos primeiro, mostra só o que deve aparecer
         listOf(
             binding.bottomActions.bottomShare,
             binding.bottomActions.bottomFavorite,
@@ -262,7 +251,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             binding.bottomActions.bottomResize
         ).forEach { it.beGone(); it.applyColorFilter(iconColor) }
 
-        // Agora mostra os que devem aparecer e conecta cliques
         binding.bottomActions.bottomShare.beVisibleIf(visible and BOTTOM_ACTION_SHARE != 0)
         binding.bottomActions.bottomShare.setOnClickListener { shareMediumPath(getCurrentPath()) }
         binding.bottomActions.bottomShare.setOnLongClickListener { toast(com.goodwy.commons.R.string.share); true }
@@ -320,9 +308,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             updatePlayerMuteState()
         }
 
-        // Estes 4 botões existiam no layout e na lista de reordenação, mas nunca tinham
-        // beVisibleIf()/clique conectados — ficavam sempre escondidos, não importa o que
-        // fosse ativado em "gerenciar botões".
         binding.bottomActions.bottomRotate.beVisibleIf(visible and BOTTOM_ACTION_ROTATE != 0 && isImage)
         binding.bottomActions.bottomRotate.setOnClickListener { rotateCurrentImage(90) }
         binding.bottomActions.bottomRotate.setOnLongClickListener { toast(R.string.rotate); true }
@@ -344,7 +329,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         applyBottomActionsOrder()
     }
 
-    // Mapa id-de-ação -> View real, usado para aplicar a ordem salva pelo usuário
     private fun bottomActionViewFor(id: Int) = when (id) {
         BOTTOM_ACTION_SHARE -> binding.bottomActions.bottomShare
         BOTTOM_ACTION_TOGGLE_FAVORITE -> binding.bottomActions.bottomFavorite
@@ -367,7 +351,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         else -> null
     }
 
-    // Ordem padrão original do XML, usada para qualquer ação que não esteja em bottomActionsOrder
     private val mDefaultBottomActionOrder = listOf(
         BOTTOM_ACTION_SHARE, BOTTOM_ACTION_TOGGLE_FAVORITE, BOTTOM_ACTION_PLAY_PAUSE, BOTTOM_ACTION_MUTE,
         BOTTOM_ACTION_PROPERTIES, BOTTOM_ACTION_DELETE, BOTTOM_ACTION_EDIT, BOTTOM_ACTION_ROTATE,
@@ -376,11 +359,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         BOTTOM_ACTION_MOVE, BOTTOM_ACTION_EXTRACT_TEXT, BOTTOM_ACTION_RESIZE
     )
 
-    // O código anterior tentava reordenar com removeView()+addView(index) — isso NÃO tem
-    // nenhum efeito visual num ConstraintLayout, já que a posição de cada view é definida
-    // pelas constraints (layout_constraintStart_toStartOf/EndOf), não pela ordem na lista de
-    // filhos do ViewGroup. Por isso a ordem salva pelo usuário nunca aparecia. A correção real
-    // exige reconstruir a corrente horizontal via ConstraintSet.
     private fun applyBottomActionsOrder() {
         val savedOrder = config.bottomActionsOrder
         val orderIds = if (savedOrder.isNotBlank()) {
@@ -431,16 +409,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.bottomActions.bottomMute.setImageResource(icon)
     }
 
-    // ── File actions ────────────────────────────────────────────────────────────
-
     private fun askConfirmDelete() {
         val medium = getCurrentMedium() ?: return
         val fileDirItem = medium.toFileDirItem()
         val isInRecycleBin = medium.getIsInRecycleBin()
 
-        // "Nao perguntar novamente" -> usa a flag PERMANENTE (skipDeleteConfirmation), nao a
-        // temporaria (tempSkipDeleteConfirmation e resetada toda vez que o app abre do zero
-        // em MainActivity.onCreate, entao "nunca" ficava salva de fato).
         if ((config.skipDeleteConfirmation || config.tempSkipDeleteConfirmation) && !isInRecycleBin) {
             deleteCurrentFile(skipRecycleBin = config.tempSkipRecycleBin)
             return
@@ -457,14 +430,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         DeleteWithRememberDialog(this, question, showSkipOption) { remember, skipRecycleBin ->
             if (remember) {
                 config.tempSkipRecycleBin = skipRecycleBin
-                config.skipDeleteConfirmation = true  // permanente - sobrevive a reinicio do app
+                config.skipDeleteConfirmation = true
             }
             deleteCurrentFile(skipRecycleBin)
         }
     }
 
     private fun deleteCurrentFile(skipRecycleBin: Boolean) {
-        // Libera o player antes: sem isso, deletar vídeo em reprodução causa IllegalArgumentException
         (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
         val medium = getCurrentMedium() ?: return
         val path = medium.path
@@ -509,8 +481,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         getCurrentPhotoFragment()?.rotateImageViewBy(degrees)
     }
 
-    // Cicla a orientação da tela: automática (sensor) -> retrato travado -> paisagem travada -> automática.
-    // Antes esse item de menu/botão existia na UI mas não tinha handler nenhum implementado.
     private fun cycleChangeOrientation() {
         requestedOrientation = when (requestedOrientation) {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -550,7 +520,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun copyMoveTo(isCopy: Boolean) {
-        // Libera o player antes: mover arquivo em reprodução pode causar IllegalArgumentException
         if (!isCopy) (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
         val path = getCurrentPath()
         val fileDirItems = arrayListOf(FileDirItem(path, path.getFilenameFromPath()))
@@ -571,8 +540,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
-    // ── Slideshow ───────────────────────────────────────────────────────────────
-
     private fun initSlideshow() {
         SlideshowDialog(this) { startSlideshow() }
     }
@@ -587,7 +554,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         mIsSlideshowActive = true
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Embaralha a ordem se configurado
         if (config.slideshowRandomOrder) {
             mMediums.shuffle()
             mPos = 0
@@ -642,7 +608,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         SLIDESHOW_ANIMATION_FLIP, SLIDESHOW_ANIMATION_ZOOM_IN, SLIDESHOW_ANIMATION_ZOOM_OUT
     )
 
-    // No modo aleatório, sorteia uma animação diferente a cada chamada (cada transição)
     private fun applySlideshowTransformer() {
         val animation = if (config.slideshowAnimation == SLIDESHOW_ANIMATION_RANDOM) {
             mRandomAnimations.random()
@@ -658,10 +623,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             mIsSlideshowActive = false
             mSlideshowHandler.removeCallbacksAndMessages(null)
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            // Se a apresentação foi interrompida NO MEIO de uma transição animada (cube girando,
-            // zoom, etc.), a view da página atual pode ter ficado com rotationY/scale/translation
-            // "sujos" daquele efeito. Isso não só parecia visualmente errado como também deslocava
-            // os limites de toque da view, quebrando o gesto de arrastar pra fechar o visualizador.
             getCurrentFragment()?.view?.apply {
                 alpha = 1f; scaleX = 1f; scaleY = 1f
                 translationX = 0f; translationY = 0f
@@ -670,7 +631,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             applyViewerTransformer()
             mIsFullScreen = false
             showSystemUI()
-            fullscreenToggled()  // restaura barra superior/inferior para swipe funcionar
+            fullscreenToggled()
         }
     }
 
@@ -742,8 +703,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         animator.start()
     }
 
-    // ── OCR ────────────────────────────────────────────────────────────────────
-
     private var mOcrInProgress = false
 
     private fun extractTextFromCurrentMedia() {
@@ -790,7 +749,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     .addOnSuccessListener { result ->
                         bmp.recycle(); client.close()
                         mOcrInProgress = false
-                        // Só mostra o resultado se o usuário ainda estiver na mesma mídia
                         if (getCurrentPath() == requestedPath) {
                             runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
                         }
@@ -821,9 +779,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val requestedPath = medium.path
         toast(R.string.extracting_text)
 
-        // ── Caminho RÁPIDO: captura o frame já renderizado na GPU ──────────────────
-        // TextureView.getBitmap() é instantâneo (sem I/O, sem seek de vídeo).
-        // Funciona enquanto o vídeo estiver visível (tocando ou pausado com frame).
         val fastFrame = videoFragment.captureCurrentFrame()
         if (fastFrame != null) {
             val client = com.google.mlkit.vision.text.TextRecognition
@@ -843,8 +798,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
 
-        // ── Fallback LENTO: MediaMetadataRetriever ────────────────────────────────
-        // Usado quando a TextureView não tem frame (ex: vídeo ainda não iniciou).
         val currentPositionMs = videoFragment.getCurrentVideoPositionMs()
         ensureBackgroundThread {
             val retriever = android.media.MediaMetadataRetriever()
@@ -919,8 +872,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             .create().show()
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────────
-
     private fun getCurrentMedium(): Medium? = mMediums.getOrNull(mPos)
     private fun getCurrentPath(): String = getCurrentMedium()?.path ?: ""
     private fun getCurrentFragment(): ViewPagerFragment? = (binding.viewPager.adapter as? MyPagerAdapter)?.getCurrentFragment(mPos)
@@ -930,8 +881,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.mediumViewerToolbar.title = getCurrentMedium()?.name ?: ""
     }
 
-    // ── ViewPager callbacks ────────────────────────────────────────────────────
-
     override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
 
     override fun onPageSelected(position: Int) {
@@ -939,18 +888,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         updateTitle()
         refreshMenuItems()
         scheduleSwipe()
-        // Removido: chamada extra e redundante de playVideo() aqui. videoPrepared() (disparado
-        // pelo próprio callback STATE_READY do ExoPlayer) já chama playVideo() via mPlayOnPrepared
-        // para fragments recém-inicializados, e o framework (setMenuVisibility(true), chamado
-        // automaticamente pelo ViewPager ao trocar a página primária) já chama playVideo() de
-        // forma síncrona para fragments já inicializados. Essa chamada extra só adicionava um
-        // Handler().post() + busca de fragment por tag + re-execução completa de playVideo()
-        // exatamente no momento em que a resposta ao swipe precisa ser mais rápida.
     }
 
     override fun onPageScrollStateChanged(state: Int) {}
-
-    // ── FragmentListener ───────────────────────────────────────────────────────
 
     override fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
@@ -962,7 +902,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun fullscreenToggled() {
         val newAlpha = if (mIsFullScreen) 0f else 1f
         binding.topShadow.animate().alpha(newAlpha).start()
-        // Anima o AppBarLayout inteiro (não só o Toolbar) para esconder completamente
         binding.mediumViewerAppbar.animate().alpha(newAlpha).withStartAction {
             binding.mediumViewerAppbar.beVisible()
         }.withEndAction {
