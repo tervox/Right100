@@ -82,7 +82,6 @@ class PhotoFragment : ViewPagerFragment() {
     private val ZOOMABLE_VIEW_LOAD_DELAY = 100L
     private val SAME_ASPECT_RATIO_THRESHOLD = 0.01
 
-    // devices with good displays, but the rest of the hardware not good enough for them
     private val WEIRD_DEVICES = arrayListOf(
         "motorola xt1685",
         "google nexus 5x"
@@ -93,7 +92,7 @@ class PhotoFragment : ViewPagerFragment() {
     private var mIsFullscreen = false
     private var mWasInit = false
     private var mIsPanorama = false
-    private var mIsSubsamplingVisible = false    // checking view.visibility is unreliable, use an extra variable for it
+    private var mIsSubsamplingVisible = false
     private var mShouldResetImage = false
     private var mCurrentPortraitPhotoPath = ""
     private var mOriginalPath = ""
@@ -235,11 +234,6 @@ class PhotoFragment : ViewPagerFragment() {
         mWasInit = true
         updateInstantSwitchWidths()
 
-        // TODO: Implement panorama using a FOSS library
-        // ensureBackgroundThread {
-        //      checkIfPanorama()
-        // }
-
         return mView
     }
 
@@ -315,7 +309,6 @@ class PhotoFragment : ViewPagerFragment() {
             return
         }
 
-        // avoid GIFs being skewed, played in wrong aspect ratio
         if (mMedium.isGIF()) {
             mView.onGlobalLayout {
                 if (activity != null) {
@@ -409,7 +402,7 @@ class PhotoFragment : ViewPagerFragment() {
         }
         binding.photoBlurBg.beVisible()
         binding.photoBlurOverlay.beVisible()
-        com.bumptech.glide.Glide.with(ctx)
+        Glide.with(ctx)
             .load(mMedium.path)
             .thumbnail(0.2f)
             .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
@@ -589,8 +582,6 @@ class PhotoFragment : ViewPagerFragment() {
                     if (mMedium.path != mOriginalPath) {
                         mMedium.path = mOriginalPath
                         loadImage()
-                        // TODO: Implement panorama using a FOSS library
-                        // checkIfPanorama()
                     } else {
                         binding.errorMessageHolder.errorMessage.apply {
                             setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
@@ -735,7 +726,6 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-//    private fun getFilePathToShow() = if (mMedium.isPortrait()) mCurrentPortraitPhotoPath else getPathToLoad(mMedium)
     private fun getFilePathToShow(): String {
         if (!::mMedium.isInitialized) {
             return ""
@@ -817,7 +807,6 @@ class PhotoFragment : ViewPagerFragment() {
                     mCurrentRotationDegrees = (mCurrentRotationDegrees + degrees) % 360
                     loadBitmap(false)
 
-                    // ugly, but it works
                     (activity as? ViewPagerActivity)?.refreshMenuItems()
                     (activity as? PhotoVideoActivity)?.refreshMenuItems()
                 }
@@ -843,7 +832,7 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun checkIfPanorama() {
         mIsPanorama = try {
-            if (mMedium.path.startsWith("content:/")) {
+            if (mMedium.path.startsWith("content://")) {
                 requireContext().contentResolver.openInputStream(mMedium.path.toUri())
             } else {
                 File(mMedium.path).inputStream()
@@ -878,7 +867,7 @@ class PhotoFragment : ViewPagerFragment() {
 
         try {
             val path = getFilePathToShow()
-            orient = if (path.startsWith("content:/")) {
+            orient = if (path.startsWith("content://")) {
                 val inputStream = requireContext().contentResolver.openInputStream(path.toUri())
                 val exif = ExifInterface()
                 exif.readExif(inputStream, ExifInterface.Options.OPTION_ALL)
@@ -890,7 +879,7 @@ class PhotoFragment : ViewPagerFragment() {
             }
 
             if (orient == defaultOrientation || requireContext().isPathOnOTG(getFilePathToShow())) {
-                val uri = if (path.startsWith("content:/")) path.toUri() else Uri.fromFile(File(path))
+                val uri = if (path.startsWith("content://")) path.toUri() else Uri.fromFile(File(path))
                 val inputStream = requireContext().contentResolver.openInputStream(uri)
                 val exif2 = ExifInterface()
                 exif2.readExif(inputStream, ExifInterface.Options.OPTION_ALL)
@@ -997,33 +986,6 @@ class PhotoFragment : ViewPagerFragment() {
 
             if (mWasInit && mMedium.isPortrait()) {
                 photoPortraitStripeWrapper.animate().alpha(if (isFullscreen) 0f else 1f).start()
-            }
-        }
-    }
-
-    private fun applyProperColorMode(resource: Drawable?) {
-        if (mIsFragmentVisible && activity != null) {
-            ColorModeHelper.setColorModeForImage(
-                activity = requireActivity(),
-                bitmap = (resource as? BitmapDrawable)?.bitmap ?: resource?.toBitmapOrNull(),
-                ultraHdr = context?.config?.ultraHdrRendering ?: true
-            )
-        }
-    }
-
-    private fun resetColorModeIfVisible() {
-        if (mIsFragmentVisible) {
-            ColorModeHelper.resetColorMode(activity)
-        }
-    }
-
-    private fun reapplyColorModeIfNeeded() {
-        if (mWasInit && mIsFragmentVisible) {
-            val drawable = binding.gesturesView.drawable
-            if (drawable != null && binding.gesturesView.isVisible()) {
-                applyProperColorMode(drawable)
-            } else {
-                resetColorModeIfVisible()
             }
         }
     }
