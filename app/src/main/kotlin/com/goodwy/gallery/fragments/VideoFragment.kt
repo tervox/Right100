@@ -555,6 +555,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mIsDragged = false
     }
 
+    fun getCurrentVideoPositionMs(): Long = mExoPlayer?.currentPosition ?: mCurrTime
+
+    fun captureCurrentFrame(): android.graphics.Bitmap? =
+        try { mTextureView.getBitmap() } catch (_: Exception) { null }
+
     fun togglePlayPause() { if (activity == null || !isAdded) return; if (mIsPlaying) pauseVideo() else playVideo() }
 
     private fun updatePlayerMuteState(showToast: Boolean = false) {
