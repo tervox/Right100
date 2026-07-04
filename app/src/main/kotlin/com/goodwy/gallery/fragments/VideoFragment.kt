@@ -10,7 +10,6 @@ import android.graphics.SurfaceTexture
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
-import android.util.DisplayMetrics
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
@@ -25,7 +24,6 @@ import android.widget.ImageView
 import android.widget.RelativeLayout
 import android.widget.SeekBar
 import android.widget.TextView
-import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat.Type
 import androidx.core.view.updateLayoutParams
@@ -65,13 +63,11 @@ import com.goodwy.gallery.extensions.getBottomActionsHeight
 import com.goodwy.gallery.extensions.getFormattedDuration
 import com.goodwy.gallery.extensions.getFriendlyMessage
 import com.goodwy.gallery.extensions.launchGesturePlayer
-import com.goodwy.gallery.extensions.parseFileChannel
 import com.goodwy.gallery.helpers.*
 import com.goodwy.gallery.interfaces.PlaybackSpeedListener
 import com.goodwy.gallery.models.Medium
 import com.goodwy.gallery.views.MediaSideScroll
 import java.io.File
-import java.io.FileInputStream
 import java.text.DecimalFormat
 import androidx.core.net.toUri
 import kotlin.math.max
@@ -81,7 +77,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     SeekBar.OnSeekBarChangeListener, PlaybackSpeedListener {
     companion object {
         private const val PROGRESS = "progress"
-        private const val UPDATE_INTERVAL_MS = 250L
+        private const val UPDATE_INTERVAL_MS = 16L
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
@@ -254,9 +250,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             val pillTopMargin = system.top + resources.getActionBarHeight(context) +
                 resources.getDimension(com.goodwy.commons.R.dimen.normal_margin).toInt()
             (mPlaybackSpeedPill.layoutParams as? RelativeLayout.LayoutParams)?.apply {
-                setMargins(
-                    0, pillTopMargin, 0, 0
-                )
+                setMargins(0, pillTopMargin, 0, 0)
             }
 
             binding.bottomActionsDummy.updateLayoutParams<ViewGroup.LayoutParams> {
@@ -310,35 +304,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
             binding.apply {
                 mBrightnessSideScroll.initialize(
-                    activity,
-                    slideInfo,
-                    true,
-                    container,
-                    singleTap = { x, y ->
-                        if (mConfig.allowInstantChange) {
-                            listener?.goToPrevItem()
-                        } else {
-                            toggleFullscreen()
-                        }
+                    activity, slideInfo, true, container,
+                    singleTap = { _, _ ->
+                        if (mConfig.allowInstantChange) listener?.goToPrevItem()
+                        else toggleFullscreen()
                     },
-                    doubleTap = { x, y ->
-                        doSkip(false)
-                    })
+                    doubleTap = { _, _ -> doSkip(false) }
+                )
                 mVolumeSideScroll.initialize(
-                    activity,
-                    slideInfo,
-                    false,
-                    container,
-                    singleTap = { x, y ->
-                        if (mConfig.allowInstantChange) {
-                            listener?.goToNextItem()
-                        } else {
-                            toggleFullscreen()
-                        }
+                    activity, slideInfo, false, container,
+                    singleTap = { _, _ ->
+                        if (mConfig.allowInstantChange) listener?.goToNextItem()
+                        else toggleFullscreen()
                     },
-                    doubleTap = { x, y ->
-                        doSkip(true)
-                    })
+                    doubleTap = { _, _ -> doSkip(true) }
+                )
 
                 videoSurface.onGlobalLayout {
                     if (mIsFragmentVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer) {
@@ -365,27 +345,27 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onResume() {
         super.onResume()
-        mConfig =
-            requireContext().config
+        mConfig = requireContext().config
         requireActivity().updateTextColors(binding.videoHolder)
         val allowVideoGestures = mConfig.allowVideoGestures
         mTextureView.beGoneIf(mConfig.gestureVideoPlayer || mIsPanorama)
         binding.videoSurfaceFrame.beGoneIf(mTextureView.isGone())
-
         mVolumeSideScroll.beVisibleIf(allowVideoGestures && !mIsPanorama)
         mBrightnessSideScroll.beVisibleIf(allowVideoGestures && !mIsPanorama)
-
         checkExtendedDetails()
         initTimeHolder()
         storeStateVariables()
-        context?.let { (mSeekBar as MySeekBar?)!!.setColors(
-            it.getProperTextColor(),
-            it.getProperPrimaryColor(),
-            if (!mConfig.blackBackground) it.getProperTextColor() else resources.getColor(com.goodwy.commons.R.color.white)
-        ) }
+        context?.let {
+            (mSeekBar as MySeekBar?)!!.setColors(
+                it.getProperTextColor(),
+                it.getProperPrimaryColor(),
+                if (!mConfig.blackBackground) it.getProperTextColor()
+                else resources.getColor(com.goodwy.commons.R.color.white)
+            )
+        }
 
         if (!mConfig.blackBackground) {
-            val textColor = this.requireContext().getProperTextColor()
+            val textColor = requireContext().getProperTextColor()
             arrayListOf(
                 binding.bottomVideoTimeHolder.videoDuration,
                 binding.bottomVideoTimeHolder.videoCurrTime,
@@ -402,9 +382,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 binding.bottomVideoTimeHolder.videoNextFile,
                 binding.bottomVideoTimeHolder.videoToggleMute
             ).forEach {
-                it.apply {
-                    setColorFilter(textColor)
-                }
+                it.setColorFilter(textColor)
             }
         }
     }
@@ -420,24 +398,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onDestroy() {
         super.onDestroy()
-        if (activity?.isChangingConfigurations == false) {
-            cleanup()
-        }
-
-        if (::mVolumeSideScroll.isInitialized) {
-            mVolumeSideScroll.cleanup()
-        }
+        if (activity?.isChangingConfigurations == false) cleanup()
+        if (::mVolumeSideScroll.isInitialized) mVolumeSideScroll.cleanup()
     }
 
     override fun setMenuVisibility(menuVisible: Boolean) {
         super.setMenuVisibility(menuVisible)
-        if (mIsFragmentVisible && !menuVisible) {
-            pauseVideo()
-        }
-
+        if (mIsFragmentVisible && !menuVisible) pauseVideo()
         mIsFragmentVisible = menuVisible
-        val shouldPlayVideo = mWasFragmentInit && menuVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer
-        if (shouldPlayVideo) playVideo()
+        val shouldPlay = mWasFragmentInit && menuVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer
+        if (shouldPlay) playVideo()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -466,10 +436,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun saveVideoProgress() {
         if (!videoEnded()) {
             if (mExoPlayer != null) {
-                mConfig.saveLastVideoPosition(
-                    mMedium.path,
-                    mExoPlayer!!.currentPosition.toInt() / 1000
-                )
+                mConfig.saveLastVideoPosition(mMedium.path, mExoPlayer!!.currentPosition.toInt() / 1000)
             } else {
                 mConfig.saveLastVideoPosition(mMedium.path, mPositionAtPause.toInt() / 1000)
             }
@@ -498,24 +465,18 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
-
                 mTimerHandler.postDelayed(this, UPDATE_INTERVAL_MS)
             }
         })
     }
 
     private fun initExoPlayer() {
-        val shouldSkipInit = activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null
-        if (shouldSkipInit) return
+        if (activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null) return
 
         val isContentUri = mMedium.path.startsWith("content://")
         val uri = if (isContentUri) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
         val dataSpec = DataSpec(uri)
-        val fileDataSource = if (isContentUri) {
-            ContentDataSource(requireContext())
-        } else {
-            FileDataSource()
-        }
+        val fileDataSource = if (isContentUri) ContentDataSource(requireContext()) else FileDataSource()
 
         try {
             fileDataSource.open(dataSpec)
@@ -528,17 +489,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val factory = DataSource.Factory { fileDataSource }
         val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
             .createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
-
         fileDataSource.close()
 
         mPlayOnPrepared = true
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                EXOPLAYER_MIN_BUFFER_MS,
-                EXOPLAYER_MAX_BUFFER_MS,
-                EXOPLAYER_MIN_BUFFER_MS,
-                EXOPLAYER_MIN_BUFFER_MS
+                EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS,
+                EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
@@ -555,20 +513,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 setPlaybackSpeed(mConfig.playbackSpeed)
                 setMediaSource(mediaSource)
                 setAudioAttributes(
-                    AudioAttributes
-                        .Builder()
+                    AudioAttributes.Builder()
                         .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                         .build(), false
                 )
                 prepare()
-
                 if (mTextureView.surfaceTexture != null) {
                     setVideoSurface(Surface(mTextureView.surfaceTexture))
                 }
-
                 initListeners()
             }
-
         updatePlayerMuteState()
     }
 
@@ -577,7 +531,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             override fun onPositionDiscontinuity(
                 oldPosition: Player.PositionInfo,
                 newPosition: Player.PositionInfo,
-                @Player.DiscontinuityReason reason: Int,
+                @Player.DiscontinuityReason reason: Int
             ) {
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
                     mSeekBar.progress = 0
@@ -621,9 +575,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         })
     }
 
-    private fun toggleFullscreen() {
-        listener?.fragmentClicked()
-    }
+    private fun toggleFullscreen() = listener?.fragmentClicked()
 
     private fun handleDoubleTap(x: Float) {
         val viewWidth = mView.width
@@ -652,34 +604,28 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mTimeHolder.beGoneIf(mIsFullscreen)
         mTimeHolder.alpha = if (mIsFullscreen) 0f else 1f
         (activity as? BaseViewerActivity)?.applyProperHorizontalInsets(mTimeHolder)
-
         if (mConfig.gestureVideoPlayer) return
-
         binding.bottomVideoTimeHolder.videoFillScreen.beGone()
-
         binding.bottomVideoTimeHolder.videoStretch.apply {
             beVisible()
             fun updateIcon() {
                 setImageResource(when {
                     mConfig.videoFillMode == 2 -> R.drawable.ic_maximize_vector
-                    mConfig.videoFillScreen    -> R.drawable.ic_minimize_vector
-                    else                       -> R.drawable.ic_crop_free
+                    mConfig.videoFillScreen -> R.drawable.ic_minimize_vector
+                    else -> R.drawable.ic_crop_free
                 })
             }
             updateIcon()
             setOnClickListener {
                 when {
                     !mConfig.videoFillScreen && mConfig.videoFillMode != 2 -> {
-                        mConfig.videoFillMode = 2
-                        mConfig.videoFillScreen = false
+                        mConfig.videoFillMode = 2; mConfig.videoFillScreen = false
                     }
                     mConfig.videoFillMode == 2 -> {
-                        mConfig.videoFillMode = 0
-                        mConfig.videoFillScreen = true
+                        mConfig.videoFillMode = 0; mConfig.videoFillScreen = true
                     }
                     else -> {
-                        mConfig.videoFillMode = 0
-                        mConfig.videoFillScreen = false
+                        mConfig.videoFillMode = 0; mConfig.videoFillScreen = false
                     }
                 }
                 setVideoSize()
@@ -694,7 +640,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun fullscreenToggled(isFullscreen: Boolean) {
         mIsFullscreen = isFullscreen
-
         mSeekBar.setOnSeekBarChangeListener(if (mIsFullscreen) null else this)
         arrayOf(
             binding.bottomVideoTimeHolder.videoCurrTime,
@@ -702,9 +647,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             binding.bottomVideoTimeHolder.videoTogglePlayPause,
             binding.bottomVideoTimeHolder.videoPlaybackSpeed,
             binding.bottomVideoTimeHolder.videoToggleMute
-        ).forEach {
-            it.isClickable = !mIsFullscreen
-        }
+        ).forEach { it.isClickable = !mIsFullscreen }
 
         if (isFullscreen) {
             mTimeHolder.fadeOut(DEFAULT_ANIMATION_DURATION)
@@ -725,38 +668,27 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun showPlaybackSpeedPicker() {
         val fragment = PlaybackSpeedFragment()
-        childFragmentManager.beginTransaction().add(fragment, fragment::class.java.simpleName)
-            .commit()
+        childFragmentManager.beginTransaction().add(fragment, fragment::class.java.simpleName).commit()
         fragment.setListener(this)
     }
 
     override fun updatePlaybackSpeed(speed: Float) {
         @SuppressLint("SetTextI18n")
-        binding.bottomVideoTimeHolder.videoPlaybackSpeed.text =
-            "${DecimalFormat("#.##").format(speed)}x"
+        binding.bottomVideoTimeHolder.videoPlaybackSpeed.text = "${DecimalFormat("#.##").format(speed)}x"
         mExoPlayer?.setPlaybackSpeed(speed)
     }
 
     private fun skip(forward: Boolean) {
-        if (mIsPanorama) {
-            return
-        } else if (mExoPlayer == null) {
-            playVideo()
-            return
-        }
-
+        if (mIsPanorama) return
+        if (mExoPlayer == null) { playVideo(); return }
         mPositionAtPause = 0L
         doSkip(forward)
     }
 
     private fun doSkip(forward: Boolean) {
-        if (mExoPlayer == null) {
-            return
-        }
-
+        if (mExoPlayer == null) return
         val curr = mExoPlayer!!.currentPosition
-        var newPosition =
-            if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
+        var newPosition = if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
         newPosition = newPosition.coerceIn(0, maxOf(mExoPlayer!!.duration, 0))
         setPosition(newPosition)
     }
@@ -768,20 +700,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (fromUser) {
             val newPosition = progress.toLong()
             if (mExoPlayer != null) {
-                if (!mWasPlayerInited) {
-                    mPositionWhenInit = newPosition
-                }
+                if (!mWasPlayerInited) mPositionWhenInit = newPosition
                 mSeekBar.progress = newPosition.toInt()
                 mCurrTimeView.text = newPosition.getFormattedDuration()
                 if (!mIsPlaying) mPositionAtPause = newPosition
-
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (now - mLastSeekMs >= mSeekThrottleMs) {
                     mLastSeekMs = now
                     mExoPlayer?.seekTo(newPosition)
                 }
             }
-
             if (mExoPlayer == null) {
                 mPositionAtPause = newPosition
                 playVideo()
@@ -790,31 +718,18 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     override fun onStartTrackingTouch(seekBar: SeekBar) {
-        if (mExoPlayer == null) {
-            return
-        }
+        if (mExoPlayer == null) return
         mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         mExoPlayer!!.playWhenReady = false
         mIsDragged = true
     }
 
     override fun onStopTrackingTouch(seekBar: SeekBar) {
-        if (mIsPanorama) {
-            openPanorama()
-            return
-        }
-
-        if (mExoPlayer == null) {
-            return
-        }
-
+        if (mIsPanorama) { openPanorama(); return }
+        if (mExoPlayer == null) return
         mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
         mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
-
-        if (mIsPlaying) {
-            mExoPlayer!!.playWhenReady = true
-        }
-
+        if (mIsPlaying) mExoPlayer!!.playWhenReady = true
         mIsDragged = false
     }
 
@@ -824,15 +739,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         try { mTextureView.getBitmap() } catch (_: Exception) { null }
 
     fun togglePlayPause() {
-        if (activity == null || !isAdded) {
-            return
-        }
-
-        if (mIsPlaying) {
-            pauseVideo()
-        } else {
-            playVideo()
-        }
+        if (activity == null || !isAdded) return
+        if (mIsPlaying) pauseVideo() else playVideo()
     }
 
     private fun updatePlayerMuteState(showToast: Boolean = false) {
@@ -842,70 +750,47 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         } else if (showToast && mWasVideoStarted) {
             activity?.toast(R.string.video_no_sound)
         }
-
         val drawableId = when {
             !mHasAudio -> R.drawable.ic_vector_no_sound
             isMuted -> R.drawable.ic_vector_speaker_off
             else -> R.drawable.ic_vector_speaker_on
         }
-
         binding.bottomVideoTimeHolder.videoToggleMute.setImageResource(drawableId)
         mMuteInit = true
     }
 
     fun playVideo() {
-        if (mExoPlayer == null) {
-            initExoPlayer()
-            return
-        }
-
+        if (mExoPlayer == null) { initExoPlayer(); return }
         listener?.updatePlayPause(false)
-
         if (binding.videoPreview.isVisible()) {
             binding.videoPreview.beGone()
             initExoPlayer()
         }
-
         val wasEnded = videoEnded()
-        if (wasEnded) {
-            setPosition(0)
-        }
-
+        if (wasEnded) setPosition(0)
         if (mStoredRememberLastVideoPosition && !mWasLastPositionRestored) {
             mWasLastPositionRestored = true
             restoreLastVideoSavedPosition()
         }
-
         if (!wasEnded || !mConfig.loopVideos) {
             mPlayPauseButton.setImageResource(R.drawable.ic_pause_vector)
         }
-
         if (!mWasVideoStarted) {
             binding.bottomVideoTimeHolder.videoPlaybackSpeed.text =
                 "${DecimalFormat("#.##").format(mConfig.playbackSpeed)}x"
         }
-
         mWasVideoStarted = true
-        if (mIsPlayerPrepared) {
-            mIsPlaying = true
-        }
+        if (mIsPlayerPrepared) mIsPlaying = true
         mExoPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         startLiveBlurUpdates()
     }
 
     private fun pauseVideo() {
-        if (mExoPlayer == null) {
-            return
-        }
-
+        if (mExoPlayer == null) return
         listener?.updatePlayPause(true)
-
         mIsPlaying = false
-        if (!videoEnded()) {
-            mExoPlayer?.playWhenReady = false
-        }
-
+        if (!videoEnded()) mExoPlayer?.playWhenReady = false
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         mPositionAtPause = mExoPlayer?.currentPosition ?: 0L
@@ -922,16 +807,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mExoPlayer?.seekTo(milliseconds)
         mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
-
-        if (!mIsPlaying) {
-            mPositionAtPause = milliseconds
-        }
+        if (!mIsPlaying) mPositionAtPause = milliseconds
     }
 
     private fun setupVideoDuration() {
         ensureBackgroundThread {
             mDuration = context?.getDuration(mMedium.path)?.times(1000L)?.coerceAtLeast(0L) ?: 0L
-
             activity?.runOnUiThread {
                 setupTimeHolder()
                 setPosition(0)
@@ -944,31 +825,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mDuration = mExoPlayer!!.duration
             setupTimeHolder()
             setPosition(mCurrTime)
-
-            if (mIsFragmentVisible && (mConfig.autoplayVideos)) {
-                playVideo()
-            }
+            if (mIsFragmentVisible && mConfig.autoplayVideos) playVideo()
         }
-
         if (mPositionWhenInit != 0L && !mWasPlayerInited) {
             setPosition(mPositionWhenInit)
             mPositionWhenInit = 0L
         }
-
         mIsPlayerPrepared = true
         mWasPlayerInited = true
     }
 
-    private fun videoCompleted() {
-        listener?.videoEnded()
-    }
+    private fun videoCompleted() = listener?.videoEnded()
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        if (mExoPlayer != null) {
-            mExoPlayer!!.setVideoSurface(Surface(surface))
-        } else {
-            initExoPlayer()
-        }
+        if (mExoPlayer != null) mExoPlayer!!.setVideoSurface(Surface(surface))
+        else initExoPlayer()
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
@@ -983,13 +854,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun setVideoSize() {
         val videoHeight = mVideoSize.y
         val videoWidth = mVideoSize.x
-        if (videoHeight == 0 || videoWidth == 0) {
-            return
-        }
+        if (videoHeight == 0 || videoWidth == 0) return
 
         val view = binding.videoSurfaceFrame
-        val viewHeight = resources.displayMetrics.heightPixels - resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
-        val viewWidth = resources.displayMetrics.widthPixels - resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
+        val margin = resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
+        val viewHeight = resources.displayMetrics.heightPixels - margin
+        val viewWidth = resources.displayMetrics.widthPixels - margin
         val viewRatio = viewWidth.toFloat() / viewHeight.toFloat()
         val videoRatio = videoWidth.toFloat() / videoHeight.toFloat()
 
@@ -1000,22 +870,56 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             view.layoutParams.width = (viewHeight * videoRatio).toInt()
             view.layoutParams.height = viewHeight
         }
-
         view.requestLayout()
     }
 
-    fun releasePlayerForFileOp() {
-        cleanup()
-    }
+    fun releasePlayerForFileOp() = cleanup()
 
     private fun cleanup() {
         mExoPlayer?.release()
         mExoPlayer = null
     }
 
-    private fun startLiveBlurUpdates() {}
-    private fun stopLiveBlurUpdates() {}
-    private fun setupBlurBackground() {}
+    // ── Blur ao vivo ──────────────────────────────────────────
+    private fun startLiveBlurUpdates() {
+        if (!::binding.isInitialized) return
+        mBlurActive = true
+        updateBlurFrame()
+    }
+
+    private fun stopLiveBlurUpdates() {
+        mBlurActive = false
+    }
+
+    private fun updateBlurFrame() {
+        if (!mBlurActive || !isAdded || mConfig.blackBackground) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - mLastBlurUpdateMs < 80) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ updateBlurFrame() }, 16)
+            return
+        }
+        mLastBlurUpdateMs = now
+        try {
+            val bmp = mTextureView.getBitmap(32, 18)
+            if (bmp != null) {
+                binding.videoBlurBg.setImageBitmap(bmp)
+            }
+        } catch (_: Exception) {}
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ updateBlurFrame() }, 80)
+    }
+
+    private fun setupBlurBackground() {
+        if (mConfig.blackBackground || !mConfig.blurBackgroundVideo) {
+            binding.videoBlurBg.setImageDrawable(null)
+            return
+        }
+        try {
+            Glide.with(this)
+                .load(mMedium.path)
+                .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 8)))
+                .into(binding.videoBlurBg)
+        } catch (_: Exception) {}
+    }
 
     protected fun handleTouchHoldEvent(event: MotionEvent) {
         when (event.actionMasked) {
