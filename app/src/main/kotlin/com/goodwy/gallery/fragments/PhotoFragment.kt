@@ -539,7 +539,7 @@ class PhotoFragment : ViewPagerFragment() {
                     dataSource: DataSource,
                     isFirstResource: Boolean
                 ): Boolean {
-                    if (resource is android.graphics.drawable.BitmapDrawable) ColorModeHelper.setColorModeForImage(activity, resource.bitmap) else ColorModeHelper.resetColorMode(activity)
+                    if (resource is android.graphics.drawable.BitmapDrawable) ColorModeHelper.setColorModeForImage(requireActivity(), resource.bitmap) else ColorModeHelper.resetColorMode(activity)
                     val allowZoomingImages = context?.config?.allowZoomingImages ?: true
                     binding.gesturesView.controller.settings.isZoomEnabled = mMedium.isRaw() || mCurrentRotationDegrees != 0 || allowZoomingImages == false
                     if (mIsFragmentVisible && addZoomableView) {
