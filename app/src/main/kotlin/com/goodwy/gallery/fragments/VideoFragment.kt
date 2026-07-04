@@ -557,7 +557,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     fun playVideo() {
         if (mExoPlayer == null) { initExoPlayer(); return }
         listener?.updatePlayPause(false)
-        if (binding.videoPreview.isVisible()) { binding.videoPreview.beGone(); initExoPlayer() }
+        if (binding.videoPreview.isVisible()) { binding.videoPreview.beGone(); initExoPlayer(); return }
         val wasEnded = videoEnded()
         if (wasEnded) setPosition(0)
         if (mStoredRememberLastVideoPosition && !mWasLastPositionRestored) { mWasLastPositionRestored = true; restoreLastVideoSavedPosition() }
