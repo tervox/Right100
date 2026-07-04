@@ -880,7 +880,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mExoPlayer = null
     }
 
-    // ── Blur ao vivo ──────────────────────────────────────────
     private fun startLiveBlurUpdates() {
         if (!::binding.isInitialized) return
         mBlurActive = true
