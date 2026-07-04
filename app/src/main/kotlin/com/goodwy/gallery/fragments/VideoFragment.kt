@@ -964,7 +964,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        mTextureView.surfaceTexture = surface
+        mExoPlayer?.setVideoSurface(Surface(surface))
         initExoPlayer()
     }
 
@@ -975,7 +975,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         return true
     }
 
-    override fun onSurfaceTextureFrameAvailable(surface: SurfaceTexture) {}
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
 
     private fun setVideoSize() {
         val videoHeight = mVideoSize.y

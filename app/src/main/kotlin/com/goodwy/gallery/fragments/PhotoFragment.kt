@@ -283,7 +283,7 @@ class PhotoFragment : ViewPagerFragment() {
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
 
-        reapplyColorModeIfNeeded()
+        ColorModeHelper.resetColorMode(activity)
         storeStateVariables()
     }
 
@@ -367,7 +367,7 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun photoFragmentVisibilityChanged(isVisible: Boolean) {
         if (isVisible) {
-            applyProperColorMode(binding.gesturesView.drawable)
+            ColorModeHelper.resetColorMode(activity)
             scheduleZoomableView()
         } else {
             hideZoomableView()
@@ -525,7 +525,7 @@ class PhotoFragment : ViewPagerFragment() {
             .apply(options)
             .listener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {
-                    resetColorModeIfVisible()
+                    ColorModeHelper.resetColorMode(activity)
                     if (activity != null && !activity!!.isDestroyed && !activity!!.isFinishing) {
                         tryLoadingWithPicasso(addZoomableView)
                     }
@@ -539,7 +539,7 @@ class PhotoFragment : ViewPagerFragment() {
                     dataSource: DataSource,
                     isFirstResource: Boolean
                 ): Boolean {
-                    applyProperColorMode(resource)
+                    if (resource is android.graphics.drawable.BitmapDrawable) ColorModeHelper.setColorModeForImage(activity, resource.bitmap) else ColorModeHelper.resetColorMode(activity)
                     val allowZoomingImages = context?.config?.allowZoomingImages ?: true
                     binding.gesturesView.controller.settings.isZoomEnabled = mMedium.isRaw() || mCurrentRotationDegrees != 0 || allowZoomingImages == false
                     if (mIsFragmentVisible && addZoomableView) {
@@ -569,7 +569,7 @@ class PhotoFragment : ViewPagerFragment() {
 
             picasso.into(binding.gesturesView, object : Callback {
                 override fun onSuccess() {
-                    applyProperColorMode(binding.gesturesView.drawable)
+                    ColorModeHelper.resetColorMode(activity)
                     binding.gesturesView.controller.settings.isZoomEnabled =
                         mMedium.isRaw() || mCurrentRotationDegrees != 0 || context?.config?.allowZoomingImages == false
                     if (mIsFragmentVisible && addZoomableView) {
@@ -578,7 +578,7 @@ class PhotoFragment : ViewPagerFragment() {
                 }
 
                 override fun onError(e: Exception?) {
-                    resetColorModeIfVisible()
+                    ColorModeHelper.resetColorMode(activity)
                     if (mMedium.path != mOriginalPath) {
                         mMedium.path = mOriginalPath
                         loadImage()
