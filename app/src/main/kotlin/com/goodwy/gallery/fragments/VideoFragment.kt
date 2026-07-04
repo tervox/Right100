@@ -392,6 +392,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) repeatMode = Player.REPEAT_MODE_ONE
                 setPlaybackSpeed(mConfig.playbackSpeed); setMediaSource(mediaSource)
                 setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), false)
+                // ExoPlayer nasce com playWhenReady=true por padrão. Sem essa linha, o player
+                // criado aqui (chamado por onSurfaceTextureAvailable assim que a superfície do
+                // TextureView fica pronta, SEM checar mConfig.autoplayVideos) começava a tocar
+                // sozinho — inclusive com "reprodução automática" desligada nas configurações.
+                // Toda reprodução real agora só começa via playVideo(), que já conecta a
+                // superfície de vídeo antes de habilitar a reprodução.
+                playWhenReady = false
                 prepare()
                 mSurface?.let { setVideoSurface(it) }
                 initListeners()
@@ -557,7 +564,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     fun playVideo() {
         if (mExoPlayer == null) { initExoPlayer(); return }
         listener?.updatePlayPause(false)
-        if (binding.videoPreview.isVisible()) { binding.videoPreview.beGone(); initExoPlayer(); return }
+        if (binding.videoPreview.isVisible()) { binding.videoPreview.beGone() }
         val wasEnded = videoEnded()
         if (wasEnded) setPosition(0)
         if (mStoredRememberLastVideoPosition && !mWasLastPositionRestored) { mWasLastPositionRestored = true; restoreLastVideoSavedPosition() }
