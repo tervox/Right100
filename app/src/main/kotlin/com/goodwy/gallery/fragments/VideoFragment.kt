@@ -565,7 +565,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (!mWasVideoStarted) binding.bottomVideoTimeHolder.videoPlaybackSpeed.text = "${DecimalFormat("#.##").format(mConfig.playbackSpeed)}x"
         mWasVideoStarted = true
         if (mIsPlayerPrepared) mIsPlaying = true
-        mSurface?.let { mExoPlayer?.setVideoSurface(it) }
+        if (mSurface != null) { mExoPlayer?.setVideoSurface(mSurface) }
+        else if (mTextureView.surfaceTexture != null) {
+            mSurface = Surface(mTextureView.surfaceTexture)
+            mExoPlayer?.setVideoSurface(mSurface)
+        }
         mExoPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
