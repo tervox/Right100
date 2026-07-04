@@ -964,8 +964,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        mExoPlayer?.setVideoSurface(Surface(surface))
-        initExoPlayer()
+        if (mExoPlayer != null) {
+            mExoPlayer!!.setVideoSurface(Surface(surface))
+        } else {
+            initExoPlayer()
+        }
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
