@@ -285,8 +285,8 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
             false
         }
 
-        initExoPlayer()
         binding.videoSurface.surfaceTextureListener = this
+        initExoPlayer()
 
         if (config.allowVideoGestures) {
             binding.videoBrightnessController.initialize(
@@ -370,6 +370,14 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
                 if (config.loopVideos) {
                     repeatMode = Player.REPEAT_MODE_ONE
                 }
+                // ExoPlayer nasce com playWhenReady=true por padrão - sem isso, o player podia
+                // começar a tocar (áudio) antes de qualquer superfície de vídeo ser conectada.
+                playWhenReady = false
+                // Rede de segurança: se a SurfaceTexture já estiver disponível neste exato
+                // momento (a ordem correta de onCreate() já registra o listener ANTES de chamar
+                // initExoPlayer(), mas isso garante a conexão mesmo se a superfície já existia
+                // antes do listener ser anexado).
+                binding.videoSurface.surfaceTexture?.let { setVideoSurface(Surface(it)) }
                 prepare()
                 initListeners()
             }
