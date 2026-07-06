@@ -20,7 +20,6 @@ import android.util.DisplayMetrics
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
-import android.view.Surface
 import android.view.TextureView
 import android.view.View
 import android.view.ViewConfiguration
@@ -285,7 +284,6 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
             false
         }
 
-        binding.videoSurface.surfaceTextureListener = this
         initExoPlayer()
 
         if (config.allowVideoGestures) {
@@ -373,11 +371,15 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
                 // ExoPlayer nasce com playWhenReady=true por padrão - sem isso, o player podia
                 // começar a tocar (áudio) antes de qualquer superfície de vídeo ser conectada.
                 playWhenReady = false
-                // Rede de segurança: se a SurfaceTexture já estiver disponível neste exato
-                // momento (a ordem correta de onCreate() já registra o listener ANTES de chamar
-                // initExoPlayer(), mas isso garante a conexão mesmo se a superfície já existia
-                // antes do listener ser anexado).
-                binding.videoSurface.surfaceTexture?.let { setVideoSurface(Surface(it)) }
+                // setVideoTextureView() é a API do próprio Media3/ExoPlayer feita especificamente
+                // pra ligar um TextureView a um player. Ela registra seu PRÓPRIO listener interno
+                // e conecta a superfície sempre que ela ficar disponível, não importa a ordem ou
+                // o momento em relação ao ciclo de vida da Activity/View - diferente da versão
+                // manual anterior (SurfaceTextureListener implementado na própria Activity +
+                // setVideoSurface), que dependia de acertar a ordem exata entre registrar o
+                // listener e criar o player, e falhava se o layout da View acontecesse num
+                // momento diferente do esperado.
+                setVideoTextureView(binding.videoSurface)
                 prepare()
                 initListeners()
             }
@@ -846,9 +848,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture) = false
 
-    override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        mExoPlayer?.setVideoSurface(Surface(binding.videoSurface.surfaceTexture))
-    }
+    override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {}
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
 }
