@@ -340,6 +340,13 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
         val factory = DataSource.Factory { fileDataSource }
         val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
             .createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
+        // Fecha a fonte de dados aberta manualmente (só era necessária pra resolver a URI real).
+        // Sem isso, essa MESMA instância ficava aberta e era devolvida ao ExoPlayer pela fábrica -
+        // quando o player tentava abri-la de novo internamente (o ciclo de vida normal esperado
+        // pra um DataSource vindo de uma fábrica), a abertura duplicada podia falhar ou ler do
+        // lugar errado, corrompendo especificamente a decodificação de vídeo enquanto o áudio
+        // (mais tolerante a isso) continuava tocando normalmente.
+        fileDataSource.close()
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
