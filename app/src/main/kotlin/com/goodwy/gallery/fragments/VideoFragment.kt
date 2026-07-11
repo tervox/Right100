@@ -37,6 +37,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.ContentDataSource
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -88,6 +89,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mWasPlayerInited = false
     private var mWasLastPositionRestored = false
     private var mIsPlayerPrepared = false
+    private var mPlayOnPrepared = false
     private var mCurrTime = 0L
     private var mDuration = 0L
     private var mPositionWhenInit = 0L
@@ -376,19 +378,18 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null) return
         val isContentUri = mMedium.path.startsWith("content://")
         val uri = if (isContentUri) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
-
-        // CORREÇÃO: Cria uma factory que gera UMA NOVA instância a cada chamada do ExoPlayer.
-        // Antes, o código abria um DataSource, capturava essa instância no lambda e depois
-        // a fechava — o ExoPlayer recebia da factory o mesmo objeto já fechado, corrompendo
-        // a decodificação de vídeo (áudio continuava pois é mais tolerante a isso).
-        val factory: DataSource.Factory = if (isContentUri) {
-            DataSource.Factory { ContentDataSource(requireContext()) }
-        } else {
-            DataSource.Factory { FileDataSource() }
-        }
-        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
-            .createMediaSource(MediaItem.fromUri(uri))
-
+        val dataSpec = DataSpec(uri)
+        val fileDataSource = if (isContentUri) ContentDataSource(requireContext()) else FileDataSource()
+        try { fileDataSource.open(dataSpec) } catch (e: Exception) { fileDataSource.close(); return }
+        val factory = DataSource.Factory { fileDataSource }
+        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
+        fileDataSource.close()
+        // Restaurado do original: sinaliza que o usuário pediu explicitamente pra tocar este
+        // vídeo (via playVideo() chamando initExoPlayer() num player ainda não criado),
+        // independente da configuração de reprodução automática. Sem isso, se "reprodução
+        // automática" estiver desligada, nada disparava o play de verdade depois da primeira
+        // inicialização do player - o vídeo ficava preparado mas nunca realmente tocava.
+        mPlayOnPrepared = true
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS)
             .setPrioritizeTimeOverSizeThresholds(true).build()
@@ -396,15 +397,17 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
             .setSeekParameters(SeekParameters.CLOSEST_SYNC).setLoadControl(loadControl).build().apply {
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) repeatMode = Player.REPEAT_MODE_ONE
-                setPlaybackSpeed(mConfig.playbackSpeed)
-                setMediaSource(mediaSource)
+                setPlaybackSpeed(mConfig.playbackSpeed); setMediaSource(mediaSource)
                 setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), false)
+                // ExoPlayer nasce com playWhenReady=true por padrão. Sem essa linha, o player
+                // criado aqui (chamado por onSurfaceTextureAvailable assim que a superfície do
+                // TextureView fica pronta, SEM checar mConfig.autoplayVideos) começava a tocar
+                // sozinho — inclusive com "reprodução automática" desligada nas configurações.
+                // Toda reprodução real agora só começa via playVideo(), que já conecta a
+                // superfície de vídeo antes de habilitar a reprodução.
                 playWhenReady = false
-                // CORREÇÃO: setVideoTextureView() é a API oficial do Media3 — conecta a surface
-                // automaticamente assim que ela ficar disponível, eliminando a race condition
-                // do gerenciamento manual via SurfaceTextureListener + setVideoSurface().
-                setVideoTextureView(mTextureView)
                 prepare()
+                mSurface?.let { setVideoSurface(it) }
                 initListeners()
             }
         updatePlayerMuteState()
@@ -571,16 +574,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (binding.videoPreview.isVisible()) { binding.videoPreview.beGone() }
         val wasEnded = videoEnded()
         if (wasEnded) setPosition(0)
-        if (mStoredRememberLastVideoPosition && !mWasLastPositionRestored) {
-            mWasLastPositionRestored = true
-            restoreLastVideoSavedPosition()
-        }
+        if (mStoredRememberLastVideoPosition && !mWasLastPositionRestored) { mWasLastPositionRestored = true; restoreLastVideoSavedPosition() }
         if (!wasEnded || !mConfig.loopVideos) mPlayPauseButton.setImageResource(R.drawable.ic_pause_vector)
-        if (!mWasVideoStarted) binding.bottomVideoTimeHolder.videoPlaybackSpeed.text =
-            "${DecimalFormat("#.##").format(mConfig.playbackSpeed)}x"
+        if (!mWasVideoStarted) binding.bottomVideoTimeHolder.videoPlaybackSpeed.text = "${DecimalFormat("#.##").format(mConfig.playbackSpeed)}x"
         mWasVideoStarted = true
         if (mIsPlayerPrepared) mIsPlaying = true
-        // setVideoTextureView() já cuida da conexão da superfície
+        if (mSurface != null) { mExoPlayer?.setVideoSurface(mSurface) }
+        else if (mTextureView.surfaceTexture != null) {
+            mSurface = Surface(mTextureView.surfaceTexture)
+            mExoPlayer?.setVideoSurface(mSurface)
+        }
         mExoPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
@@ -617,7 +620,20 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun videoPrepared() {
         if (mDuration == 0L) { mDuration = mExoPlayer!!.duration; setupTimeHolder(); setPosition(mCurrTime); if (mIsFragmentVisible && mConfig.autoplayVideos) playVideo() }
         if (mPositionWhenInit != 0L && !mWasPlayerInited) { setPosition(mPositionWhenInit); mPositionWhenInit = 0L }
-        mIsPlayerPrepared = true; mWasPlayerInited = true
+        mIsPlayerPrepared = true
+        // Restaurado do original: se o usuário pediu explicitamente pra tocar (mPlayOnPrepared,
+        // setado em initExoPlayer()) e ainda não está tocando, inicia a reprodução agora que o
+        // player ficou pronto - independente da configuração de reprodução automática.
+        if (mPlayOnPrepared && !mIsPlaying) {
+            if (mPositionAtPause != 0L) {
+                mExoPlayer?.seekTo(mPositionAtPause)
+                mPositionAtPause = 0L
+            }
+            playVideo()
+            updatePlaybackSpeed(mConfig.playbackSpeed)
+        }
+        mWasPlayerInited = true
+        mPlayOnPrepared = false
     }
 
     private fun videoCompleted() = listener?.videoEnded()
@@ -625,7 +641,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
         mSurfaceTexture = surface
         mSurface = Surface(surface)
-        // setVideoTextureView() já registra o listener internamente no Media3
+        if (mExoPlayer != null) mExoPlayer!!.setVideoSurface(mSurface) else initExoPlayer()
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
