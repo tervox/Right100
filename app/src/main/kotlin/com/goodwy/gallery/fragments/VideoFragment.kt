@@ -649,7 +649,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
         mSurfaceTexture = null
         mSurface = null
-        return true
+        // Retorna false (não true) - igual ao original. true diz ao Android "pode liberar essa
+        // superfície agora"; se isso acontecer enquanto o player ainda está tocando (ex: durante
+        // um detach/relayout temporário da view), o vídeo perde onde renderizar pra sempre,
+        // mesmo depois de uma nova superfície ficar disponível - o áudio não é afetado por isso
+        // e continua tocando normalmente, explicando a tela preta com áudio.
+        return false
     }
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
