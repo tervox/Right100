@@ -662,7 +662,13 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun setVideoSize() {
         val videoHeight = mVideoSize.y; val videoWidth = mVideoSize.x
         if (videoHeight == 0 || videoWidth == 0) return
-        val view = binding.videoSurfaceFrame
+        // O video_surface (TextureView) é wrap_content no XML - sem tamanho próprio, ele não
+        // redimensiona sozinho. O código anterior redimensionava videoSurfaceFrame (que já é
+        // match_parent, não precisa disso) e nunca dava ao TextureView em si um tamanho real -
+        // a superfície existia e recebia os frames do vídeo corretamente, só não tinha área
+        // visível na tela, exatamente como no original: quem precisa ser redimensionado é
+        // mTextureView, não o frame que o contém.
+        val view = mTextureView
         val margin = resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
         val viewHeight = resources.displayMetrics.heightPixels - margin
         val viewWidth = resources.displayMetrics.widthPixels - margin
