@@ -662,20 +662,35 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private fun setVideoSize() {
         val videoHeight = mVideoSize.y; val videoWidth = mVideoSize.x
         if (videoHeight == 0 || videoWidth == 0) return
-        // O video_surface (TextureView) é wrap_content no XML - sem tamanho próprio, ele não
-        // redimensiona sozinho. O código anterior redimensionava videoSurfaceFrame (que já é
-        // match_parent, não precisa disso) e nunca dava ao TextureView em si um tamanho real -
-        // a superfície existia e recebia os frames do vídeo corretamente, só não tinha área
-        // visível na tela, exatamente como no original: quem precisa ser redimensionado é
-        // mTextureView, não o frame que o contém.
         val view = mTextureView
-        val margin = resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
-        val viewHeight = resources.displayMetrics.heightPixels - margin
-        val viewWidth = resources.displayMetrics.widthPixels - margin
-        val viewRatio = viewWidth.toFloat() / viewHeight.toFloat()
         val videoRatio = videoWidth.toFloat() / videoHeight.toFloat()
-        if (videoRatio > viewRatio) { view.layoutParams.width = viewWidth; view.layoutParams.height = (viewWidth / videoRatio).toInt() }
-        else { view.layoutParams.width = (viewHeight * videoRatio).toInt(); view.layoutParams.height = viewHeight }
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+
+        when {
+            mConfig.videoFillMode == 2 -> {
+                view.layoutParams.width = screenWidth
+                view.layoutParams.height = screenHeight
+            }
+            mConfig.videoFillScreen -> {
+                val screenRatio = screenWidth.toFloat() / screenHeight.toFloat()
+                if (videoRatio > screenRatio) {
+                    view.layoutParams.height = screenHeight
+                    view.layoutParams.width = (screenHeight * videoRatio).toInt()
+                } else {
+                    view.layoutParams.width = screenWidth
+                    view.layoutParams.height = (screenWidth / videoRatio).toInt()
+                }
+            }
+            else -> {
+                val margin = resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
+                val viewHeight = screenHeight - margin
+                val viewWidth = screenWidth - margin
+                val viewRatio = viewWidth.toFloat() / viewHeight.toFloat()
+                if (videoRatio > viewRatio) { view.layoutParams.width = viewWidth; view.layoutParams.height = (viewWidth / videoRatio).toInt() }
+                else { view.layoutParams.width = (viewHeight * videoRatio).toInt(); view.layoutParams.height = viewHeight }
+            }
+        }
         view.requestLayout()
     }
 
