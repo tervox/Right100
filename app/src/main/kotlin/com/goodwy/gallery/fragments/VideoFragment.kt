@@ -67,7 +67,7 @@ import com.goodwy.gallery.views.MediaSideScroll
 import java.io.File
 import java.text.DecimalFormat
 import androidx.core.net.toUri
-import com.alexvasilkov.gestures.Settings
+import com.alexvasilkov.gestures.State
 import kotlin.math.max
 import kotlin.math.abs
 
