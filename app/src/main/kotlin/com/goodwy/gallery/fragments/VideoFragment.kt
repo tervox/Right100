@@ -67,6 +67,7 @@ import com.goodwy.gallery.views.MediaSideScroll
 import java.io.File
 import java.text.DecimalFormat
 import androidx.core.net.toUri
+import com.alexvasilkov.gestures.Settings
 import kotlin.math.max
 import kotlin.math.abs
 
@@ -74,7 +75,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     SeekBar.OnSeekBarChangeListener, PlaybackSpeedListener {
     companion object {
         private const val PROGRESS = "progress"
-        private const val UPDATE_INTERVAL_MS = 16L
+        private const val UPDATE_INTERVAL_MS = 250L
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
@@ -543,7 +544,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onStopTrackingTouch(seekBar: SeekBar) {
         if (mIsPanorama) { openPanorama(); return }
         if (mExoPlayer == null) return
-        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT); mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
+        mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
         if (mIsPlaying) mExoPlayer!!.playWhenReady = true
         mIsDragged = false
     }
@@ -666,13 +667,19 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val videoRatio = videoWidth.toFloat() / videoHeight.toFloat()
         val screenWidth = resources.displayMetrics.widthPixels
         val screenHeight = resources.displayMetrics.heightPixels
+        val frameSettings = binding.videoSurfaceFrame.controller.settings
 
         when {
             mConfig.videoFillMode == 2 -> {
-                view.layoutParams.width = screenWidth
-                view.layoutParams.height = screenHeight
+                // Esticado: MATCH_PARENT usa o tamanho real do frame (displayMetrics ignora barras de sistema)
+                frameSettings.setFitMethod(Settings.Fit.INSIDE).setRestrictBounds(true)
+                view.layoutParams.width = ViewGroup.LayoutParams.MATCH_PARENT
+                view.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             }
             mConfig.videoFillScreen -> {
+                // Fill: FitMethod.NONE impede o GestureFrameLayout de encolher o filho
+                // (padrao INSIDE anulava o modo fill tornando-o identico ao normal)
+                frameSettings.setFitMethod(Settings.Fit.NONE).setRestrictBounds(false)
                 val screenRatio = screenWidth.toFloat() / screenHeight.toFloat()
                 if (videoRatio > screenRatio) {
                     view.layoutParams.height = screenHeight
@@ -683,6 +690,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 }
             }
             else -> {
+                // Normal: encaixa com margem, sem recorte
+                frameSettings.setFitMethod(Settings.Fit.INSIDE).setRestrictBounds(true)
                 val margin = resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
                 val viewHeight = screenHeight - margin
                 val viewWidth = screenWidth - margin
@@ -692,6 +701,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
         }
         view.requestLayout()
+        // Aplica o novo FitMethod apos o layout medir o filho no novo tamanho
+        binding.videoSurfaceFrame.onGlobalLayout {
+            binding.videoSurfaceFrame.controller.resetState()
+        }
     }
 
     fun releasePlayerForFileOp() = cleanup()
