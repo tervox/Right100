@@ -103,6 +103,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private val mTimerThread = android.os.HandlerThread("VideoTimerThread").also { it.start() }
     private var mTimerHandler = android.os.Handler(mTimerThread.looper)
     private val mMainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var mTimerRunnable: Runnable? = null  // referencia para poder cancelar o loop
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
 
@@ -366,10 +367,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setupTimer() {
-        // ExoPlayer exige acesso exclusivo da main thread.
-        // Rodamos o loop inteiro via mMainHandler para garantir isso
-        // e tambem poder atualizar UI diretamente sem post adicional.
-        mMainHandler.post(object : Runnable {
+        // Cancela qualquer loop anterior antes de criar um novo;
+        // sem isso cada chamada acumula um Runnable no mMainHandler
+        // => multiplos updates de UI e multiplos audios simultaneos.
+        mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
+        val runnable = object : Runnable {
             override fun run() {
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
@@ -378,7 +380,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 }
                 mMainHandler.postDelayed(this, UPDATE_INTERVAL_MS)
             }
-        })
+        }
+        mTimerRunnable = runnable
+        mMainHandler.post(runnable)
     }
 
     private fun initExoPlayer() {
@@ -728,6 +732,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     fun releasePlayerForFileOp() = cleanup()
 
     private fun cleanup() {
+        mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
+        mTimerRunnable = null
         mExoPlayer?.release(); mExoPlayer = null
         mTimerHandler.removeCallbacksAndMessages(null)
         try { mTimerThread.quit() } catch (_: Exception) {}
