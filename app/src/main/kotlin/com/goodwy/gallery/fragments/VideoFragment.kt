@@ -636,7 +636,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // Restaurado do original: se o usuário pediu explicitamente pra tocar (mPlayOnPrepared,
         // setado em initExoPlayer()) e ainda não está tocando, inicia a reprodução agora que o
         // player ficou pronto - independente da configuração de reprodução automática.
-        if (mPlayOnPrepared && !mIsPlaying) {
+        if (mPlayOnPrepared && !mIsPlaying && mIsFragmentVisible) {
             if (mPositionAtPause != 0L) {
                 mExoPlayer?.seekTo(mPositionAtPause)
                 mPositionAtPause = 0L
