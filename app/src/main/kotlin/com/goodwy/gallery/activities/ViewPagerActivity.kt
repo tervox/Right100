@@ -888,6 +888,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         updateTitle()
         refreshMenuItems()
         scheduleSwipe()
+        // Re-sorteia animação para a PRÓXIMA troca (efeito aleatório por item)
+        if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) applyViewerTransformer()
     }
 
     override fun onPageScrollStateChanged(state: Int) {}

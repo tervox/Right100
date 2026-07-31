@@ -24,11 +24,13 @@ class GetMediaAsynctask(
         // Cache de durações válido por 5 minutos dentro da mesma sessão do app.
         // Evita query full ao MediaStore toda vez que o usuário abre uma pasta.
         @Volatile private var cachedDurationsMap: HashMap<String, Int>? = null
+        @Volatile private var cachedFolderDurationsMap: HashMap<String, HashMap<String, Int>> = HashMap()
         @Volatile private var cachedDurationsTimestamp: Long = 0L
         private const val DURATIONS_CACHE_TTL_MS = 5 * 60 * 1000L // 5 min
 
         fun invalidateDurationsCache() {
             cachedDurationsMap = null
+            cachedFolderDurationsMap = HashMap()
             cachedDurationsTimestamp = 0L
         }
     }
@@ -80,8 +82,20 @@ class GetMediaAsynctask(
                     fresh
                 }
             } else {
-                // Pasta específica — query filtrada, muito mais rápida
-                mediaFetcher.getVideoDurationsForFolder(mPath)
+                // Pasta específica: usa cache em memória com mesmo TTL de 5 min.
+                // Antes: query nova a cada abertura de pasta → lento sempre.
+                val now = System.currentTimeMillis()
+                val cachedFolder = cachedFolderDurationsMap[mPath]
+                if (cachedFolder != null && (now - cachedDurationsTimestamp) < DURATIONS_CACHE_TTL_MS) {
+                    cachedFolder
+                } else {
+                    val fresh = mediaFetcher.getVideoDurationsForFolder(mPath)
+                    val updated = HashMap(cachedFolderDurationsMap)
+                    updated[mPath] = fresh
+                    cachedFolderDurationsMap = updated
+                    if (cachedFolder == null) cachedDurationsTimestamp = System.currentTimeMillis()
+                    fresh
+                }
             }
         } else HashMap()
 

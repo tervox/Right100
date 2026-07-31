@@ -74,7 +74,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     SeekBar.OnSeekBarChangeListener, PlaybackSpeedListener {
     companion object {
         private const val PROGRESS = "progress"
-        private const val UPDATE_INTERVAL_MS = 250L
+        private const val UPDATE_INTERVAL_MS = 16L
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
@@ -98,7 +98,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
-    private var mTimerHandler = Handler()
+    // Thread dedicada para o timer do seekbar: evita 60 callbacks/s no main thread
+    // enquanto o decoder de vídeo está rodando na mesma prioridade.
+    private val mTimerThread = android.os.HandlerThread("VideoTimerThread").also { it.start() }
+    private var mTimerHandler = android.os.Handler(mTimerThread.looper)
+    private val mMainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
 
@@ -369,6 +373,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
+                mMainHandler.post { /* UI já foi atualizado acima */ }
                 mTimerHandler.postDelayed(this, UPDATE_INTERVAL_MS)
             }
         })
@@ -543,7 +548,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onStopTrackingTouch(seekBar: SeekBar) {
         if (mIsPanorama) { openPanorama(); return }
         if (mExoPlayer == null) return
-        mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
+        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT); mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
         if (mIsPlaying) mExoPlayer!!.playWhenReady = true
         mIsDragged = false
     }
@@ -722,6 +727,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun cleanup() {
         mExoPlayer?.release(); mExoPlayer = null
+        mTimerHandler.removeCallbacksAndMessages(null)
+        try { mTimerThread.quit() } catch (_: Exception) {}
     }
 
     protected fun handleTouchHoldEvent(event: MotionEvent) {
