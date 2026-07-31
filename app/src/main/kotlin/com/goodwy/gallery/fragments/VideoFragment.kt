@@ -752,8 +752,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (distX > mTouchSlop || distY > mTouchSlop) { mIsLongPressActive = false; mMainHandler.removeCallbacks(mTouchHoldRunnable) }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                mIsLongPressActive = false; mMainHandler.removeCallbacks(mTouchHoldRunnable)
-                if (mOriginalPlaybackSpeed != 1f) { updatePlaybackSpeed(mOriginalPlaybackSpeed); mPlaybackSpeedPill.fadeOut() }
+                val wasLongPressActive = mIsLongPressActive
+                mIsLongPressActive = false
+                mMainHandler.removeCallbacks(mTouchHoldRunnable)
+                if (wasLongPressActive) { updatePlaybackSpeed(mOriginalPlaybackSpeed); mPlaybackSpeedPill.fadeOut() }
             }
         }
     }
