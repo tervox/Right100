@@ -192,8 +192,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mCurrTimeView = bottomVideoTimeHolder.videoCurrTime
             mBrightnessSideScroll = videoBrightnessController
             mVolumeSideScroll = videoVolumeController
-            mBrightnessSideScroll.onVerticalScroll = { mTimerHandler.removeCallbacks(mTouchHoldRunnable) }
-            mVolumeSideScroll.onVerticalScroll = { mTimerHandler.removeCallbacks(mTouchHoldRunnable) }
+            mBrightnessSideScroll.onVerticalScroll = { mMainHandler.removeCallbacks(mTouchHoldRunnable) }
+            mVolumeSideScroll.onVerticalScroll = { mMainHandler.removeCallbacks(mTouchHoldRunnable) }
             mTextureView = videoSurface
             mTextureView.surfaceTextureListener = this@VideoFragment
 
@@ -744,15 +744,15 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 mInitialX = event.rawX; mInitialY = event.rawY
-                mTimerHandler.removeCallbacks(mTouchHoldRunnable)
-                mTimerHandler.postDelayed(mTouchHoldRunnable, TOUCH_HOLD_DURATION_MS.toLong())
+                mMainHandler.removeCallbacks(mTouchHoldRunnable)
+                mMainHandler.postDelayed(mTouchHoldRunnable, TOUCH_HOLD_DURATION_MS.toLong())
             }
             MotionEvent.ACTION_MOVE -> {
                 val distX = abs(event.rawX - mInitialX); val distY = abs(event.rawY - mInitialY)
-                if (distX > mTouchSlop || distY > mTouchSlop) { mIsLongPressActive = false; mTimerHandler.removeCallbacks(mTouchHoldRunnable) }
+                if (distX > mTouchSlop || distY > mTouchSlop) { mIsLongPressActive = false; mMainHandler.removeCallbacks(mTouchHoldRunnable) }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                mIsLongPressActive = false; mTimerHandler.removeCallbacks(mTouchHoldRunnable)
+                mIsLongPressActive = false; mMainHandler.removeCallbacks(mTouchHoldRunnable)
                 if (mOriginalPlaybackSpeed != 1f) { updatePlaybackSpeed(mOriginalPlaybackSpeed); mPlaybackSpeedPill.fadeOut() }
             }
         }
