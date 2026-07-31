@@ -366,14 +366,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setupTimer() {
-        activity?.runOnUiThread(object : Runnable {
+        // O loop todo roda na thread de fundo (VideoTimerThread);
+        // so a atualizacao de UI e postada para o main handler.
+        // Bug anterior: runOnUiThread so na 1a chamada; nas iteracoes
+        // seguintes o Runnable rodava na thread de fundo e tocava views
+        // diretamente => CalledFromWrongThreadException => crash.
+        mTimerHandler.post(object : Runnable {
             override fun run() {
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
-                    mCurrTime = mExoPlayer!!.currentPosition
-                    mSeekBar.progress = mCurrTime.toInt()
-                    mCurrTimeView.text = mCurrTime.getFormattedDuration()
+                    val pos = mExoPlayer!!.currentPosition
+                    mMainHandler.post {
+                        mCurrTime = pos
+                        mSeekBar.progress = pos.toInt()
+                        mCurrTimeView.text = pos.getFormattedDuration()
+                    }
                 }
-                mMainHandler.post { /* UI já foi atualizado acima */ }
                 mTimerHandler.postDelayed(this, UPDATE_INTERVAL_MS)
             }
         })
