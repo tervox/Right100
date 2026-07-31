@@ -671,14 +671,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         when {
             mConfig.videoFillMode == 2 -> {
                 // Esticado: MATCH_PARENT usa o tamanho real do frame (displayMetrics ignora barras de sistema)
-                frameSettings.setFitMethod(Settings.Fit.INSIDE).setRestrictBounds(true)
                 view.layoutParams.width = ViewGroup.LayoutParams.MATCH_PARENT
                 view.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
             }
             mConfig.videoFillScreen -> {
                 // Fill: FitMethod.NONE impede o GestureFrameLayout de encolher o filho
                 // (padrao INSIDE anulava o modo fill tornando-o identico ao normal)
-                frameSettings.setFitMethod(Settings.Fit.NONE).setRestrictBounds(false)
                 val screenRatio = screenWidth.toFloat() / screenHeight.toFloat()
                 if (videoRatio > screenRatio) {
                     view.layoutParams.height = screenHeight
@@ -690,7 +688,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
             else -> {
                 // Normal: encaixa com margem, sem recorte
-                frameSettings.setFitMethod(Settings.Fit.INSIDE).setRestrictBounds(true)
                 val margin = resources.getDimension(com.goodwy.commons.R.dimen.activity_margin).toInt()
                 val viewHeight = screenHeight - margin
                 val viewWidth = screenWidth - margin
