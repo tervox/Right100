@@ -477,16 +477,17 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             fun updateIcon() {
                 setImageResource(when {
                     mConfig.videoFillMode == 2 -> R.drawable.ic_maximize_vector
-                    mConfig.videoFillScreen -> R.drawable.ic_minimize_vector
                     else -> R.drawable.ic_crop_free
                 })
             }
+            // Garante que um fill residual de versao anterior seja resetado
+            if (mConfig.videoFillScreen) { mConfig.videoFillScreen = false }
             updateIcon()
             setOnClickListener {
-                when {
-                    !mConfig.videoFillScreen && mConfig.videoFillMode != 2 -> { mConfig.videoFillMode = 2; mConfig.videoFillScreen = false }
-                    mConfig.videoFillMode == 2 -> { mConfig.videoFillMode = 0; mConfig.videoFillScreen = true }
-                    else -> { mConfig.videoFillMode = 0; mConfig.videoFillScreen = false }
+                if (mConfig.videoFillMode != 2) {
+                    mConfig.videoFillMode = 2; mConfig.videoFillScreen = false
+                } else {
+                    mConfig.videoFillMode = 0; mConfig.videoFillScreen = false
                 }
                 setVideoSize(); updateIcon()
             }
