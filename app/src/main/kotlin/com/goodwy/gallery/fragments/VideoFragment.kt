@@ -667,7 +667,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val videoRatio = videoWidth.toFloat() / videoHeight.toFloat()
         val screenWidth = resources.displayMetrics.widthPixels
         val screenHeight = resources.displayMetrics.heightPixels
-        val frameSettings = binding.videoSurfaceFrame.controller.settings
 
         when {
             mConfig.videoFillMode == 2 -> {
@@ -703,7 +702,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         view.requestLayout()
         // Aplica o novo FitMethod apos o layout medir o filho no novo tamanho
         binding.videoSurfaceFrame.onGlobalLayout {
-            binding.videoSurfaceFrame.controller.resetState()
+            if (mConfig.videoFillScreen) {
+                // O GestureFrameLayout (INSIDE fit) encolheria o TextureView via resetState().
+                // Sobrescrevemos com zoom=1f para mostrar o TextureView no tamanho natural,
+                // centralizado, com bordas recortadas pelo clip do parent. ✓
+                val state = State()
+                state.set(0f, 0f, 1f, 0f)
+                binding.videoSurfaceFrame.controller.setState(state)
+            } else {
+                binding.videoSurfaceFrame.controller.resetState()
+            }
         }
     }
 
