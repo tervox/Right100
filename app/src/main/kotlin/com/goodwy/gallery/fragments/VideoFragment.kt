@@ -67,7 +67,6 @@ import com.goodwy.gallery.views.MediaSideScroll
 import java.io.File
 import java.text.DecimalFormat
 import androidx.core.net.toUri
-import com.alexvasilkov.gestures.State
 import kotlin.math.max
 import kotlin.math.abs
 
@@ -699,15 +698,22 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         view.requestLayout()
         // Aplica o novo FitMethod apos o layout medir o filho no novo tamanho
         binding.videoSurfaceFrame.onGlobalLayout {
+            binding.videoSurfaceFrame.controller.resetState()
             if (mConfig.videoFillScreen) {
-                // O GestureFrameLayout (INSIDE fit) encolheria o TextureView via resetState().
-                // Sobrescrevemos com zoom=1f para mostrar o TextureView no tamanho natural,
-                // centralizado, com bordas recortadas pelo clip do parent. ✓
-                val state = State()
-                state.set(0f, 0f, 1f, 0f)
-                binding.videoSurfaceFrame.controller.setState(state)
+                // INSIDE fit encaixa o vídeo dentro do frame (letterbox/pillarbox).
+                // scaleX/Y aplicam uma escala adicional ao TextureView para cobrir o frame.
+                // As transformadas compõem: GestureFrameLayout translada o canvas,
+                // scaleX/Y do filho escala sobre isso — resultado: fill com bordas recortadas. ✓
+                val frameW = binding.videoSurfaceFrame.width.toFloat()
+                val frameH = binding.videoSurfaceFrame.height.toFloat()
+                if (view.width > 0 && view.height > 0) {
+                    val scale = maxOf(frameW / view.width, frameH / view.height)
+                    view.scaleX = scale
+                    view.scaleY = scale
+                }
             } else {
-                binding.videoSurfaceFrame.controller.resetState()
+                view.scaleX = 1f
+                view.scaleY = 1f
             }
         }
     }
