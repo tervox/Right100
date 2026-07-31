@@ -83,6 +83,7 @@ class MediaAdapter(
 
     init {
         setupDragListener(true)
+        setHasStableIds(true)
     }
 
     override fun getActionMenuId() = R.menu.cab_media

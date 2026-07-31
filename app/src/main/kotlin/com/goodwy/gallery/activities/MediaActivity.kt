@@ -1067,7 +1067,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     1
                 }
             }
-        }
+        }.also { it.isSpanIndexCacheEnabled = true }
     }
 
     private fun setupListLayoutManager() {

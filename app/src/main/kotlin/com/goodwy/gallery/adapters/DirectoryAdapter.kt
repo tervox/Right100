@@ -87,6 +87,7 @@ class DirectoryAdapter(
     init {
         setupDragListener(true)
         fillLockedFolders()
+        setHasStableIds(true)
     }
 
     override fun getActionMenuId() = R.menu.cab_directories
