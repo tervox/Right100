@@ -502,10 +502,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun fullscreenToggled(isFullscreen: Boolean) {
         mIsFullscreen = isFullscreen
-        mSeekBar.setOnSeekBarChangeListener(if (mIsFullscreen) null else this)
-        arrayOf(binding.bottomVideoTimeHolder.videoCurrTime, binding.bottomVideoTimeHolder.videoDuration, binding.bottomVideoTimeHolder.videoTogglePlayPause, binding.bottomVideoTimeHolder.videoPlaybackSpeed, binding.bottomVideoTimeHolder.videoToggleMute).forEach { it.isClickable = !mIsFullscreen }
-        if (isFullscreen) { mTimeHolder.fadeOut(); binding.bottomActionsDummy.fadeOut() }
-        else { binding.bottomActionsDummy.beVisible(); mTimeHolder.fadeIn() }
+        // Os botoes de controle do video (play, seekbar, etc.) permanecem
+        // sempre visiveis e clicaveis. O hide system UI e controlado pela
+        // activity (barras superior e inferior).
+        if (isFullscreen) {
+            mTimeHolder.fadeOut()
+            binding.bottomActionsDummy.fadeOut()
+        } else {
+            binding.bottomActionsDummy.beVisible()
+            mTimeHolder.fadeIn()
+        }
     }
 
     private fun showPlaybackSpeedPicker() {
