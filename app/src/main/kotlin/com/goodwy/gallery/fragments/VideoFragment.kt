@@ -323,7 +323,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun setMenuVisibility(menuVisible: Boolean) {
         super.setMenuVisibility(menuVisible)
-        if (mIsFragmentVisible && !menuVisible) pauseVideo()
+        if (mIsFragmentVisible && !menuVisible) {
+            pauseVideo()
+            mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
+            mTimerRunnable = null
+        }
         mIsFragmentVisible = menuVisible
         if (mWasFragmentInit && menuVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer) playVideo()
     }
@@ -598,6 +602,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
         mExoPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        setupTimer()
     }
 
     private fun pauseVideo() {
