@@ -300,7 +300,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.bottomActions.bottomExtractText.setOnLongClickListener { toast(R.string.extract_text); true }
 
         binding.bottomActions.bottomPlayPause.beVisibleIf(isVideo && visible and BOTTOM_ACTION_PLAY_PAUSE != 0)
-        binding.bottomActions.bottomPlayPause.setOnClickListener { (getCurrentFragment() as? VideoFragment)?.togglePlayPause() }
+        binding.bottomActions.bottomPlayPause.setOnClickListener {
+            val fragment = getCurrentFragment()
+            if (fragment is VideoFragment) {
+                fragment.togglePlayPause()
+            }
+        }
 
         binding.bottomActions.bottomMute.beVisibleIf(isVideo && visible and BOTTOM_ACTION_MUTE != 0)
         binding.bottomActions.bottomMute.setOnClickListener {
@@ -874,7 +879,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun getCurrentMedium(): Medium? = mMediums.getOrNull(mPos)
     private fun getCurrentPath(): String = getCurrentMedium()?.path ?: ""
-    private fun getCurrentFragment(): ViewPagerFragment? = (binding.viewPager.adapter as? MyPagerAdapter)?.getCurrentFragment(mPos)
+    private fun getCurrentFragment(): ViewPagerFragment? {
+        val adapter = binding.viewPager.adapter as? MyPagerAdapter
+        return adapter?.getFragment(binding.viewPager.currentItem)
+    }
     private fun getCurrentPhotoFragment(): PhotoFragment? = getCurrentFragment() as? PhotoFragment
 
     private fun updateTitle() {
