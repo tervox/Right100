@@ -16,7 +16,7 @@ import com.goodwy.gallery.helpers.SHOULD_INIT_FRAGMENT
 import com.goodwy.gallery.models.Medium
 
 class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val media: MutableList<Medium>) : FragmentStatePagerAdapter(fm) {
-    private val fragments = HashMap<Int, ViewPagerFragment>()
+    private val fragments = HashMap<String, ViewPagerFragment>()
     var shouldInitFragment = true
 
     override fun getCount() = media.size
@@ -52,16 +52,26 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
     override fun instantiateItem(container: ViewGroup, position: Int): Any {
         val fragment = super.instantiateItem(container, position) as ViewPagerFragment
         fragment.listener = activity
-        fragments[position] = fragment
+        val medium = fragment.arguments?.getSerializable(MEDIUM) as? Medium
+        if (medium != null) {
+            fragments[medium.path] = fragment
+        }
         return fragment
     }
 
     override fun destroyItem(container: ViewGroup, position: Int, any: Any) {
-        fragments.remove(position)
+        val fragment = any as? ViewPagerFragment
+        val medium = fragment?.arguments?.getSerializable(MEDIUM) as? Medium
+        if (medium != null) {
+            fragments.remove(medium.path)
+        }
         super.destroyItem(container, position, any)
     }
 
-    fun getCurrentFragment(position: Int) = fragments[position]
+    fun getCurrentFragment(position: Int): ViewPagerFragment? {
+        val medium = media.getOrNull(position) ?: return null
+        return fragments[medium.path]
+    }
 
     fun toggleFullscreen(isFullscreen: Boolean) {
         for ((pos, fragment) in fragments) {
