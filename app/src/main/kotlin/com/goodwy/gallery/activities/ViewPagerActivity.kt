@@ -466,7 +466,6 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         mMediums.removeAt(mPos)
         if (mMediums.isEmpty()) { finish(); return }
         if (mPos >= mMediums.size) mPos = mMediums.size - 1
-        (binding.viewPager.adapter as? MyPagerAdapter)?.notifyDataSetChanged()
         binding.viewPager.setCurrentItem(mPos, false)
         updateTitle()
         refreshMenuItems()
