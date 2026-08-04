@@ -744,10 +744,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     
 fun onBecameVisible() {
     mIsFragmentVisible = true
-    if (mWasFragmentInit && !mConfig.gestureVideoPlayer) {
-        playVideo()
-    }
 }
+
 
 fun onBecameHidden() {
     mIsFragmentVisible = false
