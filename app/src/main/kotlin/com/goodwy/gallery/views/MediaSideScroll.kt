@@ -76,9 +76,13 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
     })
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // If we've previously passed touches to parent, don't handle them here.
+        // Make sure to clear the flag on DOWN/UP/CANCEL so we don't get stuck.
         if (mPassTouches) {
-            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            if (ev.actionMasked == MotionEvent.ACTION_DOWN || ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
                 mPassTouches = false
+                // Let the normal dispatch happen for DOWN so children can receive it if appropriate.
+                return false
             }
             return false
         }
@@ -114,7 +118,7 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
                 if (abs(diffY) > dragThreshold && abs(diffY) > abs(diffX)) {
                     onVerticalScroll?.invoke()
                     var percent = ((diffY / mViewHeight) * 100).toInt() * 3
-                    percent = 100.coerceAtMost((-100).coerceAtLeast(percent)) ?: 0
+                    percent = 100.coerceAtMost((-100).coerceAtLeast(percent))
 
                     if ((percent == 100 && event.rawY > mLastTouchY) || (percent == -100 && event.rawY < mLastTouchY)) {
                         mTouchDownY = event.rawY
@@ -123,32 +127,41 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
 
                     percentChanged(percent)
                 } else if (abs(diffX) > dragThreshold || abs(diffY) > dragThreshold) {
-//                    if (!mPassTouches) {
-//                        event.action = MotionEvent.ACTION_DOWN
-//                        event.setLocation(event.rawX, event.rawY)
-//                        mParentView?.dispatchTouchEvent(event)
-//                    }
-//                    mPassTouches = true
-//                    mParentView?.dispatchTouchEvent(event)
-                    // Fix: Exception java.lang.NullPointerException: Attempt to read from field 'int android.view.View.mPrivateFlags' on a null object reference in method 'boolean android.view.ViewGroup.resetCancelNextUpFlag(android.view.View)'
+                    // When horizontal swipe is detected, hand the touch sequence to the parent view (e.g., ViewPager/RecyclerView)
                     val parent = mParentView
                     if (parent != null && parent.isAttachedToWindow) {
-                        if (!mPassTouches) {
-                            event.action = MotionEvent.ACTION_DOWN
-                            event.setLocation(event.rawX, event.rawY)
-                            parent.dispatchTouchEvent(event)
+                        try {
+                            if (!mPassTouches) {
+                                // Send an ACTION_DOWN to parent to start a new gesture there
+                                val downEvent = MotionEvent.obtain(event)
+                                downEvent.action = MotionEvent.ACTION_DOWN
+                                downEvent.setLocation(event.rawX, event.rawY)
+                                parent.dispatchTouchEvent(downEvent)
+                                downEvent.recycle()
+                            }
+
+                            mPassTouches = true
+
+                            // Dispatch the current move event to parent as well
+                            val moveEvent = MotionEvent.obtain(event)
+                            parent.dispatchTouchEvent(moveEvent)
+                            moveEvent.recycle()
+                        } catch (e: Exception) {
+                            // If parent dispatch fails for any reason, ensure we don't stay in pass-touch state
+                            mPassTouches = false
                         }
-                        mPassTouches = true
-                        parent.dispatchTouchEvent(event)
                     } else {
                         mPassTouches = false
                     }
+                    // Return false to indicate we are no longer handling the gesture here
                     return false
                 }
                 mLastTouchY = event.rawY
             }
 
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                // Always reset pass touches on gesture end so controls respond again
+                mPassTouches = false
                 if (mIsBrightnessScroll) {
                     mTouchDownValue = mTempBrightness
                 }
