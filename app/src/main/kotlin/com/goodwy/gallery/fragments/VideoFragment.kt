@@ -741,7 +741,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    fun releasePlayerForFileOp() = cleanup()
+    
+fun onBecameVisible() {
+    mIsFragmentVisible = true
+    if (mWasFragmentInit && !mConfig.gestureVideoPlayer) {
+        playVideo()
+    }
+}
+
+fun onBecameHidden() {
+    mIsFragmentVisible = false
+    pauseVideo()
+}
+
+fun releasePlayerForFileOp() = cleanup()
+
 
     private fun cleanup() {
         mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }

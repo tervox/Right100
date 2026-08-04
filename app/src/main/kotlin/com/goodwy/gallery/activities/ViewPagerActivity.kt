@@ -52,6 +52,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private var mMediums = ArrayList<Medium>()
     private var mPos = 0
+    private var mLastPage = -1
     private var mIsFullScreen = false
     private var mIsSlideshowActive = false
     private var mSlideshowHandler = Handler()
@@ -890,16 +891,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
 
-    override fun onPageSelected(position: Int) {
-        mPos = position
-        updateTitle()
-        refreshMenuItems()
-        scheduleSwipe()
-        // Re-sorteia animação para a PRÓXIMA troca (efeito aleatório por item)
-        if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) applyViewerTransformer()
-    }
+    
 
-    override fun onPageScrollStateChanged(state: Int) {}
+override fun onPageSelected(position: Int) {
+    val adapter = binding.viewPager.adapter as? MyPagerAdapter
+
+    (adapter?.getCurrentFragment(mLastPage) as? VideoFragment)?.onBecameHidden()
+    (adapter?.getCurrentFragment(position) as? VideoFragment)?.onBecameVisible()
+
+    mLastPage = position
+    mPos = position
+
+    updateTitle()
+    refreshMenuItems()
+    scheduleSwipe()
+
+    if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM)
+        applyViewerTransformer()
+}
+
+override fun onPageScrollStateChanged(state: Int) {}
 
     override fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
