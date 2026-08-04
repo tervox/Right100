@@ -129,6 +129,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.viewPager.adapter = adapter
         binding.viewPager.currentItem = mPos
         binding.viewPager.addOnPageChangeListener(this)
+
+        binding.viewPager.post {
+            updateVisibleVideoFragment()
+        }
+
         binding.viewPager.offscreenPageLimit = 2
         applyViewerTransformer()
     }
@@ -893,14 +898,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     
 
+
+private fun updateVisibleVideoFragment() {
+    val adapter = binding.viewPager.adapter as? MyPagerAdapter ?: return
+    val current = binding.viewPager.currentItem
+
+    for (i in 0 until adapter.count) {
+        val fragment = adapter.getCurrentFragment(i)
+        if (fragment is VideoFragment) {
+            if (i == current) {
+                fragment.onBecameVisible()
+            } else {
+                fragment.onBecameHidden()
+            }
+        }
+    }
+}
+
 override fun onPageSelected(position: Int) {
-    val adapter = binding.viewPager.adapter as? MyPagerAdapter
-
-    (adapter?.getCurrentFragment(mLastPage) as? VideoFragment)?.onBecameHidden()
-    (adapter?.getCurrentFragment(position) as? VideoFragment)?.onBecameVisible()
-
-    mLastPage = position
     mPos = position
+    updateVisibleVideoFragment()
 
     updateTitle()
     refreshMenuItems()
