@@ -880,7 +880,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun getCurrentPath(): String = getCurrentMedium()?.path ?: ""
     private fun getCurrentFragment(): ViewPagerFragment? {
         val adapter = binding.viewPager.adapter as? MyPagerAdapter
-        return adapter?.getFragment(binding.viewPager.currentItem)
+        return adapter?.getCurrentFragment(binding.viewPager.currentItem)
     }
     private fun getCurrentPhotoFragment(): PhotoFragment? = getCurrentFragment() as? PhotoFragment
 
