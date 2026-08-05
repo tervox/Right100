@@ -895,18 +895,16 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     
 
 
-override fun onPageSelected(position: Int) {
-    mPos = position
+    override fun onPageSelected(position: Int) {
+        mPos = position
+        updateTitle()
+        refreshMenuItems()
+        scheduleSwipe()
+        // Re-sorteia animação para a PRÓXIMA troca (efeito aleatório por item)
+        if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) applyViewerTransformer()
+    }
 
-    updateTitle()
-    refreshMenuItems()
-    scheduleSwipe()
-
-    if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM)
-        applyViewerTransformer()
-}
-
-override fun onPageScrollStateChanged(state: Int) {}
+    override fun onPageScrollStateChanged(state: Int) {}
 
     override fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
