@@ -116,6 +116,23 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // reatribuições) — usado onde a mesma ArrayList pode ser lida por uma thread enquanto
         // outra a modifica, o que gera ConcurrentModificationException.
         private val mediaLock = Any()
+
+        // Chamado pela Application (App.kt) quando o Android sinaliza pressão de memória
+        // (onTrimMemory/onLowMemory). Antes disso não existia NENHUM tratamento desses sinais
+        // em todo o app — os caches estáticos acima (mFolderMediaCache podendo guardar até 30
+        // pastas inteiras, mMedia guardando a última pasta) nunca eram liberados, nem quando o
+        // app ia pra segundo plano com pouca memória disponível. Isso deixa o sistema sem opção
+        // além de matar o processo inteiro sem aviso — o que explica fechamentos "aleatórios",
+        // sem relação com nenhuma tela específica.
+        fun clearMemoryCaches(aggressive: Boolean) {
+            synchronized(mFolderMediaCache) { mFolderMediaCache.clear() }
+            if (aggressive) {
+                synchronized(mediaLock) {
+                    mMedia = ArrayList()
+                    mMediaPath = ""
+                }
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

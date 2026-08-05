@@ -647,13 +647,15 @@ fun Context.loadImageBase(
     options.downsample(DownsampleStrategy.CENTER_INSIDE)
     // Tamanho máximo do thumbnail baseado no nº real de colunas do grid, não mais um valor
     // fixo de metade da tela. Com 3-5 colunas, metade da tela é MUITO maior que a célula
-    // realmente exibida (ex.: tela de 1080px / 2 = 540px pedidos, pra uma célula de ~250px
-    // numa grid de 4 colunas) — isso fazia cada item decodificar mais que o dobro do
-    // necessário, pesando o scroll em pastas com muita mídia. coerceIn evita extremos:
-    // no mínimo 150px (não fica borrado demais com muitas colunas) e no máximo 720px
-    // (não volta a pedir um thumbnail gigante com poucas colunas).
-    val cellWidthPx = resources.displayMetrics.widthPixels / columnCount.coerceAtLeast(1)
-    val maxThumbSize = cellWidthPx.coerceIn(150, 720)
+    // realmente exibida — isso fazia cada item decodificar mais que o dobro do necessário,
+    // pesando o scroll em pastas com muita mídia. O upperBound garante que o novo cálculo
+    // NUNCA passe do valor antigo (largura da tela / 2): com poucas colunas (ex: lista, 1
+    // coluna) width/columnCount seria MAIOR que antes, o que pioraria a memória em vez de
+    // ajudar — por isso o teto é sempre min(720, width/2), nunca um valor fixo maior.
+    val screenWidthPx = resources.displayMetrics.widthPixels
+    val cellWidthPx = screenWidthPx / columnCount.coerceAtLeast(1)
+    val upperBound = maxOf(150, minOf(720, screenWidthPx / 2))
+    val maxThumbSize = cellWidthPx.coerceIn(150, upperBound)
     options.override(maxThumbSize, maxThumbSize)
 
     if (cropThumbnails) {
