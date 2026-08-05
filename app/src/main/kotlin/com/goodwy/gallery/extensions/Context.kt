@@ -634,8 +634,14 @@ fun Context.loadImageBase(
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
         .priority(Priority.NORMAL)
-        .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-        .format(DecodeFormat.PREFER_ARGB_8888)
+        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+        .format(DecodeFormat.PREFER_RGB_565)
+
+    // Downsample todas as imagens para o tamanho do thumbnail (economia de memória)
+    options.downsample(DownsampleStrategy.CENTER_INSIDE)
+    // Tamanho máximo do thumbnail baseado na tela
+    val maxThumbSize = minOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels) / 2
+    options.override(maxThumbSize, maxThumbSize)
 
     if (cropThumbnails) {
         options.optionalTransform(CenterCrop())
