@@ -134,14 +134,20 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         applyViewerTransformer()
     }
 
+    private var mCurrentTransformer: ViewPager.PageTransformer? = null
+
     private fun applyViewerTransformer() {
         val animation = if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) {
             mRandomAnimations.random()
         } else {
             config.viewerAnimation
         }
-        val transformer = buildTransformer(animation)
-        binding.viewPager.setPageTransformer(false, transformer ?: DefaultPageTransformer())
+        mCurrentTransformer = buildTransformer(animation) ?: DefaultPageTransformer()
+        binding.viewPager.setPageTransformer(false, mCurrentTransformer)
+    }
+
+    private fun removeViewerTransformer() {
+        binding.viewPager.setPageTransformer(false, null)
     }
 
     private fun setupOptionsMenu() {
@@ -904,7 +910,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) applyViewerTransformer()
     }
 
-    override fun onPageScrollStateChanged(state: Int) {}
+    override fun onPageScrollStateChanged(state: Int) {
+        if (state == ViewPager.SCROLL_STATE_IDLE) {
+            // Remove o transformer apos a transicao para restaurar touch nos botoes
+            removeViewerTransformer()
+            // Reaplica para a proxima transicao
+            applyViewerTransformer()
+        }
+    }
 
     override fun fragmentClicked() {
         mIsFullScreen = !mIsFullScreen
