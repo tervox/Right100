@@ -754,7 +754,7 @@ class DirectoryAdapter(
 
     private fun getFirstSelectedItemPath() = getFirstSelectedItem()?.path
 
-    private fun getItemWithKey(key: Int): Directory? = dirs.firstOrNull { it.path.hashCode() == key }
+    private fun getItemWithKey(key: Int): Directory? = dirs.firstOrNull { it.path?.hashCode() == key }
 
     private fun fillLockedFolders() {
         lockedFolderPaths.clear()
