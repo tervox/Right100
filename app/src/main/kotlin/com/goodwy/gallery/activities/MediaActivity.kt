@@ -88,7 +88,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private val binding by viewBinding(ActivityMediaBinding::inflate)
 
     companion object {
+        // @Volatile: mMedia/mMediaPath são escritos e lidos por várias threads em paralelo
+        // (UI thread, callback do AsyncTask, thread de getCachedMedia, thread de
+        // fillMissingVideoDurations). Sem @Volatile, uma thread pode não enxergar a
+        // reatribuição feita por outra (visibilidade de memória), o que já foi observado
+        // causando comportamento inconsistente / crash ao abrir pastas rapidamente.
+        @Volatile
         var mMedia = ArrayList<ThumbnailItem>()
+        @Volatile
         var mMediaPath = ""
 
         // mMedia/mMediaPath só guardam a ÚLTIMA pasta visitada (1 slot). Navegando por
@@ -104,6 +111,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 return size > FOLDER_CACHE_MAX_SIZE
             }
         }
+
+        // Lock dedicado para mutações in-place em mMedia (indexOf/removeAll concorrentes com
+        // reatribuições) — usado onde a mesma ArrayList pode ser lida por uma thread enquanto
+        // outra a modifica, o que gera ConcurrentModificationException.
+        private val mediaLock = Any()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -578,6 +590,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         if (currAdapter == null) {
             initZoomListener()
             setupGlideScrollPause()
+            // Aumenta o nº de views mantidas fora da tela pelo RecyclerView (padrão é só 2).
+            // Isso evita reinflar/rebindar (e reconsultar Glide) uma view toda vez que ela sai
+            // e volta a entrar na tela num scroll rápido, um dos fatores que pesava o scroll
+            // em pastas com muita mídia.
+            binding.mediaGrid.setItemViewCacheSize(20)
             MediaAdapter(
                 activity = this,
                 media = mMedia.clone() as ArrayList<ThumbnailItem>,
@@ -843,7 +860,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Não é a última pasta visitada, mas está no cache multi-pasta (LRU das últimas 5) ->
         // mostra instantâneo também, em vez de cair direto na consulta ao banco. Sem isso,
         // navegar por várias pastas (A -> B -> A) nunca reaproveitava nada.
-        val folderCached = mFolderMediaCache[mPath]
+        // synchronized: mFolderMediaCache é um LinkedHashMap comum (não thread-safe) e é
+        // acessado por várias threads ao mesmo tempo — leitura/escrita concorrente nele
+        // pode corromper a estrutura interna do mapa e derrubar o app.
+        val folderCached = synchronized(mFolderMediaCache) { mFolderMediaCache[mPath] }
         if (!folderCached.isNullOrEmpty()) {
             mMedia = folderCached
             mMediaPath = mPath
@@ -877,44 +897,56 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLoadedInitialPhotos = true
     }
 
+    // startAsyncTask() é chamado de dentro de callbacks de getCachedMedia(), que rodam em
+    // background thread (ensureBackgroundThread). Isso fazia com que mCurrAsyncTask!!.execute()
+    // — que dispara um AsyncTask — fosse chamado FORA da UI thread em praticamente toda
+    // abertura de pasta, violando o contrato documentado do AsyncTask ("must be invoked on
+    // the UI thread") e correndo em paralelo com qualquer outra chamada a startAsyncTask()
+    // (ex.: usuário abrindo pastas rapidamente), sem nenhuma proteção. O runOnUiThread aqui
+    // garante que toda a sequência (cancelar task antiga, criar e disparar a nova) aconteça
+    // sempre na UI thread e sempre em sequência.
     private fun startAsyncTask() {
-        mCurrAsyncTask?.stopFetching()
-        mCurrAsyncTask = GetMediaAsynctask(
-            context = applicationContext,
-            mPath = mPath,
-            isPickImage = mIsGetImageIntent && !mIsGetVideoIntent,
-            isPickVideo = mIsGetVideoIntent && !mIsGetImageIntent,
-            showAll = mShowAll
-        ) {
-            ensureBackgroundThread {
-                val oldMedia = mMedia.clone() as ArrayList<ThumbnailItem>
-                val newMedia = it
-                try {
-                    gotMedia(newMedia, false)
+        runOnUiThread {
+            if (isDestroyed || isFinishing) return@runOnUiThread
 
-                    // Após mostrar os arquivos, busca duração dos vídeos com 0 em background
-                    // e atualiza só esses itens no adapter — sem re-render completo
-                    fillMissingVideoDurations(newMedia)
+            mCurrAsyncTask?.stopFetching()
+            val task = GetMediaAsynctask(
+                context = applicationContext,
+                mPath = mPath,
+                isPickImage = mIsGetImageIntent && !mIsGetVideoIntent,
+                isPickVideo = mIsGetVideoIntent && !mIsGetImageIntent,
+                showAll = mShowAll
+            ) {
+                ensureBackgroundThread {
+                    val oldMedia = synchronized(mediaLock) { mMedia.clone() as ArrayList<ThumbnailItem> }
+                    val newMedia = it
+                    try {
+                        gotMedia(newMedia, false)
 
-                    // remove cached files that are no longer valid for whatever reason
-                    val newPaths = newMedia.mapNotNull { it as? Medium }.map { it.path }
-                    oldMedia
-                        .mapNotNull { it as? Medium }
-                        .filter { !newPaths.contains(it.path) }
-                        .forEach {
-                            if (mPath == FAVORITES && getDoesFilePathExist(it.path)) {
-                                favoritesDB.deleteFavoritePath(it.path)
-                                mediaDB.updateFavorite(it.path, false)
-                            } else {
-                                mediaDB.deleteMediumPath(it.path)
+                        // Após mostrar os arquivos, busca duração dos vídeos com 0 em background
+                        // e atualiza só esses itens no adapter — sem re-render completo
+                        fillMissingVideoDurations(newMedia)
+
+                        // remove cached files that are no longer valid for whatever reason
+                        val newPaths = newMedia.mapNotNull { it as? Medium }.map { it.path }
+                        oldMedia
+                            .mapNotNull { it as? Medium }
+                            .filter { !newPaths.contains(it.path) }
+                            .forEach {
+                                if (mPath == FAVORITES && getDoesFilePathExist(it.path)) {
+                                    favoritesDB.deleteFavoritePath(it.path)
+                                    mediaDB.updateFavorite(it.path, false)
+                                } else {
+                                    mediaDB.deleteMediumPath(it.path)
+                                }
                             }
-                        }
-                } catch (_: Exception) {
+                    } catch (_: Exception) {
+                    }
                 }
             }
+            mCurrAsyncTask = task
+            task.execute()
         }
-
-        mCurrAsyncTask!!.execute()
     }
 
     private fun fillMissingVideoDurations(media: ArrayList<ThumbnailItem>) {
@@ -935,7 +967,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         medium.videoDuration = duration
                         try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
                         // Atualiza só o item específico no adapter — sem re-render completo
-                        val pos = mMedia.indexOf(medium)
+                        val pos = synchronized(mediaLock) { mMedia.indexOf(medium) }
                         if (pos >= 0) {
                             runOnUiThread {
                                 getMediaAdapter()?.notifyItemChanged(pos)
@@ -1263,10 +1295,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
-        mMedia = media
-        mMediaPath = mPath
+        synchronized(mediaLock) {
+            mMedia = media
+            mMediaPath = mPath
+        }
         if (media.isNotEmpty()) {
-            mFolderMediaCache[mPath] = media
+            synchronized(mFolderMediaCache) { mFolderMediaCache[mPath] = media }
         }
 
         runOnUiThread {
@@ -1344,7 +1378,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 return@deleteFiles
             }
 
-            mMedia.removeAll { filtered.map { it.path }.contains((it as? Medium)?.path) }
+            synchronized(mediaLock) {
+                mMedia.removeAll { filtered.map { it.path }.contains((it as? Medium)?.path) }
+            }
 
             ensureBackgroundThread {
                 val useRecycleBin = config.useRecycleBin

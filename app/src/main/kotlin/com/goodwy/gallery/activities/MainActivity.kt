@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.database.ContentObserver
+import android.graphics.drawable.Animatable
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -14,8 +15,10 @@ import android.provider.MediaStore.Video
 import android.speech.RecognizerIntent
 import android.view.MenuItem
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.RelativeLayout
 import android.widget.Toast
+import androidx.core.view.children
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -156,15 +159,22 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             )
         }
 
-        // Pausa Glide (e GIFs animadas) durante fling → elimina jank nas capas de pasta
-        // Retoma imediatamente ao soltar o dedo (IDLE) ou ao arrastar (DRAGGING)
+        // Glide.pauseRequests()/resumeRequests() NÃO para GIFs/WebP animados que já
+        // terminaram de carregar e estão exibidos na tela — essas duas funções só evitam que
+        // NOVAS imagens comecem a ser decodificadas. Um GifDrawable já carregado continua
+        // decodificando e desenhando quadro a quadro independente disso. Com ~30 capas de
+        // pasta animadas na tela, isso é o que realmente pesava a UI, e a versão anterior
+        // (só pauseRequests/resumeRequests) não reduzia esse custo — por isso não fazia
+        // diferença nenhuma. Aqui paramos/retomamos a animação de cada capa visível de fato.
         binding.directoriesGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 try {
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         Glide.with(this@MainActivity).resumeRequests()
+                        setDirectoryThumbnailsAnimating(true)
                     } else {
                         Glide.with(this@MainActivity).pauseRequests()
+                        setDirectoryThumbnailsAnimating(false)
                     }
                 } catch (_: Exception) {}
             }
@@ -1550,6 +1560,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 setupZoomListener(mZoomListener)
                 runOnUiThread {
                     binding.directoriesGrid.adapter = this
+                    // Mais views mantidas fora da tela (padrão é 2) → menos reinflar/rebindar
+                    // capas de pasta ao rolar rápido pela lista de pastas.
+                    binding.directoriesGrid.setItemViewCacheSize(16)
                     setupScrollDirection()
 
                     if (config.viewTypeFolders == VIEW_TYPE_LIST && areSystemAnimationsEnabled) {
@@ -1581,6 +1594,26 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val scrollHorizontally =
             config.scrollHorizontally && config.viewTypeFolders == VIEW_TYPE_GRID
         binding.directoriesFastscroller.setScrollVertically(!scrollHorizontally)
+    }
+
+    // Percorre só as capas de pasta ATUALMENTE visíveis (poucas dezenas no máximo, nunca as
+    // ~30 pastas todas de uma vez) e chama start()/stop() diretamente no Drawable animado
+    // (GifDrawable/WebpDrawable implementam Animatable). Isso é o que de fato interrompe a
+    // decodificação de quadros durante o scroll — pauseRequests()/resumeRequests() do Glide
+    // não fazem isso, como explicado no listener acima.
+    private fun setDirectoryThumbnailsAnimating(animating: Boolean) {
+        binding.directoriesGrid.children.forEach { child ->
+            val thumbnail = child.findViewById<ImageView>(R.id.dir_thumbnail) ?: return@forEach
+            val drawable = thumbnail.drawable as? Animatable ?: return@forEach
+            try {
+                if (animating) {
+                    if (!drawable.isRunning) drawable.start()
+                } else {
+                    if (drawable.isRunning) drawable.stop()
+                }
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun checkInvalidDirectories(dirs: ArrayList<Directory>) {

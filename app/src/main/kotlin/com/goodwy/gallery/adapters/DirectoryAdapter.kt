@@ -860,6 +860,7 @@ class DirectoryAdapter(
                     cropThumbnails = cropThumbnails,
                     roundCorners = roundedCorners,
                     signature = directory.getKey(),
+                    columnCount = config.dirColumnCnt,
                     onError = {
                         dirThumbnail.scaleType = ImageView.ScaleType.CENTER
                         dirThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))

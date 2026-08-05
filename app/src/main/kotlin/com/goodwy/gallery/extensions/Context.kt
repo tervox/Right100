@@ -556,6 +556,10 @@ fun Context.loadImage(
     roundCorners: Int,
     signature: ObjectKey,
     skipMemoryCacheAtPaths: ArrayList<String>? = null,
+    // Nº de colunas do grid que está pedindo o thumbnail (capas de pasta: config.dirColumnCnt;
+    // grid de mídia: config.mediaColumnCnt). Usado pra decodificar no tamanho real da célula
+    // em vez de um valor fixo — ver loadImageBase().
+    columnCount: Int = 3,
     onError: (() -> Unit)? = null
 ) {
     target.isHorizontalScrolling = horizontalScroll
@@ -578,6 +582,7 @@ fun Context.loadImage(
             animate = animateGifs,
             isVideo = type == TYPE_VIDEOS,
             tryLoadingWithPicasso = type == TYPE_IMAGES && path.isPng(),
+            columnCount = columnCount,
             onError = onError
         )
     }
@@ -628,6 +633,7 @@ fun Context.loadImageBase(
     isVideo: Boolean = false,
     tryLoadingWithPicasso: Boolean = false,
     crossFadeDuration: Int = THUMBNAIL_FADE_DURATION_MS,
+    columnCount: Int = 3,
     onError: (() -> Unit)? = null
 ) {
     val options = RequestOptions()
@@ -639,8 +645,15 @@ fun Context.loadImageBase(
 
     // Downsample todas as imagens para o tamanho do thumbnail (economia de memória)
     options.downsample(DownsampleStrategy.CENTER_INSIDE)
-    // Tamanho máximo do thumbnail baseado na tela
-    val maxThumbSize = minOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels) / 2
+    // Tamanho máximo do thumbnail baseado no nº real de colunas do grid, não mais um valor
+    // fixo de metade da tela. Com 3-5 colunas, metade da tela é MUITO maior que a célula
+    // realmente exibida (ex.: tela de 1080px / 2 = 540px pedidos, pra uma célula de ~250px
+    // numa grid de 4 colunas) — isso fazia cada item decodificar mais que o dobro do
+    // necessário, pesando o scroll em pastas com muita mídia. coerceIn evita extremos:
+    // no mínimo 150px (não fica borrado demais com muitas colunas) e no máximo 720px
+    // (não volta a pedir um thumbnail gigante com poucas colunas).
+    val cellWidthPx = resources.displayMetrics.widthPixels / columnCount.coerceAtLeast(1)
+    val maxThumbSize = cellWidthPx.coerceIn(150, 720)
     options.override(maxThumbSize, maxThumbSize)
 
     if (cropThumbnails) {
