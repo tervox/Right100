@@ -97,6 +97,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // Observer que detecta novas mídias automaticamente sem recarregar tudo
     private var mMediaStoreObserver: ContentObserver? = null
     private val mMediaObserverHandler = Handler(Looper.getMainLooper())
+    private var mMediaStoreDirty = false
 
     private var mStoredAnimateGifs = true
     private var mStoredCropThumbnails = true
@@ -172,6 +173,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         Glide.with(this@MainActivity).resumeRequests()
                         enforceGifAnimationBudget(true)
+                        // Só recarrega as pastas (por causa do ContentObserver acima) quando a
+                        // lista está parada — nunca no meio de um scroll ou toque.
+                        if (mMediaStoreDirty && !mIsGettingDirs) {
+                            mMediaStoreDirty = false
+                            getDirectories()
+                        }
                     } else {
                         Glide.with(this@MainActivity).pauseRequests()
                         enforceGifAnimationBudget(false)
@@ -317,20 +324,20 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         newAppRecommendation()
 
-        // Registrar observer para detectar novas mídias automaticamente
+        // Registrar observer para detectar novas mídias automaticamente. IMPORTANTE: só marca
+        // que precisa atualizar (mMediaStoreDirty) — NÃO recarrega na hora. Antes disso disparava
+        // getDirectories() (recarregar TODAS as pastas, incluindo as ~30 capas GIF) direto na
+        // callback, a qualquer momento — inclusive por mudanças de OUTROS apps no MediaStore
+        // inteiro (WhatsApp, câmera, backup na nuvem etc.), já que notifyForDescendants=true
+        // observa QUALQUER foto/vídeo do aparelho, não só os deste app. Isso podia recarregar
+        // tudo no meio de um scroll ou toque, em qualquer tela, em momento imprevisível — o que
+        // bate com "trava em todo lugar, sem padrão". Agora só recarrega quando a lista de
+        // pastas está parada (ver SCROLL_STATE_IDLE no listener acima), nunca no meio de uma
+        // interação.
         if (mMediaStoreObserver == null) {
             val observer = object : ContentObserver(mMediaObserverHandler) {
-                private var pendingRefresh: Runnable? = null
                 override fun onChange(selfChange: Boolean) {
-                    // Debounce: espera 4s após a última mudança e só dispara se não há scan em curso
-                    pendingRefresh?.let { mMediaObserverHandler.removeCallbacks(it) }
-                    val r = Runnable {
-                        if (!isDestroyed && !isFinishing && !mIsGettingDirs) {
-                            getDirectories()
-                        }
-                    }
-                    pendingRefresh = r
-                    mMediaObserverHandler.postDelayed(r, 4000)
+                    mMediaStoreDirty = true
                 }
             }
             contentResolver.registerContentObserver(

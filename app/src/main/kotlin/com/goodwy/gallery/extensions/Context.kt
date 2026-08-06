@@ -640,17 +640,7 @@ fun Context.loadImageBase(
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
         .priority(Priority.NORMAL)
-        // RESOURCE (em vez de AUTOMATIC) força o Glide a guardar em disco a versão JÁ
-        // decodificada/reduzida (quadro de vídeo extraído, ou GIF decodificado em 180×180),
-        // não só os bytes originais do arquivo. AUTOMATIC presume que reler um arquivo LOCAL é
-        // barato e por isso costuma pular esse cache — verdade pro arquivo em si, mas não pra
-        // DECODIFICAÇÃO (extrair frame de vídeo via MediaMetadataRetriever, ou decodificar um
-        // GIF quadro a quadro, são operações caras). Sem isso, toda vez que uma capa/miniatura
-        // saía e voltava a aparecer na tela (cache de memória despejado — comum com várias
-        // pastas/GIFs abertos), o Glide refazia a decodificação cara do zero em vez de reusar
-        // o resultado pequeno já pronto. Provavelmente essa recodificação repetida — não a
-        // quantidade de itens na tela — é a maior causa do travamento no scroll e nos GIFs.
-        .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
         .format(DecodeFormat.PREFER_RGB_565)
 
     // Downsample todas as imagens para o tamanho do thumbnail (economia de memória)
