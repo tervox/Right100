@@ -10,6 +10,12 @@ import com.squareup.picasso.Downloader
 import com.squareup.picasso.Picasso
 import okhttp3.Request
 import okhttp3.Response
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class App : RightApp() {
 
@@ -17,6 +23,7 @@ class App : RightApp() {
 
     override fun onCreate() {
         super.onCreate()
+        setupCrashLogger()
         PurchaseHelper().initPurchaseIfNeed(this, "1504831423")
         Reprint.initialize(this)
         Picasso.setSingletonInstance(Picasso.Builder(this).downloader(object : Downloader {
@@ -24,6 +31,33 @@ class App : RightApp() {
 
             override fun shutdown() {}
         }).build())
+    }
+
+    // Sem PC/logcat disponível, não dava pra saber o motivo real dos crashes — só sobrava
+    // adivinhar pelo código, o que já falhou 3 vezes. Isso grava o erro completo (stack trace)
+    // num arquivo de texto simples, sempre que o app fechar sozinho por uma exceção não tratada.
+    // Não precisa de adb nem permissão nenhuma: fica em
+    //   /storage/emulated/0/Android/data/com.goodwy.gallery/files/crash_log.txt
+    // que no Termux (com termux-setup-storage já configurado) é o mesmo que:
+    //   ~/storage/shared/Android/data/com.goodwy.gallery/files/crash_log.txt
+    // Depois de um crash, roda: cat ~/storage/shared/Android/data/com.goodwy.gallery/files/crash_log.txt
+    private fun setupCrashLogger() {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val logFile = File(getExternalFilesDir(null), "crash_log.txt")
+                val stackTraceWriter = StringWriter()
+                throwable.printStackTrace(PrintWriter(stackTraceWriter))
+                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+                val entry = "=== Crash em $timestamp (thread: ${thread.name}) ===\n" +
+                    stackTraceWriter.toString() + "\n\n"
+                logFile.appendText(entry)
+            } catch (_: Exception) {
+                // se a própria gravação do log falhar, não pode travar o processo de crash normal
+            }
+            // deixa o comportamento padrão acontecer (mostrar que o app parou, etc.)
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
     }
 
     // Único ponto do app que reage a avisos de memória baixa do sistema — antes não existia

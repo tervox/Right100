@@ -171,10 +171,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 try {
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         Glide.with(this@MainActivity).resumeRequests()
-                        setDirectoryThumbnailsAnimating(true)
+                        enforceGifAnimationBudget(true)
                     } else {
                         Glide.with(this@MainActivity).pauseRequests()
-                        setDirectoryThumbnailsAnimating(false)
+                        enforceGifAnimationBudget(false)
                     }
                 } catch (_: Exception) {}
             }
@@ -1568,6 +1568,15 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     if (config.viewTypeFolders == VIEW_TYPE_LIST && areSystemAnimationsEnabled) {
                         binding.directoriesGrid.scheduleLayoutAnimation()
                   }
+
+                    // Aplica o limite de GIFs animados simultâneos também na carga inicial da
+                    // tela — sem isso, cada capa que termina de carregar (o Glide carrega todas
+                    // em paralelo, em momentos diferentes) começa a animar sozinha, sem respeitar
+                    // o limite, até o usuário rolar a lista pela primeira vez. As duas chamadas
+                    // com delay pegam capas que ainda não tinham terminado de carregar na
+                    // primeira checagem.
+                    binding.directoriesGrid.postDelayed({ enforceGifAnimationBudget(true) }, 400)
+                    binding.directoriesGrid.postDelayed({ enforceGifAnimationBudget(true) }, 1200)
                 }
             }
         } else {
@@ -1600,13 +1609,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // ~30 pastas todas de uma vez) e chama start()/stop() diretamente no Drawable animado
     // (GifDrawable/WebpDrawable implementam Animatable). Isso é o que de fato interrompe a
     // decodificação de quadros durante o scroll — pauseRequests()/resumeRequests() do Glide
-    // não fazem isso, como explicado no listener acima.
-    private fun setDirectoryThumbnailsAnimating(animating: Boolean) {
+    // não fazem isso, como explicado no listener acima. Sem limite de quantidade: todas as
+    // capas visíveis animam ao mesmo tempo, como antes.
+    private fun enforceGifAnimationBudget(allowAnimating: Boolean) {
         binding.directoriesGrid.children.forEach { child ->
             val thumbnail = child.findViewById<ImageView>(R.id.dir_thumbnail) ?: return@forEach
             val drawable = thumbnail.drawable as? Animatable ?: return@forEach
             try {
-                if (animating) {
+                if (allowAnimating) {
                     if (!drawable.isRunning) drawable.start()
                 } else {
                     if (drawable.isRunning) drawable.stop()
