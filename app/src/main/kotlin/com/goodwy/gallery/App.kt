@@ -24,6 +24,7 @@ class App : RightApp() {
     override fun onCreate() {
         super.onCreate()
         setupCrashLogger()
+        clearStaleGifThumbnailCacheOnce()
         PurchaseHelper().initPurchaseIfNeed(this, "1504831423")
         Reprint.initialize(this)
         Picasso.setSingletonInstance(Picasso.Builder(this).downloader(object : Downloader {
@@ -31,6 +32,28 @@ class App : RightApp() {
 
             override fun shutdown() {}
         }).build())
+    }
+
+    // Uma versão anterior do app usou DiskCacheStrategy.RESOURCE, que guarda em disco QUALQUER
+    // resultado decodificado — inclusive um resultado ruim/preto, se a decodificação falhar por
+    // qualquer instabilidade momentânea (comum com várias GIFs decodificando ao mesmo tempo).
+    // Isso já foi revertido no código, mas o que já ficou salvo em disco continua lá e continua
+    // sendo reaproveitado (miniaturas pretas "grudadas"). Isso limpa esse cache de disco UMA
+    // ÚNICA vez (marcado em SharedPreferences pra não repetir a cada abertura do app, o que
+    // pioraria a performance em vez de ajudar).
+    private fun clearStaleGifThumbnailCacheOnce() {
+        val prefs = getSharedPreferences("right100_maintenance", MODE_PRIVATE)
+        val key = "cleared_stale_glide_disk_cache_v1"
+        if (!prefs.getBoolean(key, false)) {
+            Thread {
+                try {
+                    // clearDiskCache() precisa rodar fora da UI thread (exigência do Glide)
+                    Glide.get(this).clearDiskCache()
+                } catch (_: Exception) {
+                }
+            }.start()
+            prefs.edit().putBoolean(key, true).apply()
+        }
     }
 
     // Sem PC/logcat disponível, não dava pra saber o motivo real dos crashes — só sobrava

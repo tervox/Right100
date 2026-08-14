@@ -680,7 +680,7 @@ fun Context.loadImageBase(
             // frame — capas de pasta raramente precisam de transparência.
             options.downsample(DownsampleStrategy.CENTER_INSIDE)
             options.priority(Priority.LOW)
-            options.override(180, 180)
+            options.override(140, 140)
             options.format(DecodeFormat.PREFER_RGB_565)
         }
     } else {
