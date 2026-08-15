@@ -20,6 +20,20 @@ import java.util.Locale
 class App : RightApp() {
 
     companion object {
+        // Pasta pública de Downloads: getExternalFilesDir() (usado antes) grava em
+        // Android/data/com.goodwy.gallery/files/, que o Android bloqueia de QUALQUER outro app
+        // enxergar desde a versão 11 — inclusive o Termux, mesmo com todas as permissões de
+        // armazenamento concedidas. É por isso que os arquivos "não existiam": na verdade
+        // provavelmente existiam, só que numa pasta que o Termux nunca conseguiria ler. Como
+        // este app já pede MANAGE_EXTERNAL_STORAGE (precisa pra gerenciar arquivos de outras
+        // pastas), dá pra gravar direto na pasta Download pública, que o Termux enxerga
+        // normalmente em ~/storage/downloads/.
+        private fun logsDir(): File {
+            val dir = File("/storage/emulated/0/Download/Right100Logs")
+            if (!dir.exists()) dir.mkdirs()
+            return dir
+        }
+
         // Grava, numa linha de texto simples, o estado de memória do app e do sistema num
         // momento importante (abrir uma pasta, aviso de memória baixa, etc.). A ideia: mesmo
         // que o crash seja o Android matando o processo direto (sem exceção Java nenhuma — o
@@ -29,7 +43,7 @@ class App : RightApp() {
         // falta de memória, não um bug de código específico.
         fun logMemoryState(context: android.content.Context, tag: String) {
             try {
-                val logFile = File(context.getExternalFilesDir(null), "memory_log.txt")
+                val logFile = File(logsDir(), "memory_log.txt")
                 val rt = Runtime.getRuntime()
                 val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1024 / 1024
                 val maxMb = rt.maxMemory() / 1024 / 1024
@@ -91,18 +105,17 @@ class App : RightApp() {
     }
 
     // Sem PC/logcat disponível, não dava pra saber o motivo real dos crashes — só sobrava
-    // adivinhar pelo código, o que já falhou 3 vezes. Isso grava o erro completo (stack trace)
-    // num arquivo de texto simples, sempre que o app fechar sozinho por uma exceção não tratada.
-    // Não precisa de adb nem permissão nenhuma: fica em
-    //   /storage/emulated/0/Android/data/com.goodwy.gallery/files/crash_log.txt
-    // que no Termux (com termux-setup-storage já configurado) é o mesmo que:
-    //   ~/storage/shared/Android/data/com.goodwy.gallery/files/crash_log.txt
-    // Depois de um crash, roda: cat ~/storage/shared/Android/data/com.goodwy.gallery/files/crash_log.txt
+    // adivinhar pelo código. Isso grava o erro completo (stack trace) num arquivo de texto
+    // simples, sempre que o app fechar sozinho por uma exceção não tratada.
+    // Fica em /storage/emulated/0/Download/Right100Logs/crash_log.txt — pasta pública, visível
+    // no Termux em ~/storage/downloads/Right100Logs/ (ver comentário em logsDir() acima sobre
+    // por que NÃO fica em Android/data, que o Termux não consegue enxergar).
+    // Depois de um crash, roda: cat ~/storage/downloads/Right100Logs/crash_log.txt
     private fun setupCrashLogger() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
-                val logFile = File(getExternalFilesDir(null), "crash_log.txt")
+                val logFile = File(logsDir(), "crash_log.txt")
                 val stackTraceWriter = StringWriter()
                 throwable.printStackTrace(PrintWriter(stackTraceWriter))
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
