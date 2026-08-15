@@ -175,6 +175,18 @@ class DirectoryAdapter(
 
     override fun getItemSelectionKey(position: Int) = dirs.getOrNull(position)?.path?.hashCode()
 
+    // setHasStableIds(true) (no init acima) exige que getItemId() devolva um ID único por item —
+    // sem essa função, o RecyclerView usa o padrão da classe base, que devolve -1 (NO_ID) pra
+    // TODOS os itens. Com duas ou mais pastas "com o mesmo ID -1" ao mesmo tempo, qualquer
+    // atualização da lista de pastas (abrir o app, o ContentObserver recarregando, etc.) faz o
+    // RecyclerView tentar casar ViewHolders antigos com novos usando esse ID e travar com
+    // "Two different ViewHolders have the same stable ID" — exatamente o crash reportado.
+    // Usa o mesmo padrão de chave (hash do caminho da pasta) já usado em getItemSelectionKey
+    // acima, então cada pasta sempre tem o mesmo ID enquanto seu caminho não mudar.
+    override fun getItemId(position: Int): Long {
+        return dirs.getOrNull(position)?.path?.hashCode()?.toLong() ?: RecyclerView.NO_ID
+    }
+
 //    override fun getItemKeyPosition(key: Int) = dirs.indexOfFirst { it.path.hashCode() == key }
     override fun getItemKeyPosition(key: Int): Int {
         return keyToPositionCache[key] ?: dirs.indexOfFirst { (it as? Directory)?.path?.hashCode() == key }
