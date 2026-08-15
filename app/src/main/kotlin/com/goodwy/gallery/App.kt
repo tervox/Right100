@@ -19,12 +19,46 @@ import java.util.Locale
 
 class App : RightApp() {
 
+    companion object {
+        // Grava, numa linha de texto simples, o estado de memória do app e do sistema num
+        // momento importante (abrir uma pasta, aviso de memória baixa, etc.). A ideia: mesmo
+        // que o crash seja o Android matando o processo direto (sem exceção Java nenhuma — o
+        // que aconteceria SEM aparecer nada no crash_log.txt), esse arquivo mostra o estado de
+        // memória bem antes de o processo morrer. Se as últimas linhas antes de um crash mostram
+        // heap quase cheio e sysLowMemory=true, é sinal forte de que o sistema matou o app por
+        // falta de memória, não um bug de código específico.
+        fun logMemoryState(context: android.content.Context, tag: String) {
+            try {
+                val logFile = File(context.getExternalFilesDir(null), "memory_log.txt")
+                val rt = Runtime.getRuntime()
+                val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1024 / 1024
+                val maxMb = rt.maxMemory() / 1024 / 1024
+                val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+                    as android.app.ActivityManager
+                val memInfo = android.app.ActivityManager.MemoryInfo()
+                am.getMemoryInfo(memInfo)
+                val sysAvailMb = memInfo.availMem / 1024 / 1024
+                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+                val line = "$timestamp [$tag] heapApp=${usedMb}MB/${maxMb}MB " +
+                    "sistemaDisponivel=${sysAvailMb}MB sistemaPoucaMemoria=${memInfo.lowMemory}\n"
+                logFile.appendText(line)
+                // mantém só as últimas ~300 linhas pra não crescer pra sempre
+                val lines = logFile.readLines()
+                if (lines.size > 300) {
+                    logFile.writeText(lines.takeLast(300).joinToString("\n") + "\n")
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     override val isAppLockFeatureAvailable = true
 
     override fun onCreate() {
         super.onCreate()
         setupCrashLogger()
         clearStaleGifThumbnailCacheOnce()
+        logMemoryState(this, "app_start")
         PurchaseHelper().initPurchaseIfNeed(this, "1504831423")
         Reprint.initialize(this)
         Picasso.setSingletonInstance(Picasso.Builder(this).downloader(object : Downloader {
@@ -87,6 +121,7 @@ class App : RightApp() {
     // nenhum. Ver comentário em MediaActivity.clearMemoryCaches() pra mais contexto.
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        logMemoryState(this, "trim_memory_level_$level")
         if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
             val critical = level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
             MediaActivity.clearMemoryCaches(aggressive = critical)
@@ -101,6 +136,7 @@ class App : RightApp() {
 
     override fun onLowMemory() {
         super.onLowMemory()
+        logMemoryState(this, "low_memory")
         MediaActivity.clearMemoryCaches(aggressive = true)
         try {
             Glide.get(this).clearMemory()

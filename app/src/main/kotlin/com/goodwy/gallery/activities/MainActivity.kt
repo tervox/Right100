@@ -1111,6 +1111,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun itemClicked(path: String, dirSize: Long = 0L) {
+        // Grava o estado de memória bem antes de abrir a pasta — se o app morrer sem gravar
+        // nada no crash_log.txt, essa é a última pista de que sobra: mostra se a memória já
+        // estava no limite justo no momento em que o crash acontece.
+        com.goodwy.gallery.App.logMemoryState(this, "folder_open:$path")
         handleLockedFolderOpening(path) { success ->
             if (success) {
                 Intent(this, MediaActivity::class.java).apply {
