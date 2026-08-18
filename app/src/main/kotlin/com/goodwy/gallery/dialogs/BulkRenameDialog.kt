@@ -11,6 +11,7 @@ import com.goodwy.commons.activities.BaseSimpleActivity
 import com.goodwy.commons.extensions.getAlertDialogBuilder
 import com.goodwy.commons.extensions.toast
 import com.goodwy.gallery.R
+import com.goodwy.gallery.extensions.rescanPathsAndUpdateLastModified
 import java.io.File
 
 class BulkRenameDialog(
@@ -120,19 +121,39 @@ class BulkRenameDialog(
     private fun executeRename(skipConflicts: Boolean) {
         Thread {
             var renamed = 0
+            // Sem isso, o Android (MediaStore) continuava achando que os arquivos tinham o NOME
+            // ANTIGO — outras telas do próprio app, e outros apps, podiam mostrar miniatura
+            // quebrada ou nem achar mais o arquivo até uma nova varredura do sistema (que pode
+            // demorar ou nunca acontecer sozinha). renameTo() só mexe no arquivo, não avisa o
+            // MediaStore. rescanPathsAndUpdateLastModified (mesmo mecanismo usado no rename de
+            // um único item) resolve isso.
+            val newPaths = ArrayList<String>()
+            val lastModifiedMap = HashMap<String, Long>()
             paths.forEachIndexed { index, path ->
                 val file = File(path)
                 val newName = buildNewName(index)
                 val newFile = File(file.parent, newName)
                 if (newFile.exists() && skipConflicts) return@forEachIndexed
                 try {
-                    if (file.renameTo(newFile)) renamed++
+                    val lastModified = file.lastModified()
+                    if (file.renameTo(newFile)) {
+                        renamed++
+                        newPaths.add(newFile.absolutePath)
+                        lastModifiedMap[newFile.absolutePath] = lastModified
+                    }
                 } catch (_: Exception) {}
             }
             val count = renamed
             activity.runOnUiThread {
-                activity.toast(activity.getString(R.string.bulk_rename_done, count))
-                callback(count)
+                if (newPaths.isNotEmpty()) {
+                    activity.rescanPathsAndUpdateLastModified(newPaths, lastModifiedMap) {
+                        activity.toast(activity.getString(R.string.bulk_rename_done, count))
+                        callback(count)
+                    }
+                } else {
+                    activity.toast(activity.getString(R.string.bulk_rename_done, count))
+                    callback(count)
+                }
             }
         }.start()
     }

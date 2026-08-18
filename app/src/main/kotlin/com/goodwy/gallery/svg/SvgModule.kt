@@ -20,9 +20,18 @@ import java.io.InputStream
 @GlideModule
 class SvgModule : AppGlideModule() {
     override fun applyOptions(context: Context, builder: GlideBuilder) {
+        // setMemoryCacheScreens/setBitmapPoolScreens estavam em 4f/4f — o padrão do Glide é
+        // 2f/1f. Isso reservava, de cara, MUITO mais RAM pro cache de imagens e pro pool de
+        // bitmaps do que o normal (numa tela de ~720×1600, 4f de cache de memória sozinho já
+        // passa de 18MB reservados, e outros 18MB pro bitmap pool — quase 37MB só nisso).
+        // Num aparelho com heap máximo de ~256MB (confirmado pelo log de memória do app), somado
+        // a ~30 capas de pasta animadas + pastas com muita mídia + os caches próprios do app,
+        // essa reserva agressiva de memória é uma causa bem provável dos fechamentos por falta
+        // de memória. Reduzido pra bem abaixo do padrão do Glide, adequado a um aparelho de
+        // pouca RAM.
         val calculator = MemorySizeCalculator.Builder(context)
-            .setMemoryCacheScreens(4f)
-            .setBitmapPoolScreens(4f)
+            .setMemoryCacheScreens(1f)
+            .setBitmapPoolScreens(0.5f)
             .build()
         builder.setMemoryCache(LruResourceCache(calculator.memoryCacheSize.toLong()))
         builder.setBitmapPool(LruBitmapPool(calculator.bitmapPoolSize.toLong()))

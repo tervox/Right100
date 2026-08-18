@@ -356,6 +356,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         if (requestCode == REQUEST_EDIT_IMAGE) {
             if (resultCode == RESULT_OK && resultData != null) {
                 mMedia.clear()
+                // Mesmo motivo do delete (ver deleteFilteredFiles): sem invalidar o cache da
+                // pasta aqui também, voltar/recarregar essa pasta depois de editar uma imagem
+                // podia mostrar a versão antiga (de antes da edição) vinda do cache, até uma
+                // recarga posterior corrigir sozinha.
+                synchronized(mFolderMediaCache) { mFolderMediaCache.remove(mPath) }
                 refreshItems()
             }
         } else if (requestCode == REQUEST_CODE_SPEECH_INPUT && resultCode == RESULT_OK) {
@@ -1397,6 +1402,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
             synchronized(mediaLock) {
                 mMedia.removeAll { filtered.map { it.path }.contains((it as? Medium)?.path) }
+            }
+            // mFolderMediaCache guarda uma cópia separada por pasta (pro caso de A -> B -> A).
+            // Sem atualizar ela também, voltar pra essa pasta mostrava a versão antiga, com o
+            // arquivo já apagado/movido pra lixeira ainda aparecendo até uma recarga posterior
+            // "por baixo" corrigir sozinha — o que o usuário vê como "o item apagado continua lá".
+            synchronized(mFolderMediaCache) {
+                mFolderMediaCache[mPath]?.removeAll {
+                    filtered.map { f -> f.path }.contains((it as? Medium)?.path)
+                }
             }
 
             ensureBackgroundThread {
