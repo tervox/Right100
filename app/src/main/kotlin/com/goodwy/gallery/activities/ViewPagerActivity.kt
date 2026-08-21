@@ -8,8 +8,12 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
@@ -309,15 +313,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
         binding.bottomActions.bottomPlayPause.beVisibleIf(isVideo && visible and BOTTOM_ACTION_PLAY_PAUSE != 0)
         binding.bottomActions.bottomPlayPause.setOnClickListener {
-            val fragment = getCurrentFragment()
-            if (fragment is VideoFragment) {
-                fragment.togglePlayPause()
-            }
+            runWhenCurrentVideoFragmentReady { it.togglePlayPause() }
         }
 
         binding.bottomActions.bottomMute.beVisibleIf(isVideo && visible and BOTTOM_ACTION_MUTE != 0)
         binding.bottomActions.bottomMute.setOnClickListener {
-            config.muteVideos = !config.muteVideos
+            runWhenCurrentVideoFragmentReady { it.toggleMuteFromActivity() }
             updatePlayerMuteState()
         }
 
@@ -745,8 +746,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun prepareBitmapForOcr(bitmap: Bitmap, maxDimension: Int = 1920): Bitmap {
         val largest = maxOf(bitmap.width, bitmap.height)
-        if (largest <= maxDimension) return bitmap
-        val scale = maxDimension.toFloat() / largest
+        // Imagens pequenas têm caracteres minúsculos demais para o detector. Um upscale
+        // moderado melhora acentos e pontuação sem enviar uma foto gigante ao ML Kit.
+        val targetDimension = when {
+            largest > maxDimension -> maxDimension
+            largest in 1..960 -> (largest * 2).coerceAtMost(maxDimension)
+            else -> largest
+        }
+        if (targetDimension == largest) return bitmap
+        val scale = targetDimension.toFloat() / largest
         val scaled = Bitmap.createScaledBitmap(
             bitmap,
             (bitmap.width * scale).toInt().coerceAtLeast(1),
@@ -755,6 +763,63 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         )
         if (scaled !== bitmap) bitmap.recycle()
         return scaled
+    }
+
+    private fun enhanceBitmapForOcr(bitmap: Bitmap): Bitmap {
+        val enhanced = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            // Aumenta contraste levemente, preservando bordas de acentos e símbolos.
+            colorFilter = ColorMatrixColorFilter(
+                ColorMatrix(floatArrayOf(
+                    1.15f, 0f, 0f, 0f, -15f,
+                    0f, 1.15f, 0f, 0f, -15f,
+                    0f, 0f, 1.15f, 0f, -15f,
+                    0f, 0f, 0f, 1f, 0f
+                ))
+            )
+        }
+        Canvas(enhanced).drawBitmap(bitmap, 0f, 0f, paint)
+        if (enhanced !== bitmap && !bitmap.isRecycled) bitmap.recycle()
+        return enhanced
+    }
+
+    private fun getExifRotation(path: String): Int {
+        return try {
+            val exif = if (path.startsWith("content://") || path.startsWith("file://")) {
+                contentResolver.openInputStream(Uri.parse(path))?.use { ExifInterface(it) }
+            } else {
+                ExifInterface(path)
+            }
+            when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) ?: 1) {
+                6 -> 90
+                3 -> 180
+                8 -> 270
+                else -> 0
+            }
+        } catch (_: Throwable) {
+            0
+        }
+    }
+
+    private fun hasUsefulOcrFrame(bitmap: Bitmap): Boolean {
+        if (bitmap.isRecycled || bitmap.width < 16 || bitmap.height < 16) return false
+        val sample = try {
+            Bitmap.createScaledBitmap(bitmap, 32, 32, true)
+        } catch (_: Exception) {
+            return true
+        }
+        var min = 255
+        var max = 0
+        for (y in 0 until sample.height) {
+            for (x in 0 until sample.width) {
+                val color = sample.getPixel(x, y)
+                val luminance = (Color.red(color) * 299 + Color.green(color) * 587 + Color.blue(color) * 114) / 1000
+                min = minOf(min, luminance)
+                max = maxOf(max, luminance)
+            }
+        }
+        if (sample !== bitmap && !sample.isRecycled) sample.recycle()
+        return max - min >= 8
     }
 
     private fun rotateBitmapForOcr(bitmap: Bitmap, degrees: Int): Bitmap {
@@ -767,7 +832,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun decodeOcrBitmap(path: String, options: BitmapFactory.Options): Bitmap? {
-        return if (path.startsWith("content://")) {
+        return if (path.startsWith("content://") || path.startsWith("file://")) {
             contentResolver.openInputStream(Uri.parse(path))?.use { input ->
                 BitmapFactory.decodeStream(input, null, options)
             }
@@ -817,11 +882,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                         return@ensureBackgroundThread
                     }
 
-                val exif = try { ExifInterface(medium.path) } catch (_: Throwable) { null }
-                val degrees = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) ?: 1) {
-                    6 -> 90; 3 -> 180; 8 -> 270; else -> 0
-                }
-                bmp = rotateBitmapForOcr(prepareBitmapForOcr(rawBmp), degrees)
+                bmp = rotateBitmapForOcr(prepareBitmapForOcr(rawBmp), getExifRotation(medium.path))
+                bmp = enhanceBitmapForOcr(bmp!!)
                 val resultBitmap = bmp ?: return@ensureBackgroundThread
                 getTextRecognizer().process(InputImage.fromBitmap(resultBitmap, 0))
                     .addOnSuccessListener { result ->
@@ -856,78 +918,115 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
         mOcrInProgress = true
         val requestedPath = medium.path
+        val currentPositionMs = videoFragment.getCurrentVideoPositionMs()
         toast(R.string.extracting_text)
 
         val fastFrame = videoFragment.captureCurrentFrame()
-        if (fastFrame != null && fastFrame.width > 16 && fastFrame.height > 16) {
-            val frameForOcr = prepareBitmapForOcr(fastFrame)
+        if (fastFrame != null && hasUsefulOcrFrame(fastFrame)) {
+            var frameForOcr = prepareBitmapForOcr(fastFrame)
+            frameForOcr = enhanceBitmapForOcr(frameForOcr)
             getTextRecognizer().process(InputImage.fromBitmap(frameForOcr, 0))
                 .addOnSuccessListener { result ->
+                    val text = cleanOcrText(result.text)
                     if (!frameForOcr.isRecycled) frameForOcr.recycle()
-                    mOcrInProgress = false
-                    if (getCurrentPath() == requestedPath)
-                        runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
+                    if (text.isNotEmpty() && getCurrentPath() == requestedPath) {
+                        mOcrInProgress = false
+                        runOnUiThread { showExtractedTextDialog(text) }
+                    } else {
+                        // O frame da TextureView pode estar válido, mas ser um instante sem
+                        // legenda/texto. Nesse caso, tente frames próximos via retriever.
+                        extractVideoOcrCandidates(medium, requestedPath, currentPositionMs)
+                    }
                 }
-                .addOnFailureListener { e ->
+                .addOnFailureListener {
                     if (!frameForOcr.isRecycled) frameForOcr.recycle()
-                    mOcrInProgress = false
-                    runOnUiThread { showErrorToast(e) }
+                    extractVideoOcrCandidates(medium, requestedPath, currentPositionMs)
                 }
             return
-        } else {
-            fastFrame?.takeIf { !it.isRecycled }?.recycle()
         }
+        fastFrame?.takeIf { !it.isRecycled }?.recycle()
+        extractVideoOcrCandidates(medium, requestedPath, currentPositionMs)
+    }
 
-        val currentPositionMs = videoFragment.getCurrentVideoPositionMs()
+    private fun extractVideoOcrCandidates(medium: Medium, requestedPath: String, currentPositionMs: Long) {
         ensureBackgroundThread {
             val retriever = android.media.MediaMetadataRetriever()
-            var bitmap: Bitmap? = null
+            val frames = ArrayList<Bitmap>()
+            val positions = listOf(
+                currentPositionMs.coerceAtLeast(0L),
+                (currentPositionMs - 1000L).coerceAtLeast(0L),
+                currentPositionMs + 1000L
+            ).distinct()
             try {
                 setRetrieverDataSource(retriever, medium.path)
-                val timeUs = currentPositionMs * 1000L
                 val rotation = retriever.extractMetadata(
                     android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION
                 )?.toIntOrNull() ?: 0
-
-                bitmap = if (android.os.Build.VERSION.SDK_INT >= 27) {
-                    retriever.getScaledFrameAtTime(
-                        timeUs,
-                        android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-                        1920, 1920
-                    )
-                } else {
-                    retriever.getFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                }
-                retriever.release()
-
-                if (bitmap == null) {
-                    mOcrInProgress = false
-                    runOnUiThread { toast(R.string.no_text_found) }
-                    return@ensureBackgroundThread
-                }
-
-                bitmap = rotateBitmapForOcr(prepareBitmapForOcr(bitmap!!), rotation)
-                val resultBitmap = bitmap ?: return@ensureBackgroundThread
-                getTextRecognizer().process(InputImage.fromBitmap(resultBitmap, 0))
-                    .addOnSuccessListener { result ->
-                        if (!resultBitmap.isRecycled) resultBitmap.recycle()
-                        mOcrInProgress = false
-                        if (getCurrentPath() == requestedPath) {
-                            runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
-                        }
+                positions.forEach { positionMs ->
+                    val rawFrame = if (android.os.Build.VERSION.SDK_INT >= 27) {
+                        retriever.getScaledFrameAtTime(
+                            positionMs * 1000L,
+                            android.media.MediaMetadataRetriever.OPTION_CLOSEST,
+                            1600,
+                            1600
+                        )
+                    } else {
+                        retriever.getFrameAtTime(
+                            positionMs * 1000L,
+                            android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                        )
                     }
-                    .addOnFailureListener { e ->
-                        if (!resultBitmap.isRecycled) resultBitmap.recycle()
-                        mOcrInProgress = false
-                        runOnUiThread { showErrorToast(e) }
+                    if (rawFrame != null && hasUsefulOcrFrame(rawFrame)) {
+                        var frame = rotateBitmapForOcr(prepareBitmapForOcr(rawFrame), rotation)
+                        frame = enhanceBitmapForOcr(frame)
+                        frames.add(frame)
+                    } else {
+                        rawFrame?.takeIf { !it.isRecycled }?.recycle()
                     }
-            } catch (e: Exception) {
+                }
+            } catch (_: Exception) {
+            } finally {
                 try { retriever.release() } catch (_: Exception) {}
-                bitmap?.takeIf { !it.isRecycled }?.recycle()
-                mOcrInProgress = false
-                runOnUiThread { showErrorToast(e) }
             }
+            runOnUiThread { processNextVideoOcrFrame(frames, 0, requestedPath) }
         }
+    }
+
+    private fun processNextVideoOcrFrame(frames: List<Bitmap>, index: Int, requestedPath: String) {
+        if (getCurrentPath() != requestedPath) {
+            frames.drop(index).forEach { if (!it.isRecycled) it.recycle() }
+            mOcrInProgress = false
+            return
+        }
+        if (index >= frames.size) {
+            mOcrInProgress = false
+            toast(R.string.no_text_found)
+            return
+        }
+
+        val frame = frames[index]
+        getTextRecognizer().process(InputImage.fromBitmap(frame, 0))
+            .addOnSuccessListener { result ->
+                val text = cleanOcrText(result.text)
+                if (!frame.isRecycled) frame.recycle()
+                if (text.isNotEmpty() && getCurrentPath() == requestedPath) {
+                    frames.drop(index + 1).forEach { if (!it.isRecycled) it.recycle() }
+                    mOcrInProgress = false
+                    showExtractedTextDialog(text)
+                } else {
+                    processNextVideoOcrFrame(frames, index + 1, requestedPath)
+                }
+            }
+            .addOnFailureListener { error ->
+                if (!frame.isRecycled) frame.recycle()
+                if (index + 1 < frames.size) {
+                    processNextVideoOcrFrame(frames, index + 1, requestedPath)
+                } else {
+                    frames.drop(index + 1).forEach { if (!it.isRecycled) it.recycle() }
+                    mOcrInProgress = false
+                    showErrorToast(error)
+                }
+            }
     }
 
     private fun cleanOcrText(raw: String): String {
@@ -966,6 +1065,22 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun getCurrentMedium(): Medium? = mMediums.getOrNull(mPos)
     private fun getCurrentPath(): String = getCurrentMedium()?.path ?: ""
+
+    private fun runWhenCurrentVideoFragmentReady(action: (VideoFragment) -> Unit) {
+        var attempts = 0
+        fun tryNow() {
+            val fragment = getCurrentFragment() as? VideoFragment
+            if (fragment != null && fragment.isAdded && fragment.view != null) {
+                action(fragment)
+            } else if (!isDestroyed && attempts++ < 8) {
+                // FragmentStatePagerAdapter registra o fragmento depois do primeiro callback
+                // de página. Repetir por poucos frames evita que o primeiro toque seja perdido.
+                binding.viewPager.postDelayed({ tryNow() }, 32L)
+            }
+        }
+        tryNow()
+    }
+
     private fun getCurrentFragment(): ViewPagerFragment? {
         val position = binding.viewPager.currentItem
         val adapter = binding.viewPager.adapter as? MyPagerAdapter
@@ -1061,11 +1176,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun navigateToItem(offset: Int) {
         val target = binding.viewPager.currentItem + offset
         if (target !in mMediums.indices) return
-        if (!mIsSlideshowActive && config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) {
-            // Toque lateral também é uma troca de página: escolha agora o efeito
-            // correspondente a este gesto, em vez de usar sempre o efeito anterior.
+        if (!mIsSlideshowActive && config.viewerAnimation != SLIDESHOW_ANIMATION_NONE) {
+            // O toque lateral acontece fora da área que o ViewPager usa para iniciar o drag.
+            // Reinstalar o transformer no início da troca garante que fade/zoom/cube/flip/depth
+            // também sejam executados com setCurrentItem(..., true), não somente no arraste.
             applyViewerTransformer()
-            mRandomTransformerAppliedForGesture = true
+            mRandomTransformerAppliedForGesture = config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM
         }
         binding.viewPager.setCurrentItem(target, true)
     }

@@ -47,6 +47,7 @@ import com.goodwy.gallery.helpers.*
 import com.goodwy.gallery.interfaces.*
 import com.goodwy.gallery.models.*
 import com.goodwy.gallery.svg.SvgSoftwareLayerSetter
+import com.squareup.picasso.Callback as PicassoCallback
 import com.squareup.picasso.Picasso
 import java.io.File
 import java.io.FileInputStream
@@ -581,7 +582,9 @@ fun Context.loadImage(
             skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
             animate = animateGifs,
             isVideo = type == TYPE_VIDEOS,
-            tryLoadingWithPicasso = type == TYPE_IMAGES && path.isPng(),
+            // O fallback também cobre JPEG/WEBP locais corrompidos no cache do Glide;
+            // content:// permanece no Glide porque o Picasso antigo aqui usa file://.
+            tryLoadingWithPicasso = type == TYPE_IMAGES && !path.startsWith("content://"),
             columnCount = columnCount,
             onError = onError
         )
@@ -724,8 +727,8 @@ fun Context.loadImageBase(
             targetBitmap: Target<Drawable>,
             isFirstResource: Boolean
         ): Boolean {
-            if (tryLoadingWithPicasso) {
-                tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature)
+            if (tryLoadingWithPicasso && !path.startsWith("content://")) {
+                tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
             } else {
                 onError?.invoke()
             }
@@ -793,7 +796,8 @@ fun Context.tryLoadingWithPicasso(
     view: MySquareImageView,
     cropThumbnails: Boolean,
     roundCorners: Int,
-    signature: ObjectKey
+    signature: ObjectKey,
+    onError: (() -> Unit)? = null
 ) {
     var pathToLoad = "file://$path"
     pathToLoad = pathToLoad.replace("%", "%25").replace("#", "%23")
@@ -819,8 +823,14 @@ fun Context.tryLoadingWithPicasso(
             builder = builder.transform(PicassoRoundedCornersTransformation(cornerRadius.toFloat()))
         }
 
-        builder.into(view)
+        builder.into(view, object : PicassoCallback {
+            override fun onSuccess() = Unit
+            override fun onError(e: Exception) {
+                onError?.invoke()
+            }
+        })
     } catch (e: Exception) {
+        onError?.invoke()
     }
 }
 

@@ -77,6 +77,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mCurrAsyncTask: GetMediaAsynctask? = null
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
 
+    // Evita iniciar dois preenchimentos concorrentes para a mesma pasta quando a lista
+    // vem primeiro do Room e depois do MediaStore.
+    private val durationFillLock = Any()
+    private var durationFillPath = ""
+
     private var mStoredAnimateGifs = true
     private var mStoredCropThumbnails = true
     private var mStoredScrollHorizontally = true
@@ -684,16 +689,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun setupGlideScrollPause() {
         binding.mediaGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                try {
-                    val glide = com.bumptech.glide.Glide.with(this@MediaActivity)
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
-                        glide.resumeRequests()
-                        setVisibleMediaGifAnimations(true)
-                    } else {
-                        glide.pauseRequests()
-                        setVisibleMediaGifAnimations(false)
-                    }
-                } catch (_: Exception) {}
+                // Não pause os requests do Glide durante o scroll. Pausar todos os requests
+                // fazia as células recicladas perderem a imagem e precisarem recarregar ao
+                // voltar para cima. O custo pesado aqui são as animações GIF, então controle
+                // somente os drawables animados e mantenha thumbnails estáticas em cache.
+                setVisibleMediaGifAnimations(newState == RecyclerView.SCROLL_STATE_IDLE)
             }
         })
     }
@@ -1017,10 +1017,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     try {
                         gotMedia(newMedia, false)
 
-                        // Após mostrar os arquivos, busca duração dos vídeos com 0 em background
-                        // e atualiza só esses itens no adapter — sem re-render completo
-                        fillMissingVideoDurations(newMedia)
-
                         // remove cached files that are no longer valid for whatever reason
                         val newPaths = newMedia.asSequence()
                             .filterIsInstance<Medium>()
@@ -1049,49 +1045,71 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun fillMissingVideoDurations(media: ArrayList<ThumbnailItem>) {
         if (!config.showThumbnailVideoDuration) return
+        val requestedPath = mPath
         val videosWithout = media.filterIsInstance<Medium>()
-            .filter { it.isVideo() && it.videoDuration == 0 }
-            .take(4)
+            .filter { it.isVideo() && it.videoDuration <= 0 }
         if (videosWithout.isEmpty()) return
 
-        val requestedPath = mPath
-        // Primeiro reaproveita valores já persistidos; só abre o arquivo quando nem o
-        // MediaStore nem o Room conhecem a duração. Quatro itens por lote evitam travar
-        // a primeira pintura da pasta com dezenas de MediaMetadataRetriever.
-        ensureBackgroundThread {
-            val persistedDurations = try {
-                mediaDB.getMediaFromPath(requestedPath)
-                    .asSequence()
-                    .filter { it.videoDuration > 0 }
-                    .associate { it.path to it.videoDuration }
-            } catch (_: Exception) {
-                emptyMap()
+        val shouldStart = synchronized(durationFillLock) {
+            if (durationFillPath == requestedPath) {
+                false
+            } else {
+                durationFillPath = requestedPath
+                true
             }
+        }
+        if (!shouldStart) return
 
-            videosWithout.forEach { medium ->
-                if (requestedPath != mPath || isDestroyed) return@ensureBackgroundThread
-                try {
-                    val persisted = persistedDurations[medium.path]
-                    val duration = persisted ?: android.media.MediaMetadataRetriever().use { r ->
-                        r.setDataSource(medium.path)
-                        r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                            ?.toLongOrNull()?.div(1000)?.toInt() ?: 0
-                    }
-                    if (duration > 0) {
-                        medium.videoDuration = duration
-                        if (persisted == null) {
-                            try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
-                        }
-                        val pos = synchronized(mediaLock) { mMedia.indexOf(medium) }
-                        if (pos >= 0) {
-                            runOnUiThread {
-                                if (requestedPath == mPath && !isDestroyed) {
-                                    getMediaAdapter()?.notifyItemChanged(pos)
+        // O MediaStore e o Room normalmente resolvem a maior parte das durações. Para os
+        // restantes, processamos todos os vídeos em pequenos lotes no background, em vez de
+        // usar .take(4) e abandonar silenciosamente o quinto item em diante.
+        ensureBackgroundThread {
+            try {
+                val persistedDurations = try {
+                    when (requestedPath) {
+                        FAVORITES -> mediaDB.getFavorites()
+                        RECYCLE_BIN -> mediaDB.getDeletedMedia()
+                        else -> mediaDB.getMediaFromPath(requestedPath)
+                    }.asSequence()
+                        .filter { it.videoDuration > 0 }
+                        .associate { it.path to it.videoDuration }
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+
+                videosWithout.chunked(4).forEach { batch ->
+                    batch.forEach { medium ->
+                        if (requestedPath != mPath || isDestroyed) return@ensureBackgroundThread
+                        try {
+                            val persisted = persistedDurations[medium.path]
+                            val duration = persisted ?: android.media.MediaMetadataRetriever().use { retriever ->
+                                if (medium.path.startsWith("content://")) {
+                                    retriever.setDataSource(this, medium.path.toUri())
+                                } else {
+                                    retriever.setDataSource(medium.path)
+                                }
+                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                    ?.toLongOrNull()?.div(1000L)?.toInt() ?: 0
+                            }
+                            if (duration > 0) {
+                                medium.videoDuration = duration
+                                if (persisted == null) {
+                                    try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
+                                }
+                                runOnUiThread {
+                                    if (requestedPath == mPath && !isDestroyed) {
+                                        getMediaAdapter()?.updateVideoDuration(medium.path, duration)
+                                    }
                                 }
                             }
+                        } catch (_: Exception) {
                         }
                     }
-                } catch (_: Exception) {}
+                }
+            } finally {
+                synchronized(durationFillLock) {
+                    if (durationFillPath == requestedPath) durationFillPath = ""
+                }
             }
         }
     }
@@ -1422,6 +1440,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
             }
         }
+
+        // Também preenche os itens que vieram do Room/cache, não apenas os que chegaram
+        // pelo scan novo do MediaStore.
+        fillMissingVideoDurations(media)
 
         runOnUiThread {
             binding.loadingIndicator.hide()

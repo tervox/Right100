@@ -399,12 +399,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         val factory = DataSource.Factory { fileDataSource }
         val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
         fileDataSource.close()
-        // Restaurado do original: sinaliza que o usuário pediu explicitamente pra tocar este
-        // vídeo (via playVideo() chamando initExoPlayer() num player ainda não criado),
-        // independente da configuração de reprodução automática. Sem isso, se "reprodução
-        // automática" estiver desligada, nada disparava o play de verdade depois da primeira
-        // inicialização do player - o vídeo ficava preparado mas nunca realmente tocava.
-        mPlayOnPrepared = true
+        // A intenção de tocar é definida por playVideo(), não pela simples criação do
+        // player. Assim, abrir/trocar de página não inicia vídeos quando o autoplay está
+        // desligado, mas um toque durante a preparação fica pendente e não é perdido.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS)
             .setPrioritizeTimeOverSizeThresholds(true).build()
@@ -580,6 +577,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mIsPlaying) pauseVideo() else playVideo()
     }
 
+    fun toggleMuteFromActivity() {
+        if (!isAdded) return
+        mConfig.muteVideos = !mConfig.muteVideos
+        updatePlayerMuteState()
+    }
+
     private fun updatePlayerMuteState(showToast: Boolean = false) {
         val isMuted = mConfig.muteVideos
         if (mHasAudio) { if (isMuted) mExoPlayer?.mute() else mExoPlayer?.unmute() }
@@ -591,7 +594,17 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     fun playVideo() {
-        if (mExoPlayer == null) { initExoPlayer(); return }
+        if (mExoPlayer == null) {
+            // A troca lateral pode deixar o click chegar antes de onSurfaceTextureAvailable.
+            // Inicialize agora e consuma a intenção assim que o callback READY ocorrer.
+            mPlayOnPrepared = true
+            initExoPlayer()
+            return
+        }
+        if (!mIsPlayerPrepared) {
+            mPlayOnPrepared = true
+            return
+        }
         listener?.updatePlayPause(false)
         if (binding.videoPreview.isVisible()) { binding.videoPreview.beGone() }
         val wasEnded = videoEnded()
@@ -641,22 +654,28 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun videoPrepared() {
-        if (mDuration == 0L) { mDuration = mExoPlayer!!.duration; setupTimeHolder(); setPosition(mCurrTime); if (mIsFragmentVisible && mConfig.autoplayVideos) playVideo() }
-        if (mPositionWhenInit != 0L && !mWasPlayerInited) { setPosition(mPositionWhenInit); mPositionWhenInit = 0L }
+        if (mDuration == 0L) {
+            mDuration = mExoPlayer!!.duration
+            setupTimeHolder()
+            setPosition(mCurrTime)
+        }
+        if (mPositionWhenInit != 0L && !mWasPlayerInited) {
+            setPosition(mPositionWhenInit)
+            mPositionWhenInit = 0L
+        }
         mIsPlayerPrepared = true
-        // Restaurado do original: se o usuário pediu explicitamente pra tocar (mPlayOnPrepared,
-        // setado em initExoPlayer()) e ainda não está tocando, inicia a reprodução agora que o
-        // player ficou pronto - independente da configuração de reprodução automática.
-        if (mPlayOnPrepared && !mIsPlaying && mIsFragmentVisible) {
+        mWasPlayerInited = true
+
+        // Consome tanto um toque que chegou antes do READY quanto o autoplay configurado.
+        if ((mPlayOnPrepared || (mIsFragmentVisible && mConfig.autoplayVideos)) && !mIsPlaying) {
             if (mPositionAtPause != 0L) {
                 mExoPlayer?.seekTo(mPositionAtPause)
                 mPositionAtPause = 0L
             }
+            mPlayOnPrepared = false
             playVideo()
             updatePlaybackSpeed(mConfig.playbackSpeed)
         }
-        mWasPlayerInited = true
-        mPlayOnPrepared = false
     }
 
     private fun videoCompleted() = listener?.videoEnded()

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.recyclerview.widget.DiffUtil
 import android.content.Intent
 import android.content.pm.ShortcutInfo
+import android.net.Uri
 import android.content.pm.ShortcutManager
 import android.graphics.Color
 import android.graphics.drawable.Icon
@@ -42,7 +43,10 @@ import com.goodwy.gallery.models.ThumbnailSection
 import com.bumptech.glide.ListPreloader
 import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
-import com.bumptech.glide.util.ViewPreloadSizeProvider
+import com.bumptech.glide.util.FixedPreloadSizeProvider
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestOptions
+import java.io.File
 
 class MediaAdapter(
     activity: BaseSimpleActivity,
@@ -74,6 +78,35 @@ class MediaAdapter(
     private var displayFilenames = config.displayFileNames
     private var showFileTypes = config.showThumbnailFileTypes
 
+    private val preloadSizePx = run {
+        val columns = config.mediaColumnCnt.coerceAtLeast(1)
+        val width = activity.resources.displayMetrics.widthPixels / columns
+        width.coerceIn(120, 720)
+    }
+    private val preloadSizeProvider = FixedPreloadSizeProvider<Medium>(preloadSizePx, preloadSizePx)
+    private val preloadModelProvider = object : ListPreloader.PreloadModelProvider<Medium> {
+        override fun getPreloadItems(position: Int): List<Medium> {
+            val item = media.getOrNull(position) ?: return emptyList()
+            return if (item is Medium) listOf(item) else emptyList()
+        }
+
+        override fun getPreloadRequestBuilder(item: Medium): RequestBuilder<*> {
+            val model: Any = when {
+                item.path.startsWith("content://") || item.path.startsWith("file://") -> Uri.parse(item.path)
+                else -> File(item.path)
+            }
+            return Glide.with(activity)
+                .load(model)
+                .apply(
+                    RequestOptions()
+                        .signature(item.getKey())
+                        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                        .override(preloadSizePx, preloadSizePx)
+                )
+                .dontAnimate()
+        }
+    }
+
     var sorting = config.getFolderSorting(if (config.showAll) SHOW_ALL else path)
     var dateFormat = config.dateFormat
     var timeFormat = activity.getTimeFormat()
@@ -84,6 +117,16 @@ class MediaAdapter(
     init {
         setupDragListener(true)
         setHasStableIds(true)
+        // Pré-carrega algumas células à frente/atrás. O request usa a mesma assinatura do
+        // thumbnail real, portanto a célula visível reaproveita o recurso do cache do Glide.
+        recyclerView.addOnScrollListener(
+            RecyclerViewPreloader(
+                Glide.with(activity),
+                preloadModelProvider,
+                preloadSizeProvider,
+                6
+            )
+        )
     }
 
     override fun getActionMenuId() = R.menu.cab_media
@@ -229,7 +272,7 @@ class MediaAdapter(
             val itemView = holder.itemView
             val tmb = itemView.allViews.firstOrNull { it.id == R.id.medium_thumbnail }
             if (tmb != null) {
-                Glide.with(activity).clear(tmb)
+                Glide.with(tmb).clear(tmb)
             }
         }
     }
@@ -706,6 +749,15 @@ class MediaAdapter(
         rebindVisibleItems()
     }
 
+    fun updateVideoDuration(path: String, duration: Int) {
+        val position = media.indexOfFirst { it is Medium && it.path == path }
+        if (position < 0) return
+        val item = media[position] as? Medium ?: return
+        if (item.videoDuration == duration) return
+        item.videoDuration = duration
+        notifyItemChanged(position)
+    }
+
     private fun setupThumbnail(view: View, medium: Medium) {
         val isSelected = selectedKeys.contains(medium.path.hashCode())
         bindItem(view, medium).apply {
@@ -752,9 +804,16 @@ class MediaAdapter(
             mediumName.text = medium.name
             mediumName.tag = medium.path
 
-            val showVideoDuration = medium.isVideo() && config.showThumbnailVideoDuration && medium.videoDuration > 0
+            val showVideoDuration = medium.isVideo() && config.showThumbnailVideoDuration
             if (showVideoDuration) {
-                videoDuration?.text = medium.videoDuration.getFormattedDuration()
+                // Mostra um estado definido enquanto o MediaStore/retriever ainda resolve
+                // a duração. Deixar a View invisível parecia um erro de thumbnail e fazia
+                // o usuário pensar que o vídeo não tinha duração.
+                videoDuration?.text = if (medium.videoDuration > 0) {
+                    medium.videoDuration.getFormattedDuration()
+                } else {
+                    0.getFormattedDuration()
+                }
                 if (isListViewType) videoDuration?.setTextColor(textColor)
             }
             videoDuration?.beVisibleIf(showVideoDuration)
@@ -790,6 +849,9 @@ class MediaAdapter(
                     else -> R.drawable.placeholder_square
                 }
             )
+            // A ViewHolder pode ser reciclado antes do callback de Glide/Picasso. A tag
+            // permite ignorar callbacks antigos que não pertencem mais a esta célula.
+            mediumThumbnail.tag = path
 
             activity.loadImage(
                 type = medium.type,
@@ -803,8 +865,10 @@ class MediaAdapter(
                 skipMemoryCacheAtPaths = rotatedImagePaths,
                 columnCount = config.mediaColumnCnt,
                 onError = {
-                    mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
-                    mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                    if (mediumThumbnail.tag == path) {
+                        mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                        mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                    }
                 }
             )
 
