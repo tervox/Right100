@@ -642,6 +642,8 @@ fun Context.loadImageBase(
         .priority(Priority.NORMAL)
         .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
         .format(DecodeFormat.PREFER_RGB_565)
+        .placeholder(R.drawable.placeholder_square)
+        .error(R.drawable.ic_vector_warning_colored)
 
     // Downsample todas as imagens para o tamanho do thumbnail (economia de memória)
     options.downsample(DownsampleStrategy.CENTER_INSIDE)
@@ -705,8 +707,12 @@ fun Context.loadImageBase(
     }
 
     WebpBitmapFactory.sUseSystemDecoder = false // CVE-2023-4863
-    var builder = Glide.with(applicationContext)
-        .load(path)
+    val imageModel: Any = when {
+        path.startsWith("content://") || path.startsWith("file://") -> path.toUri()
+        else -> File(path)
+    }
+    var builder = Glide.with(target)
+        .load(imageModel)
         .apply(options)
         .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
         .transition(getOptionalCrossFadeTransition(crossFadeDuration))
@@ -753,11 +759,18 @@ fun Context.loadSVG(
         ImageView.ScaleType.FIT_CENTER
     }
 
-    val options = RequestOptions().signature(signature)
-    var builder = Glide.with(applicationContext)
+    val options = RequestOptions()
+        .signature(signature)
+        .placeholder(R.drawable.placeholder_square)
+        .error(R.drawable.ic_vector_warning_colored)
+    val imageModel: Any = when {
+        path.startsWith("content://") || path.startsWith("file://") -> path.toUri()
+        else -> File(path)
+    }
+    var builder = Glide.with(target)
         .`as`(PictureDrawable::class.java)
         .listener(SvgSoftwareLayerSetter())
-        .load(path)
+        .load(imageModel)
         .apply(options)
         .transition(getOptionalCrossFadeTransition(crossFadeDuration))
 
@@ -786,9 +799,12 @@ fun Context.tryLoadingWithPicasso(
     pathToLoad = pathToLoad.replace("%", "%25").replace("#", "%23")
 
     try {
+        Picasso.get().cancelRequest(view)
         var builder = Picasso.get()
             .load(pathToLoad)
             .stableKey(signature.toString())
+            .placeholder(R.drawable.placeholder_square)
+            .error(R.drawable.ic_vector_warning_colored)
 
         builder = if (cropThumbnails) {
             builder.centerCrop().fit()
@@ -956,23 +972,6 @@ fun Context.getCachedMedia(
 
         val pathToUse = path.ifEmpty { SHOW_ALL }
         mediaFetcher.sortMedia(media, config.getFolderSorting(pathToUse))
-
-        // Se showThumbnailVideoDuration está ativo e há vídeos sem duração no DB,
-        // busca as durações agora (query rápida por pasta) para não mostrar 00:00 nem esperar o async task
-        if (config.showThumbnailVideoDuration && path.isNotEmpty() && path != FAVORITES && path != RECYCLE_BIN) {
-            val missingDuration = media.any { it.isVideo() && it.videoDuration == 0 }
-            if (missingDuration) {
-                val durations = mediaFetcher.getVideoDurationsForFolder(path)
-                if (durations.isNotEmpty()) {
-                    media.forEach { medium ->
-                        if (medium.isVideo() && medium.videoDuration == 0) {
-                            val dur = durations[medium.path]
-                            if (dur != null && dur > 0) medium.videoDuration = dur
-                        }
-                    }
-                }
-            }
-        }
 
         val grouped = mediaFetcher.groupMedia(media, pathToUse)
         callback(grouped.clone() as ArrayList<ThumbnailItem>)

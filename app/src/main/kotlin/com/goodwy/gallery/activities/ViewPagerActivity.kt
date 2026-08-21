@@ -42,6 +42,8 @@ import com.goodwy.gallery.models.Medium
 import com.google.android.material.appbar.AppBarLayout
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
 
 class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
@@ -58,6 +60,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private var mSlideshowHandler = Handler()
     private var mSlideshowInterval = SLIDESHOW_DEFAULT_INTERVAL
     private var mSlideshowMoveBackwards = false
+    private var mRandomTransformerAppliedForGesture = false
 
     private val binding by viewBinding(ActivityMediumBinding::inflate)
 
@@ -142,12 +145,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         } else {
             config.viewerAnimation
         }
-        mCurrentTransformer = buildTransformer(animation) ?: DefaultPageTransformer()
+        mCurrentTransformer = createCleanTransformer(buildTransformer(animation))
         binding.viewPager.setPageTransformer(false, mCurrentTransformer)
-    }
-
-    private fun removeViewerTransformer() {
-        binding.viewPager.setPageTransformer(false, null)
     }
 
     private fun setupOptionsMenu() {
@@ -577,6 +576,24 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         scheduleSwipe()
     }
 
+    private fun createCleanTransformer(delegate: ViewPager.PageTransformer?): ViewPager.PageTransformer {
+        return object : ViewPager.PageTransformer {
+            override fun transformPage(view: android.view.View, position: Float) {
+                view.alpha = 1f
+                view.scaleX = 1f
+                view.scaleY = 1f
+                view.translationX = 0f
+                view.translationY = 0f
+                view.rotation = 0f
+                view.rotationX = 0f
+                view.rotationY = 0f
+                view.pivotX = view.width / 2f
+                view.pivotY = view.height / 2f
+                delegate?.transformPage(view, position)
+            }
+        }
+    }
+
     private fun buildTransformer(animation: Int): ViewPager.PageTransformer? = when (animation) {
         SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
         SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
@@ -627,8 +644,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         } else {
             config.slideshowAnimation
         }
-        val transformer = buildTransformer(animation)
-        binding.viewPager.setPageTransformer(false, transformer ?: DefaultPageTransformer())
+        val transformer = createCleanTransformer(buildTransformer(animation))
+        binding.viewPager.setPageTransformer(false, transformer)
     }
 
     private fun stopSlideshow() {
@@ -717,6 +734,54 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private var mOcrInProgress = false
+    private var mTextRecognizer: TextRecognizer? = null
+
+    private fun getTextRecognizer(): TextRecognizer {
+        return mTextRecognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).also {
+            mTextRecognizer = it
+        }
+    }
+
+    private fun prepareBitmapForOcr(bitmap: Bitmap, maxDimension: Int = 1920): Bitmap {
+        val largest = maxOf(bitmap.width, bitmap.height)
+        if (largest <= maxDimension) return bitmap
+        val scale = maxDimension.toFloat() / largest
+        val scaled = Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * scale).toInt().coerceAtLeast(1),
+            (bitmap.height * scale).toInt().coerceAtLeast(1),
+            true
+        )
+        if (scaled !== bitmap) bitmap.recycle()
+        return scaled
+    }
+
+    private fun rotateBitmapForOcr(bitmap: Bitmap, degrees: Int): Bitmap {
+        val normalized = ((degrees % 360) + 360) % 360
+        if (normalized == 0) return bitmap
+        val matrix = Matrix().apply { postRotate(normalized.toFloat()) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated !== bitmap) bitmap.recycle()
+        return rotated
+    }
+
+    private fun decodeOcrBitmap(path: String, options: BitmapFactory.Options): Bitmap? {
+        return if (path.startsWith("content://")) {
+            contentResolver.openInputStream(Uri.parse(path))?.use { input ->
+                BitmapFactory.decodeStream(input, null, options)
+            }
+        } else {
+            BitmapFactory.decodeFile(path, options)
+        }
+    }
+
+    private fun setRetrieverDataSource(retriever: MediaMetadataRetriever, path: String) {
+        if (path.startsWith("content://")) {
+            retriever.setDataSource(this, Uri.parse(path))
+        } else {
+            retriever.setDataSource(path)
+        }
+    }
 
     private fun extractTextFromCurrentMedia() {
         if (mOcrInProgress) {
@@ -730,16 +795,21 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val requestedPath = medium.path
         toast(R.string.extracting_text)
         ensureBackgroundThread {
+            var bmp: Bitmap? = null
             try {
-                val sampledOpts = android.graphics.BitmapFactory.Options().apply {
+                val sampledOpts = BitmapFactory.Options().apply {
                     inJustDecodeBounds = true
-                    BitmapFactory.decodeFile(medium.path, this)
-                    val d = maxOf(outWidth, outHeight)
-                    inSampleSize = if (d <= 1600) 1 else Integer.highestOneBit(d / 1600)
+                    decodeOcrBitmap(medium.path, this)
+                    val largest = maxOf(outWidth, outHeight)
+                    // 1920px preserva textos pequenos e símbolos, mas evita enviar
+                    // fotos gigantes inteiras ao recognizer e reduz a latência/CPU.
+                    inSampleSize = if (largest <= 1920) 1 else {
+                        Integer.highestOneBit(largest / 1920).coerceAtLeast(1)
+                    }
                     inJustDecodeBounds = false
                     inPreferredConfig = Bitmap.Config.ARGB_8888
                 }
-                val rawBmp = BitmapFactory.decodeFile(medium.path, sampledOpts)
+                val rawBmp = decodeOcrBitmap(medium.path, sampledOpts)
                     ?: run {
                         mOcrInProgress = false
                         runOnUiThread { toast(com.goodwy.commons.R.string.unknown_error_occurred) }
@@ -747,31 +817,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     }
 
                 val exif = try { ExifInterface(medium.path) } catch (_: Throwable) { null }
-                val deg = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) ?: 1) {
-                    6 -> 90f; 3 -> 180f; 8 -> 270f; else -> 0f
+                val degrees = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) ?: 1) {
+                    6 -> 90; 3 -> 180; 8 -> 270; else -> 0
                 }
-                val bmp = if (deg != 0f) {
-                    val m = Matrix().apply { postRotate(deg) }
-                    val r = Bitmap.createBitmap(rawBmp, 0, 0, rawBmp.width, rawBmp.height, m, true)
-                    if (r !== rawBmp) rawBmp.recycle()
-                    r
-                } else rawBmp
-
-                val client = TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
-                client.process(InputImage.fromBitmap(bmp, 0))
+                bmp = rotateBitmapForOcr(prepareBitmapForOcr(rawBmp), degrees)
+                val resultBitmap = bmp ?: return@ensureBackgroundThread
+                getTextRecognizer().process(InputImage.fromBitmap(resultBitmap, 0))
                     .addOnSuccessListener { result ->
-                        bmp.recycle(); client.close()
+                        if (!resultBitmap.isRecycled) resultBitmap.recycle()
                         mOcrInProgress = false
                         if (getCurrentPath() == requestedPath) {
                             runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
                         }
                     }
                     .addOnFailureListener { e ->
-                        bmp.recycle(); client.close()
+                        if (!resultBitmap.isRecycled) resultBitmap.recycle()
                         mOcrInProgress = false
                         runOnUiThread { showErrorToast(e) }
                     }
             } catch (e: Throwable) {
+                bmp?.takeIf { !it.isRecycled }?.recycle()
                 mOcrInProgress = false
                 runOnUiThread { showErrorToast(e.localizedMessage ?: "") }
             }
@@ -793,41 +858,45 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         toast(R.string.extracting_text)
 
         val fastFrame = videoFragment.captureCurrentFrame()
-        if (fastFrame != null) {
-            val client = com.google.mlkit.vision.text.TextRecognition
-                .getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
-            client.process(com.google.mlkit.vision.common.InputImage.fromBitmap(fastFrame, 0))
+        if (fastFrame != null && fastFrame.width > 16 && fastFrame.height > 16) {
+            val frameForOcr = prepareBitmapForOcr(fastFrame)
+            getTextRecognizer().process(InputImage.fromBitmap(frameForOcr, 0))
                 .addOnSuccessListener { result ->
-                    fastFrame.recycle(); client.close()
+                    if (!frameForOcr.isRecycled) frameForOcr.recycle()
                     mOcrInProgress = false
                     if (getCurrentPath() == requestedPath)
                         runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
                 }
                 .addOnFailureListener { e ->
-                    fastFrame.recycle(); client.close()
+                    if (!frameForOcr.isRecycled) frameForOcr.recycle()
                     mOcrInProgress = false
                     runOnUiThread { showErrorToast(e) }
                 }
             return
+        } else {
+            fastFrame?.takeIf { !it.isRecycled }?.recycle()
         }
 
         val currentPositionMs = videoFragment.getCurrentVideoPositionMs()
         ensureBackgroundThread {
             val retriever = android.media.MediaMetadataRetriever()
+            var bitmap: Bitmap? = null
             try {
-                retriever.setDataSource(medium.path)
+                setRetrieverDataSource(retriever, medium.path)
                 val timeUs = currentPositionMs * 1000L
+                val rotation = retriever.extractMetadata(
+                    android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION
+                )?.toIntOrNull() ?: 0
 
-                val bitmap = if (android.os.Build.VERSION.SDK_INT >= 27) {
+                bitmap = if (android.os.Build.VERSION.SDK_INT >= 27) {
                     retriever.getScaledFrameAtTime(
                         timeUs,
-                        android.media.MediaMetadataRetriever.OPTION_CLOSEST,
-                        1600, 1600
+                        android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        1920, 1920
                     )
                 } else {
-                    retriever.getFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST)
+                    retriever.getFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                 }
-
                 retriever.release()
 
                 if (bitmap == null) {
@@ -836,34 +905,43 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     return@ensureBackgroundThread
                 }
 
-                val client = TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
-                client.process(InputImage.fromBitmap(bitmap, 0))
+                bitmap = rotateBitmapForOcr(prepareBitmapForOcr(bitmap!!), rotation)
+                val resultBitmap = bitmap ?: return@ensureBackgroundThread
+                getTextRecognizer().process(InputImage.fromBitmap(resultBitmap, 0))
                     .addOnSuccessListener { result ->
-                        bitmap.recycle(); client.close()
+                        if (!resultBitmap.isRecycled) resultBitmap.recycle()
                         mOcrInProgress = false
                         if (getCurrentPath() == requestedPath) {
                             runOnUiThread { showExtractedTextDialog(cleanOcrText(result.text)) }
                         }
                     }
                     .addOnFailureListener { e ->
-                        bitmap.recycle(); client.close()
+                        if (!resultBitmap.isRecycled) resultBitmap.recycle()
                         mOcrInProgress = false
                         runOnUiThread { showErrorToast(e) }
                     }
             } catch (e: Exception) {
                 try { retriever.release() } catch (_: Exception) {}
+                bitmap?.takeIf { !it.isRecycled }?.recycle()
                 mOcrInProgress = false
                 runOnUiThread { showErrorToast(e) }
             }
         }
     }
 
-    private fun cleanOcrText(raw: String) = raw
-        .lines().map { it.trim() }.filter { it.isNotBlank() }
-        .joinToString("\n")
-        .replace(Regex(" +"), " ")
-        .replace(Regex("\n\n+"), "\n\n")
-        .trim()
+    private fun cleanOcrText(raw: String): String {
+        // Não compacte espaços nem remova caracteres: isso destruía separadores,
+        // pontuação e símbolos úteis ao copiar código, documentos e textos técnicos.
+        return java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFC)
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .replace("\u0000", "")
+            .lineSequence()
+            .map { it.trimEnd() }
+            .joinToString("\n")
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+    }
 
     private fun showExtractedTextDialog(text: String) {
         if (text.isEmpty()) { toast(R.string.no_text_found); return }
@@ -888,8 +966,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun getCurrentMedium(): Medium? = mMediums.getOrNull(mPos)
     private fun getCurrentPath(): String = getCurrentMedium()?.path ?: ""
     private fun getCurrentFragment(): ViewPagerFragment? {
+        val position = binding.viewPager.currentItem
         val adapter = binding.viewPager.adapter as? MyPagerAdapter
-        return adapter?.getCurrentFragment(binding.viewPager.currentItem)
+        val mapped = adapter?.getCurrentFragment(position)
+        if (mapped != null) return mapped
+
+        val tag = "android:switcher:${binding.viewPager.id}:$position"
+        return supportFragmentManager.findFragmentByTag(tag) as? ViewPagerFragment
     }
     private fun getCurrentPhotoFragment(): PhotoFragment? = getCurrentFragment() as? PhotoFragment
 
@@ -907,16 +990,38 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         updateTitle()
         refreshMenuItems()
         scheduleSwipe()
-        // Re-sorteia animação para a PRÓXIMA troca (efeito aleatório por item)
-        if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) applyViewerTransformer()
+        // O fragmento pode ser criado um pouco depois do callback de página. O post
+        // garante que os controles inferiores encontrem o VideoFragment correto mesmo
+        // quando a troca usa transformer ou ordem aleatória.
+        binding.viewPager.post {
+            if (!isDestroyed && binding.viewPager.currentItem == position) {
+                refreshMenuItems()
+            }
+        }
     }
 
     override fun onPageScrollStateChanged(state: Int) {
-        if (state == ViewPager.SCROLL_STATE_IDLE) {
-            // Remove o transformer apos a transicao para restaurar touch nos botoes
-            removeViewerTransformer()
-            // Reaplica para a proxima transicao
-            applyViewerTransformer()
+        when (state) {
+            ViewPager.SCROLL_STATE_DRAGGING, ViewPager.SCROLL_STATE_SETTLING -> {
+                // Escolher outro transformer no onPageSelected trocava o PageTransformer
+                // no meio da transição. Isso força relayout enquanto a TextureView do
+                // vídeo muda de página e pode deixar o player sem superfície/controles.
+                // Escolha uma única vez no início do gesto e mantenha o mesmo transformer
+                // até o fim. O slideshow automático aplica o próprio efeito antes do fake drag.
+                if (!mIsSlideshowActive
+                    && config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM
+                    && !mRandomTransformerAppliedForGesture
+                ) {
+                    applyViewerTransformer()
+                    mRandomTransformerAppliedForGesture = true
+                }
+            }
+            ViewPager.SCROLL_STATE_IDLE -> {
+                mRandomTransformerAppliedForGesture = false
+                // Não remova e reaplique o transformer aqui: essa troca desnecessária
+                // pode desanexar a TextureView e interromper o surface do ExoPlayer.
+                refreshMenuItems()
+            }
         }
     }
 
@@ -951,7 +1056,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     override fun isSlideShowActive() = mIsSlideshowActive
     override fun isFullScreen() = mIsFullScreen
-    override fun goToPrevItem() { binding.viewPager.setCurrentItem(binding.viewPager.currentItem - 1, false) }
-    override fun goToNextItem() { binding.viewPager.setCurrentItem(binding.viewPager.currentItem + 1, false) }
+
+    private fun navigateToItem(offset: Int) {
+        val target = binding.viewPager.currentItem + offset
+        if (target !in mMediums.indices) return
+        if (!mIsSlideshowActive && config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) {
+            // Toque lateral também é uma troca de página: escolha agora o efeito
+            // correspondente a este gesto, em vez de usar sempre o efeito anterior.
+            applyViewerTransformer()
+            mRandomTransformerAppliedForGesture = true
+        }
+        binding.viewPager.setCurrentItem(target, true)
+    }
+
+    override fun goToPrevItem() = navigateToItem(-1)
+    override fun goToNextItem() = navigateToItem(1)
     override fun launchViewVideoIntent(path: String) {}
+
+    override fun onDestroy() {
+        mTextRecognizer?.close()
+        mTextRecognizer = null
+        super.onDestroy()
+    }
 }

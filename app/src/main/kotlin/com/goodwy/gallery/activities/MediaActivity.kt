@@ -6,14 +6,17 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.Animatable
 import android.os.Bundle
 import android.os.Handler
 import android.speech.RecognizerIntent
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.RelativeLayout
 import androidx.core.net.toUri
+import androidx.core.view.children
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.GridLayoutManager
@@ -59,6 +62,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mIsGetVideoIntent = false
     private var mIsGetAnyIntent = false
     private var mIsGettingMedia = false
+    private var mMediaInvalidated = true
+    private var mLastSuccessfulMediaLoadAt = 0L
     private var mAllowPickingMultiple = false
     private var mShowAll = false
     private var mLoadedInitialPhotos = false
@@ -104,9 +109,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // mapa guarda as últimas quatro pastas visitadas (LRU) para reaproveitar navegação
         // recente sem manter uma cópia grande da biblioteca inteira em memória.
         private const val FOLDER_CACHE_MAX_SIZE = 4
+        private const val MEDIA_CACHE_TTL_MS = 30_000L
+        val mFolderMediaCacheUpdatedAt = HashMap<String, Long>()
         val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>?): Boolean {
-                return size > FOLDER_CACHE_MAX_SIZE
+                val shouldRemove = size > FOLDER_CACHE_MAX_SIZE
+                if (shouldRemove) {
+                    eldest?.key?.let { mFolderMediaCacheUpdatedAt.remove(it) }
+                }
+                return shouldRemove
             }
         }
 
@@ -123,7 +134,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // além de matar o processo inteiro sem aviso — o que explica fechamentos "aleatórios",
         // sem relação com nenhuma tela específica.
         fun clearMemoryCaches(aggressive: Boolean) {
-            synchronized(mFolderMediaCache) { mFolderMediaCache.clear() }
+            synchronized(mFolderMediaCache) {
+                mFolderMediaCache.clear()
+                mFolderMediaCacheUpdatedAt.clear()
+            }
             if (aggressive) {
                 synchronized(mediaLock) {
                     mMedia = ArrayList()
@@ -144,7 +158,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mAllowPickingMultiple = getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
         }
 
-        binding.mediaRefreshLayout.setOnRefreshListener { getMedia() }
+        binding.mediaRefreshLayout.setOnRefreshListener { getMedia(forceRefresh = true) }
         setupSelectAllFab()
         try {
             mPath = intent.getStringExtra(DIRECTORY) ?: ""
@@ -153,6 +167,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             finish()
             return
         }
+
+        val sharedCacheUpdatedAt = synchronized(mFolderMediaCache) {
+            mFolderMediaCacheUpdatedAt[mPath] ?: 0L
+        }
+        mLastSuccessfulMediaLoadAt = sharedCacheUpdatedAt
+        mMediaInvalidated = sharedCacheUpdatedAt == 0L
+            || System.currentTimeMillis() - sharedCacheUpdatedAt >= MEDIA_CACHE_TTL_MS
 
         storeStateVariables()
         setupOptionsMenu()
@@ -358,7 +379,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 // pasta aqui também, voltar/recarregar essa pasta depois de editar uma imagem
                 // podia mostrar a versão antiga (de antes da edição) vinda do cache, até uma
                 // recarga posterior corrigir sozinha.
-                synchronized(mFolderMediaCache) { mFolderMediaCache.remove(mPath) }
+                synchronized(mFolderMediaCache) {
+                    mFolderMediaCache.remove(mPath)
+                    mFolderMediaCacheUpdatedAt.remove(mPath)
+                }
                 refreshItems()
             }
         } else if (requestCode == REQUEST_CODE_SPEECH_INPUT && resultCode == RESULT_OK) {
@@ -628,7 +652,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 }
             }.apply {
                 setupZoomListener(mZoomListener)
-                binding.mediaGrid.adapter = this
+                    binding.mediaGrid.adapter = this
+                    binding.mediaGrid.itemAnimator = null
+                    binding.mediaGrid.setHasFixedSize(true)
+                    binding.mediaGrid.postDelayed({ setVisibleMediaGifAnimations(true) }, 250)
             }
 
             setupLayoutManager()
@@ -659,18 +686,31 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 try {
                     val glide = com.bumptech.glide.Glide.with(this@MediaActivity)
-                    // Só pausa durante fling RÁPIDO (SETTLING) - durante um arraste lento
-                    // (DRAGGING) o usuário vê os itens passando devagar e se beneficia de
-                    // carregarem. O código anterior pausava em DRAGGING também, mesmo o
-                    // comentário dizendo o contrário.
-                    if (newState == RecyclerView.SCROLL_STATE_SETTLING) {
-                        glide.pauseRequests()
-                    } else {
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         glide.resumeRequests()
+                        setVisibleMediaGifAnimations(true)
+                    } else {
+                        glide.pauseRequests()
+                        setVisibleMediaGifAnimations(false)
                     }
                 } catch (_: Exception) {}
             }
         })
+    }
+
+    private fun setVisibleMediaGifAnimations(allowAnimating: Boolean) {
+        binding.mediaGrid.children.forEach { child ->
+            val thumbnail = child.findViewById<ImageView>(R.id.medium_thumbnail) ?: return@forEach
+            val drawable = thumbnail.drawable as? Animatable ?: return@forEach
+            try {
+                if (allowAnimating) {
+                    if (!drawable.isRunning) drawable.start()
+                } else if (drawable.isRunning) {
+                    drawable.stop()
+                }
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun setupTabsHide() {
@@ -755,7 +795,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     mLatestMediaId = mediaId
                     mLatestMediaDateId = mediaDateId
                     runOnUiThread {
-                        getMedia()
+                        getMedia(forceRefresh = true)
                     }
                 } else {
                     checkLastMediaChanged()
@@ -852,8 +892,25 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
-    private fun getMedia() {
+    private fun getMedia(forceRefresh: Boolean = false) {
         if (mIsGettingMedia) {
+            return
+        }
+
+        if (forceRefresh) {
+            mMediaInvalidated = true
+        }
+
+        val now = System.currentTimeMillis()
+        val hasFreshCurrentMedia = mMedia.isNotEmpty()
+            && mMediaPath == mPath
+            && !mMediaInvalidated
+            && now - mLastSuccessfulMediaLoadAt < MEDIA_CACHE_TTL_MS
+        if (hasFreshCurrentMedia) {
+            // A lista e os requests do Glide já estão vivos; não reinicie o scanner
+            // só porque a Activity voltou do visualizador ou foi recriada.
+            mIsGettingMedia = false
+            runOnUiThread { setupAdapter() }
             return
         }
 
@@ -881,13 +938,24 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // synchronized: mFolderMediaCache é um LinkedHashMap comum (não thread-safe) e é
         // acessado por várias threads ao mesmo tempo — leitura/escrita concorrente nele
         // pode corromper a estrutura interna do mapa e derrubar o app.
-        val folderCached = synchronized(mFolderMediaCache) {
-            mFolderMediaCache[mPath]?.let { ArrayList(it) }
+        val folderCacheState = synchronized(mFolderMediaCache) {
+            val cached = mFolderMediaCache[mPath]?.let { ArrayList(it) }
+            val updatedAt = mFolderMediaCacheUpdatedAt[mPath] ?: 0L
+            cached to updatedAt
         }
+        val folderCached = folderCacheState.first
+        val folderCacheFresh = folderCacheState.second > 0L
+            && System.currentTimeMillis() - folderCacheState.second < MEDIA_CACHE_TTL_MS
         if (!folderCached.isNullOrEmpty()) {
             mMedia = folderCached
             mMediaPath = mPath
+            mMediaInvalidated = !folderCacheFresh
             runOnUiThread { setupAdapter() }
+            if (folderCacheFresh) {
+                mIsGettingMedia = false
+                mLoadedInitialPhotos = true
+                return
+            }
             getCachedMedia(
                 mPath,
                 mIsGetVideoIntent && !mIsGetImageIntent,
@@ -983,27 +1051,43 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         if (!config.showThumbnailVideoDuration) return
         val videosWithout = media.filterIsInstance<Medium>()
             .filter { it.isVideo() && it.videoDuration == 0 }
-            .take(20)
+            .take(4)
         if (videosWithout.isEmpty()) return
 
-        // Usa o executor compartilhado do app e limita o lote para não iniciar uma thread
-        // dedicada nem abrir centenas de MediaMetadataRetriever numa única navegação.
+        val requestedPath = mPath
+        // Primeiro reaproveita valores já persistidos; só abre o arquivo quando nem o
+        // MediaStore nem o Room conhecem a duração. Quatro itens por lote evitam travar
+        // a primeira pintura da pasta com dezenas de MediaMetadataRetriever.
         ensureBackgroundThread {
+            val persistedDurations = try {
+                mediaDB.getMediaFromPath(requestedPath)
+                    .asSequence()
+                    .filter { it.videoDuration > 0 }
+                    .associate { it.path to it.videoDuration }
+            } catch (_: Exception) {
+                emptyMap()
+            }
+
             videosWithout.forEach { medium ->
+                if (requestedPath != mPath || isDestroyed) return@ensureBackgroundThread
                 try {
-                    val duration = android.media.MediaMetadataRetriever().use { r ->
+                    val persisted = persistedDurations[medium.path]
+                    val duration = persisted ?: android.media.MediaMetadataRetriever().use { r ->
                         r.setDataSource(medium.path)
                         r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                             ?.toLongOrNull()?.div(1000)?.toInt() ?: 0
                     }
                     if (duration > 0) {
                         medium.videoDuration = duration
-                        try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
-                        // Atualiza só o item específico no adapter — sem re-render completo
+                        if (persisted == null) {
+                            try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
+                        }
                         val pos = synchronized(mediaLock) { mMedia.indexOf(medium) }
                         if (pos >= 0) {
                             runOnUiThread {
-                                getMediaAdapter()?.notifyItemChanged(pos)
+                                if (requestedPath == mPath && !isDestroyed) {
+                                    getMediaAdapter()?.notifyItemChanged(pos)
+                                }
                             }
                         }
                     }
@@ -1093,7 +1177,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun toggleTemporarilyShowHidden(show: Boolean) {
         mLoadedInitialPhotos = false
         config.temporarilyShowHidden = show
-        getMedia()
+        getMedia(forceRefresh = true)
         refreshMenuItems()
     }
 
@@ -1335,6 +1419,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         if (media.isNotEmpty()) {
             synchronized(mFolderMediaCache) {
                 mFolderMediaCache[mPath] = ArrayList(media)
+                mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
             }
         }
 
@@ -1349,6 +1434,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
             binding.mediaFastscroller.beVisibleIf(binding.mediaEmptyTextPlaceholder.isGone())
             if (!isFromCache) setupAdapter()
+        }
+
+        if (!isFromCache) {
+            mMediaInvalidated = false
+            mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
         }
 
         mLatestMediaId = getLatestMediaId()
@@ -1445,7 +1535,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     override fun refreshItems() {
-        getMedia()
+        getMedia(forceRefresh = true)
     }
 
     override fun selectedPaths(paths: ArrayList<String>) {

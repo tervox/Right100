@@ -172,7 +172,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 try {
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         Glide.with(this@MainActivity).resumeRequests()
-                        enforceGifAnimationBudget(true)
+                        setVisibleGifAnimations(true)
                         // Só recarrega as pastas (por causa do ContentObserver acima) quando a
                         // lista está parada — nunca no meio de um scroll ou toque.
                         if (mMediaStoreDirty && !mIsGettingDirs) {
@@ -181,7 +181,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         }
                     } else {
                         Glide.with(this@MainActivity).pauseRequests()
-                        enforceGifAnimationBudget(false)
+                        setVisibleGifAnimations(false)
                     }
                 } catch (_: Exception) {}
             }
@@ -1571,6 +1571,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 setupZoomListener(mZoomListener)
                 runOnUiThread {
                     binding.directoriesGrid.adapter = this
+                    binding.directoriesGrid.itemAnimator = null
+                    binding.directoriesGrid.setHasFixedSize(true)
                     // Cache pequeno: evita reinflações imediatas sem manter muitas capas e
                     // requests do Glide fora da tela.
                     binding.directoriesGrid.setItemViewCacheSize(4)
@@ -1580,14 +1582,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         binding.directoriesGrid.scheduleLayoutAnimation()
                   }
 
-                    // Aplica o limite de GIFs animados simultâneos também na carga inicial da
-                    // tela — sem isso, cada capa que termina de carregar (o Glide carrega todas
-                    // em paralelo, em momentos diferentes) começa a animar sozinha, sem respeitar
-                    // o limite, até o usuário rolar a lista pela primeira vez. As duas chamadas
-                    // com delay pegam capas que ainda não tinham terminado de carregar na
-                    // primeira checagem.
-                    binding.directoriesGrid.postDelayed({ enforceGifAnimationBudget(true) }, 400)
-                    binding.directoriesGrid.postDelayed({ enforceGifAnimationBudget(true) }, 1200)
+                    // Retoma as capas GIF que terminaram de carregar depois da pintura inicial.
+                    // As duas chamadas com delay cobrem capas que chegam em momentos diferentes,
+                    // sem reiniciar requests ou limitar a quantidade de GIFs visíveis.
+                    binding.directoriesGrid.postDelayed({ setVisibleGifAnimations(true) }, 400)
+                    binding.directoriesGrid.postDelayed({ setVisibleGifAnimations(true) }, 1200)
                 }
             }
         } else {
@@ -1618,19 +1617,18 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     // Percorre só as capas de pasta ATUALMENTE visíveis (poucas dezenas no máximo, nunca as
     // ~30 pastas todas de uma vez) e chama start()/stop() diretamente no Drawable animado
-    // (GifDrawable/WebpDrawable implementam Animatable). Isso é o que de fato interrompe a
-    // decodificação de quadros durante o scroll — pauseRequests()/resumeRequests() do Glide
-    // não fazem isso, como explicado no listener acima. Sem limite de quantidade: todas as
-    // capas visíveis animam ao mesmo tempo, como antes.
-    private fun enforceGifAnimationBudget(allowAnimating: Boolean) {
+    // (GifDrawable/WebpDrawable implementam Animatable). Isso interrompe a decodificação
+    // de quadros durante o scroll — pauseRequests()/resumeRequests() não param drawables
+    // que já terminaram de carregar. Em repouso, todas as capas GIF visíveis retomam a animação.
+    private fun setVisibleGifAnimations(allowAnimating: Boolean) {
         binding.directoriesGrid.children.forEach { child ->
             val thumbnail = child.findViewById<ImageView>(R.id.dir_thumbnail) ?: return@forEach
             val drawable = thumbnail.drawable as? Animatable ?: return@forEach
             try {
                 if (allowAnimating) {
                     if (!drawable.isRunning) drawable.start()
-                } else {
-                    if (drawable.isRunning) drawable.stop()
+                } else if (drawable.isRunning) {
+                    drawable.stop()
                 }
             } catch (_: Exception) {
             }

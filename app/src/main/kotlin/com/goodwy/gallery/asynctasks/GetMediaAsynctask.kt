@@ -107,7 +107,7 @@ class GetMediaAsynctask(
                 val newMedia = mediaFetcher.getFilesFrom(
                     it, isPickImage, isPickVideo, getProperDateTaken, getProperLastModified, getProperFileSize,
                     favoritePaths, getVideoDurations, lastModifieds, dateTakens.clone() as HashMap<String, Long>, null,
-                    videoDurationsBatch
+                    videoDurationsBatch, useDbDurationFallback = false
                 )
                 media.addAll(newMedia)
             }

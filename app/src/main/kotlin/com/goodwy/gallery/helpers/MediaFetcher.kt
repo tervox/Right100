@@ -55,8 +55,9 @@ class MediaFetcher(val context: Context) {
     fun getFilesFrom(
         curPath: String, isPickImage: Boolean, isPickVideo: Boolean, getProperDateTaken: Boolean, getProperLastModified: Boolean,
         getProperFileSize: Boolean, favoritePaths: ArrayList<String>, getVideoDurations: Boolean,
-        lastModifieds: HashMap<String, Long>, dateTakens: HashMap<String, Long>, android11Files: HashMap<String, ArrayList<Medium>>?,
-        videoDurationsBatch: HashMap<String, Int> = HashMap()
+        lastModifieds: HashMap<String, Long>,         dateTakens: HashMap<String, Long>, android11Files: HashMap<String, ArrayList<Medium>>?,
+        videoDurationsBatch: HashMap<String, Int> = HashMap(),
+        useDbDurationFallback: Boolean = true
     ): ArrayList<Medium> {
         val filterMedia = context.config.filterMedia
         if (filterMedia == 0) {
@@ -67,13 +68,16 @@ class MediaFetcher(val context: Context) {
         val cachedDurations: HashMap<String, Int> = if (getVideoDurations && curPath != FAVORITES && curPath != RECYCLE_BIN) {
             try {
                 val cached = HashMap<String, Int>()
-                // Prioriza o batch do MediaStore (mais rápido e completo)
+                // MediaStore é rápido, mas em alguns aparelhos retorna 0 para vídeos
+                // que já têm duração persistida no Room. Mescle os dois para não perder
+                // o valor quando a pasta é varrida novamente.
                 if (videoDurationsBatch.isNotEmpty()) {
                     cached.putAll(videoDurationsBatch)
-                } else {
+                }
+                if (useDbDurationFallback) {
                     context.mediaDB.getMediaFromPath(curPath)
                         .filter { it.videoDuration > 0 }
-                        .forEach { cached[it.path] = it.videoDuration }
+                        .forEach { cached.putIfAbsent(it.path, it.videoDuration) }
                 }
                 cached
             } catch (_: Exception) { HashMap() }
