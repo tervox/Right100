@@ -919,6 +919,44 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             return
         }
 
+        // Snapshot persistente: quando o processo foi encerrado, Room ainda exige leitura,
+        // filtragem e agrupamento antes da primeira pintura. O snapshot pequeno permite
+        // reconstruir a grade imediatamente; o scan real confirma alterações depois.
+        if (!forceRefresh) {
+            val persisted = try {
+                applicationContext.getPersistedMediaSnapshot(
+                    mPath,
+                    mIsGetVideoIntent && !mIsGetImageIntent,
+                    mIsGetImageIntent && !mIsGetVideoIntent
+                )
+            } catch (_: Exception) {
+                null
+            }
+            if (persisted != null) {
+                synchronized(mediaLock) {
+                    mMedia = persisted
+                    mMediaPath = mPath
+                }
+                synchronized(mFolderMediaCache) {
+                    mFolderMediaCache[mPath] = ArrayList(persisted)
+                    mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
+                }
+                mMediaInvalidated = true
+                mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
+                // Bloqueie novas chamadas de getMedia enquanto o scan de confirmação
+                // já está agendado; a própria tarefa libera o estado em gotMedia().
+                mIsGettingMedia = true
+                runOnUiThread {
+                    setupAdapter()
+                    binding.mediaGrid.postDelayed({
+                        if (!isDestroyed && !isFinishing && mPath == mMediaPath) startAsyncTask()
+                    }, 180L)
+                }
+                mLoadedInitialPhotos = true
+                return
+            }
+        }
+
         mIsGettingMedia = true
 
         // mMedia é companion object e persiste enquanto o processo continua vivo. Mostre
@@ -1433,6 +1471,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mFolderMediaCache[mPath] = ArrayList(media)
             mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
         }
+        applicationContext.saveMediaSnapshot(mPath, media)
 
         // Também preenche os itens que vieram do Room/cache, não apenas os que chegaram
         // pelo scan novo do MediaStore.

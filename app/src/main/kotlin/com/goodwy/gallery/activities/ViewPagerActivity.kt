@@ -710,13 +710,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private var pagerTransitionAnimator: ValueAnimator? = null
     private var pagerScrollState = ViewPager.SCROLL_STATE_IDLE
-    private var pendingNavigationOffset: Int? = null
+    private var pendingNavigationSteps = 0
 
     private fun dispatchPendingNavigation() {
-        val offset = pendingNavigationOffset ?: return
-        if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) return
-        pendingNavigationOffset = null
-        binding.viewPager.post { navigateToItem(offset) }
+        if (pendingNavigationSteps == 0 || pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) return
+        val step = pendingNavigationSteps.coerceIn(-1, 1)
+        pendingNavigationSteps -= step
+        binding.viewPager.post { navigateToItem(step) }
     }
 
     private fun animatePagerTransition(forward: Boolean) {
@@ -1229,14 +1229,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         if (target !in mMediums.indices) return
         if (!mIsSlideshowActive && config.viewerAnimation != SLIDESHOW_ANIMATION_NONE) {
             if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) {
-                pendingNavigationOffset = offset
+                pendingNavigationSteps = (pendingNavigationSteps + offset).coerceIn(-8, 8)
                 return
             }
-            // O toque lateral não passa pelo drag normal do ViewPager. Usar o mesmo fake-drag
-            // do slideshow faz fade/zoom/cube/flip/depth aparecerem também nesse caminho.
+            // Para o toque lateral, setCurrentItem(true) usa o mecanismo nativo de
+            // settling do ViewPager e mantém o PageTransformer, sem deixar um fake-drag
+            // preso quando o usuário toca várias vezes rapidamente.
             applyViewerTransformer()
             mRandomTransformerAppliedForGesture = config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM
-            animatePagerTransition(offset > 0)
+            binding.viewPager.setCurrentItem(target, true)
         } else {
             binding.viewPager.setCurrentItem(target, true)
         }

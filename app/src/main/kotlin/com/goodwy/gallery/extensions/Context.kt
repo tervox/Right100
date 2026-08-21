@@ -59,7 +59,10 @@ import java.io.File
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
+import java.security.MessageDigest
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlin.math.max
 import kotlin.math.min
 
@@ -658,6 +661,7 @@ fun Context.loadImageBase(
             path = path,
             target = target,
             cropThumbnails = cropThumbnails,
+            columnCount = columnCount,
             onFallback = {
                 if (fallbackPath != null && fallbackPath != path) {
                     loadImageBase(
@@ -729,18 +733,18 @@ fun Context.loadImageBase(
     if (shouldAnimateDrawable) {
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
-        if (path.isGif()) {
+        if (isGif || path.isGif()) {
             // Decodifica cada frame do GIF no tamanho do thumbnail (não no tamanho original do arquivo).
-            // Ex: GIF 500×500 em thumbnail 180×180 → 87% menos memória por frame; animação mantida.
-            // RGB_565 (2 bytes/pixel) em vez de ARGB_8888 (4 bytes/pixel) = metade da memória por
-            // frame — capas de pasta raramente precisam de transparência.
+            // Ex: GIF 500×500 em thumbnail 220×220 → bem menos memória por frame, sem
+            // reduzir a capa a um bitmap visivelmente pixelado.
             options.downsample(DownsampleStrategy.CENTER_INSIDE)
-            options.priority(Priority.LOW)
-            // Capas podem ser decodificadas menores que a célula sem perder a animação.
-            // 128 px reduz o custo de cada frame quando dezenas de GIFs estão visíveis.
-            val gifSize = maxThumbSize.coerceAtMost(128)
+            // A prioridade LOW deixava GIFs visíveis esperando atrás de outros requests.
+            // O tamanho continua limitado ao necessário para a célula, mas a imagem não
+            // sofre a perda visível do RGB_565.
+            options.priority(Priority.NORMAL)
+            val gifSize = maxThumbSize.coerceAtMost(320)
             options.override(gifSize, gifSize)
-            options.format(DecodeFormat.PREFER_RGB_565)
+            options.format(DecodeFormat.PREFER_ARGB_8888)
         }
     } else {
         options.dontAnimate()
@@ -885,11 +889,13 @@ private fun Context.loadAnimatedGifWithImageDecoder(
     path: String,
     target: MySquareImageView,
     cropThumbnails: Boolean,
+    columnCount: Int,
     onFallback: () -> Unit
 ) {
     val requestToken = target.tag
     val screenWidthPx = resources.displayMetrics.widthPixels
-    val gifSize = (screenWidthPx / 3).coerceIn(96, 160)
+    val cellWidthPx = screenWidthPx / columnCount.coerceAtLeast(1)
+    val gifSize = cellWidthPx.coerceIn(160, 320)
     target.scaleType = if (cropThumbnails) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
     Glide.with(target).clear(target)
     target.setImageResource(R.drawable.placeholder_square)
@@ -1096,6 +1102,107 @@ fun Context.getCachedDirectories(
         callback(clone.distinctBy { it.path.getDistinctPath() } as ArrayList<Directory>)
         removeInvalidDBDirectories(filteredDirectories)
     }
+}
+
+private const val MEDIA_SNAPSHOT_PREFS = "media_folder_snapshots_v1"
+private const val MEDIA_SNAPSHOT_MAX_ITEMS = 3000
+
+private fun mediaSnapshotKey(path: String): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray())
+    return "folder_" + digest.joinToString("") { "%02x".format(it) }
+}
+
+private fun Context.loadMediaSnapshot(path: String): ArrayList<Medium>? {
+    if (path.isEmpty() || path == FAVORITES || path == RECYCLE_BIN) return null
+    val raw = getSharedPreferences(MEDIA_SNAPSHOT_PREFS, Context.MODE_PRIVATE)
+        .getString(mediaSnapshotKey(path), null) ?: return null
+    return try {
+        val json = JSONArray(raw)
+        ArrayList<Medium>(json.length()).apply {
+            for (index in 0 until json.length()) {
+                val item = json.optJSONObject(index) ?: continue
+                add(
+                    Medium(
+                        id = null,
+                        name = item.optString("name"),
+                        path = item.optString("path"),
+                        parentPath = item.optString("parentPath"),
+                        modified = item.optLong("modified"),
+                        taken = item.optLong("taken"),
+                        size = item.optLong("size"),
+                        type = item.optInt("type"),
+                        videoDuration = item.optInt("videoDuration"),
+                        isFavorite = item.optBoolean("isFavorite"),
+                        deletedTS = item.optLong("deletedTS"),
+                        mediaStoreId = item.optLong("mediaStoreId")
+                    )
+                )
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+fun Context.saveMediaSnapshot(path: String, media: List<ThumbnailItem>) {
+    if (path.isEmpty() || path == FAVORITES || path == RECYCLE_BIN) return
+    try {
+        val json = JSONArray()
+        media.asSequence().filterIsInstance<Medium>().take(MEDIA_SNAPSHOT_MAX_ITEMS).forEach { item ->
+            json.put(JSONObject().apply {
+                put("name", item.name)
+                put("path", item.path)
+                put("parentPath", item.parentPath)
+                put("modified", item.modified)
+                put("taken", item.taken)
+                put("size", item.size)
+                put("type", item.type)
+                put("videoDuration", item.videoDuration)
+                put("isFavorite", item.isFavorite)
+                put("deletedTS", item.deletedTS)
+                put("mediaStoreId", item.mediaStoreId)
+            })
+        }
+        getSharedPreferences(MEDIA_SNAPSHOT_PREFS, Context.MODE_PRIVATE)
+            .edit().putString(mediaSnapshotKey(path), json.toString()).apply()
+    } catch (_: Exception) {
+    }
+}
+
+private fun Context.filterMediaSnapshot(
+    media: ArrayList<Medium>,
+    getVideosOnly: Boolean,
+    getImagesOnly: Boolean
+): ArrayList<Medium> {
+    val filtered = when {
+        getVideosOnly -> media.filter { it.type == TYPE_VIDEOS }
+        getImagesOnly -> media.filter { it.type == TYPE_IMAGES }
+        else -> {
+            val filterMedia = config.filterMedia
+            media.filter {
+                (filterMedia and TYPE_IMAGES != 0 && it.type == TYPE_IMAGES)
+                    || (filterMedia and TYPE_VIDEOS != 0 && it.type == TYPE_VIDEOS)
+                    || (filterMedia and TYPE_GIFS != 0 && it.type == TYPE_GIFS)
+                    || (filterMedia and TYPE_RAWS != 0 && it.type == TYPE_RAWS)
+                    || (filterMedia and TYPE_SVGS != 0 && it.type == TYPE_SVGS)
+                    || (filterMedia and TYPE_PORTRAITS != 0 && it.type == TYPE_PORTRAITS)
+            }
+        }
+    }
+    return filtered.filter { config.shouldShowHidden || !it.path.contains("/.") } as ArrayList<Medium>
+}
+
+fun Context.getPersistedMediaSnapshot(
+    path: String,
+    getVideosOnly: Boolean = false,
+    getImagesOnly: Boolean = false
+): ArrayList<ThumbnailItem>? {
+    val snapshot = loadMediaSnapshot(path) ?: return null
+    val filtered = filterMediaSnapshot(snapshot, getVideosOnly, getImagesOnly)
+    // O snapshot é gravado depois da ordenação do scan. Não ordene novamente na UI:
+    // isso anulava parte do ganho de entrada instantânea. O próximo scan aplica qualquer
+    // alteração recente de ordenação.
+    return MediaFetcher(this).groupMedia(filtered, path)
 }
 
 fun Context.getCachedMedia(
