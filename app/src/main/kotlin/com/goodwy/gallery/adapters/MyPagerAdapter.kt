@@ -68,6 +68,20 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
         super.destroyItem(container, position, any)
     }
 
+    override fun setPrimaryItem(container: ViewGroup, position: Int, obj: Any) {
+        super.setPrimaryItem(container, position, obj)
+        val current = obj as? ViewPagerFragment
+        // FragmentStatePagerAdapter pode entregar setMenuVisibility alguns frames
+        // depois da troca. Sincronize pelo item primário para que o ExoPlayer novo
+        // receba a superfície e o antigo pare imediatamente.
+        fragments.values.forEach { fragment ->
+            if (fragment is VideoFragment) {
+                if (fragment === current) fragment.onBecameVisible()
+                else fragment.onBecameHidden()
+            }
+        }
+    }
+
     fun getCurrentFragment(position: Int): ViewPagerFragment? {
         val medium = media.getOrNull(position) ?: return null
         return fragments[medium.path]

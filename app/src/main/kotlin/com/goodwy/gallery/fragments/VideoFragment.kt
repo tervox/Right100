@@ -787,11 +787,23 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     
 fun onBecameVisible() {
     mIsFragmentVisible = true
+    if (!::mConfig.isInitialized) return
+    // O item pode virar primário antes do callback da TextureView. Se a superfície
+    // já estiver disponível, prepare o player agora para que o primeiro toque não
+    // seja perdido durante o efeito de transição.
+    if (!mConfig.gestureVideoPlayer && !mIsPanorama && mExoPlayer == null
+        && ::mTextureView.isInitialized && mTextureView.isAvailable
+    ) {
+        initExoPlayer()
+    }
 }
 
 
 fun onBecameHidden() {
     mIsFragmentVisible = false
+    mPlayOnPrepared = false
+    mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
+    mPendingInstantTap = null
     pauseVideo(updateActivityControls = false)
 }
 

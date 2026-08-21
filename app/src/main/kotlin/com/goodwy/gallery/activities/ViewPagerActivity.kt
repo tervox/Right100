@@ -710,13 +710,26 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private var pagerTransitionAnimator: ValueAnimator? = null
     private var pagerScrollState = ViewPager.SCROLL_STATE_IDLE
-    private var pendingNavigationSteps = 0
+    // Um inteiro acumulava os eventos e fazia toques opostos se anularem. A fila
+    // preserva a ordem real dos comandos: tocar direita, direita, esquerda significa
+    // executar exatamente esses três passos, sem voltar artificialmente à página anterior.
+    private val pendingNavigationRequests = java.util.ArrayDeque<Int>()
+    private var isDispatchingNavigation = false
 
     private fun dispatchPendingNavigation() {
-        if (pendingNavigationSteps == 0 || pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) return
-        val step = pendingNavigationSteps.coerceIn(-1, 1)
-        pendingNavigationSteps -= step
-        binding.viewPager.post { navigateToItem(step) }
+        if (pendingNavigationRequests.isEmpty()
+            || isDispatchingNavigation
+            || pagerTransitionAnimator?.isRunning == true
+            || binding.viewPager.isFakeDragging
+            || pagerScrollState != ViewPager.SCROLL_STATE_IDLE
+        ) return
+
+        val step = pendingNavigationRequests.removeFirst()
+        isDispatchingNavigation = true
+        binding.viewPager.post {
+            isDispatchingNavigation = false
+            if (!isDestroyed) navigateToItem(step)
+        }
     }
 
     private fun animatePagerTransition(forward: Boolean) {
@@ -1120,10 +1133,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             } == true
             if (isTheCurrentVideo && fragment!!.isAdded && fragment.view != null) {
                 action(fragment)
-            } else if (!isDestroyed && attempts++ < 20) {
-                // Durante fake-drag/setCurrentItem o mapa do adapter pode ainda conter o
-                // vídeo anterior. Aguarde a página correta por alguns frames, sem exigir
-                // vários cliques do usuário.
+            } else if (!isDestroyed && attempts++ < 60) {
+                // A superfície pode ser criada depois do item primário. Aguarde até
+                // aproximadamente 1,5 s sem obrigar o usuário a tocar repetidamente.
                 binding.viewPager.postDelayed({ tryNow() }, 24L)
             }
         }
@@ -1153,15 +1165,27 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     override fun onPageSelected(position: Int) {
         mPos = position
         updateTitle()
+        // A visibilidade dos botões dependia apenas do onResume. Depois de trocar
+        // foto -> vídeo, o botão continuava oculto; depois de vídeo -> foto, ficava
+        // stale. Recalcule os controles imediatamente usando o Medium, que já existe.
+        initBottomActions()
         refreshMenuItems()
         scheduleSwipe()
-        // O fragmento pode ser criado um pouco depois do callback de página. O post
-        // garante que os controles inferiores encontrem o VideoFragment correto mesmo
-        // quando a troca usa transformer ou ordem aleatória.
-        binding.viewPager.post {
-            if (!isDestroyed && binding.viewPager.currentItem == position) {
-                refreshMenuItems()
-            }
+        refreshCurrentPageState(position)
+    }
+
+    private fun refreshCurrentPageState(position: Int, attempt: Int = 0) {
+        if (isDestroyed || binding.viewPager.currentItem != position) return
+        initBottomActions()
+        refreshMenuItems()
+        val fragment = getCurrentFragment()
+        if (fragment is VideoFragment) fragment.onBecameVisible()
+        // A criação do fragmento e da TextureView é assíncrona. Continue por até
+        // aproximadamente 1,2 s para que os controles apareçam e o player seja
+        // conectado mesmo quando a transição tem efeito visual.
+        val fragmentReady = fragment?.isAdded == true && fragment.view != null
+        if (!fragmentReady && attempt < 48) {
+            binding.viewPager.postDelayed({ refreshCurrentPageState(position, attempt + 1) }, 24L)
         }
     }
 
@@ -1225,22 +1249,22 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     override fun isFullScreen() = mIsFullScreen
 
     private fun navigateToItem(offset: Int) {
+        if (offset == 0) return
+        if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) {
+            if (pendingNavigationRequests.size < 32) pendingNavigationRequests.addLast(offset.coerceIn(-1, 1))
+            return
+        }
+
         val target = binding.viewPager.currentItem + offset
         if (target !in mMediums.indices) return
         if (!mIsSlideshowActive && config.viewerAnimation != SLIDESHOW_ANIMATION_NONE) {
-            if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) {
-                pendingNavigationSteps = (pendingNavigationSteps + offset).coerceIn(-8, 8)
-                return
-            }
             // Para o toque lateral, setCurrentItem(true) usa o mecanismo nativo de
-            // settling do ViewPager e mantém o PageTransformer, sem deixar um fake-drag
-            // preso quando o usuário toca várias vezes rapidamente.
+            // settling e mantém o PageTransformer. Cada pedido seguinte fica na fila
+            // e só é iniciado quando o pager chega a IDLE.
             applyViewerTransformer()
             mRandomTransformerAppliedForGesture = config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM
-            binding.viewPager.setCurrentItem(target, true)
-        } else {
-            binding.viewPager.setCurrentItem(target, true)
         }
+        binding.viewPager.setCurrentItem(target, true)
     }
 
     override fun goToPrevItem() = navigateToItem(-1)

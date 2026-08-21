@@ -65,6 +65,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 // Cache de noMediaFolders — TTL de 60s para não repetir query cara ao MediaStore
 private var noMediaFoldersCache: ArrayList<String>? = null
@@ -655,6 +656,10 @@ fun Context.loadImageBase(
     onError: (() -> Unit)? = null
 ) {
     val requestToken = target.tag
+    // MySquareImageView define apenas a área quadrada da célula; ele não deve esticar
+    // o bitmap para preencher essa área. A escala do conteúdo precisa continuar
+    // preservando a proporção original quando o recorte estiver desativado.
+    target.scaleType = if (cropThumbnails) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
     val shouldAnimate = animate && roundCorners == ROUNDED_CORNERS_NONE && (isGif || path.isGif())
     if (shouldAnimate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         loadAnimatedGifWithImageDecoder(
@@ -757,11 +762,14 @@ fun Context.loadImageBase(
             if (roundCorners == ROUNDED_CORNERS_SMALL) com.goodwy.commons.R.dimen.rounded_corner_radius_big else com.goodwy.commons.R.dimen.dialog_corner_radius
         val cornerRadius = resources.getDimension(cornerSize).toInt()
         val roundedCornersTransform = RoundedCorners(cornerRadius)
-        options.optionalTransform(MultiTransformation(CenterCrop(), roundedCornersTransform))
+        // CenterCrop só é aplicado quando o usuário pediu recorte. Sem recorte,
+        // FitCenter mantém a razão largura/altura e arredonda a imagem sem achatá-la.
+        val baseTransform = if (cropThumbnails) CenterCrop() else FitCenter()
+        options.optionalTransform(MultiTransformation(baseTransform, roundedCornersTransform))
         options.optionalTransform(
             WebpDrawable::class.java,
             MultiTransformation(
-                WebpDrawableTransformation(CenterCrop()),
+                WebpDrawableTransformation(baseTransform),
                 WebpDrawableTransformation(roundedCornersTransform)
             )
         )
@@ -907,10 +915,22 @@ private fun Context.loadAnimatedGifWithImageDecoder(
             } else {
                 ImageDecoder.createSource(File(path))
             }
-            ImageDecoder.decodeDrawable(source) { decoder, _, _ ->
+            ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
                 decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
                 decoder.setMemorySizePolicy(ImageDecoder.MEMORY_POLICY_LOW_RAM)
-                decoder.setTargetSize(gifSize, gifSize)
+                // O target quadrado anterior deformava GIFs não quadrados. Reduza
+                // proporcionalmente para caber na célula e deixe o ImageView decidir
+                // entre FIT_CENTER e CENTER_CROP.
+                val sourceWidth = info.size.width.coerceAtLeast(1)
+                val sourceHeight = info.size.height.coerceAtLeast(1)
+                val scale = minOf(
+                    gifSize.toFloat() / sourceWidth,
+                    gifSize.toFloat() / sourceHeight,
+                    1f
+                )
+                val targetWidth = (sourceWidth * scale).roundToInt().coerceAtLeast(1)
+                val targetHeight = (sourceHeight * scale).roundToInt().coerceAtLeast(1)
+                decoder.setTargetSize(targetWidth, targetHeight)
             } as? AnimatedImageDrawable
         } catch (_: Exception) {
             null

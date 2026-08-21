@@ -919,42 +919,76 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             return
         }
 
-        // Snapshot persistente: quando o processo foi encerrado, Room ainda exige leitura,
-        // filtragem e agrupamento antes da primeira pintura. O snapshot pequeno permite
-        // reconstruir a grade imediatamente; o scan real confirma alterações depois.
+        // Primeiro consulte o cache em memória. A versão anterior lia e agrupava o
+        // JSON persistente antes do LRU, então A -> B -> A ainda fazia I/O e trabalho
+        // de agrupamento em toda entrada, mesmo com a lista já pronta.
+        val folderCacheState = synchronized(mFolderMediaCache) {
+            val cached = mFolderMediaCache[mPath]?.let { ArrayList(it) }
+            val updatedAt = mFolderMediaCacheUpdatedAt[mPath] ?: 0L
+            cached to updatedAt
+        }
+        val folderCached = folderCacheState.first
+        val folderCacheFresh = folderCacheState.second > 0L
+            && System.currentTimeMillis() - folderCacheState.second < MEDIA_CACHE_TTL_MS
+        if (!forceRefresh && folderCached != null) {
+            synchronized(mediaLock) {
+                mMedia = folderCached
+                mMediaPath = mPath
+            }
+            mMediaInvalidated = !folderCacheFresh
+            runOnUiThread { setupAdapter() }
+            mIsGettingMedia = false
+            if (!folderCacheFresh) {
+                binding.mediaGrid.post { if (!isDestroyed && mPath == mMediaPath) startAsyncTask() }
+            } else {
+                checkLastMediaChanged()
+            }
+            mLoadedInitialPhotos = true
+            return
+        }
+
+        // O snapshot pode ter milhares de itens. Ler JSON e agrupar no thread da UI
+        // era exatamente a pausa de 2–3 s percebida ao entrar na pasta. Faça a leitura
+        // fora da UI e pinte o resultado assim que voltar, sem bloquear toques/frames.
         if (!forceRefresh) {
-            val persisted = try {
-                applicationContext.getPersistedMediaSnapshot(
-                    mPath,
-                    mIsGetVideoIntent && !mIsGetImageIntent,
-                    mIsGetImageIntent && !mIsGetVideoIntent
-                )
-            } catch (_: Exception) {
-                null
-            }
-            if (persisted != null) {
-                synchronized(mediaLock) {
-                    mMedia = persisted
-                    mMediaPath = mPath
+            mIsGettingMedia = true
+            val requestedPath = mPath
+            ensureBackgroundThread {
+                val persisted = try {
+                    applicationContext.getPersistedMediaSnapshot(
+                        requestedPath,
+                        mIsGetVideoIntent && !mIsGetImageIntent,
+                        mIsGetImageIntent && !mIsGetVideoIntent
+                    )
+                } catch (_: Exception) {
+                    null
                 }
-                synchronized(mFolderMediaCache) {
-                    mFolderMediaCache[mPath] = ArrayList(persisted)
-                    mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
-                }
-                mMediaInvalidated = true
-                mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
-                // Bloqueie novas chamadas de getMedia enquanto o scan de confirmação
-                // já está agendado; a própria tarefa libera o estado em gotMedia().
-                mIsGettingMedia = true
                 runOnUiThread {
-                    setupAdapter()
-                    binding.mediaGrid.postDelayed({
-                        if (!isDestroyed && !isFinishing && mPath == mMediaPath) startAsyncTask()
-                    }, 180L)
+                    if (isDestroyed || isFinishing || requestedPath != mPath) return@runOnUiThread
+                    if (persisted != null && persisted.isNotEmpty()) {
+                        synchronized(mediaLock) {
+                            mMedia = persisted
+                            mMediaPath = requestedPath
+                        }
+                        synchronized(mFolderMediaCache) {
+                            mFolderMediaCache[requestedPath] = ArrayList(persisted)
+                            mFolderMediaCacheUpdatedAt[requestedPath] = System.currentTimeMillis()
+                        }
+                        mMediaInvalidated = true
+                        mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
+                        // A grade com snapshot é exibida imediatamente; a confirmação
+                        // começa só depois da primeira pintura.
+                        setupAdapter()
+                        binding.mediaGrid.post {
+                            if (!isDestroyed && !isFinishing && mPath == mMediaPath) startAsyncTask()
+                        }
+                    } else {
+                        loadMediaFromDatabaseAndScan(requestedPath)
+                    }
                 }
-                mLoadedInitialPhotos = true
-                return
             }
+            mLoadedInitialPhotos = true
+            return
         }
 
         mIsGettingMedia = true
@@ -970,41 +1004,18 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             return
         }
 
-        // Não é a última pasta visitada, mas está no cache multi-pasta (LRU das últimas 5) ->
-        // mostra instantâneo também, em vez de cair direto na consulta ao banco. Sem isso,
-        // navegar por várias pastas (A -> B -> A) nunca reaproveitava nada.
-        // synchronized: mFolderMediaCache é um LinkedHashMap comum (não thread-safe) e é
-        // acessado por várias threads ao mesmo tempo — leitura/escrita concorrente nele
-        // pode corromper a estrutura interna do mapa e derrubar o app.
-        val folderCacheState = synchronized(mFolderMediaCache) {
-            val cached = mFolderMediaCache[mPath]?.let { ArrayList(it) }
-            val updatedAt = mFolderMediaCacheUpdatedAt[mPath] ?: 0L
-            cached to updatedAt
-        }
-        val folderCached = folderCacheState.first
-        val folderCacheFresh = folderCacheState.second > 0L
-            && System.currentTimeMillis() - folderCacheState.second < MEDIA_CACHE_TTL_MS
-        if (!forceRefresh && folderCached != null) {
-            mMedia = folderCached
-            mMediaPath = mPath
-            mMediaInvalidated = !folderCacheFresh
-            runOnUiThread { setupAdapter() }
-            mIsGettingMedia = false
-            if (!folderCacheFresh) {
-                binding.mediaGrid.post { if (!isDestroyed && mPath == mMediaPath) startAsyncTask() }
-            } else {
-                checkLastMediaChanged()
-            }
-            mLoadedInitialPhotos = true
-            return
-        }
+        // Primeira visita: banco de dados → primeira pintura → scan assíncrono
+        loadMediaFromDatabaseAndScan(mPath)
+        mLoadedInitialPhotos = true
+    }
 
-        // Primeira visita: banco de dados → async task
+    private fun loadMediaFromDatabaseAndScan(requestedPath: String) {
         getCachedMedia(
-            mPath,
+            requestedPath,
             mIsGetVideoIntent && !mIsGetImageIntent,
             mIsGetImageIntent && !mIsGetVideoIntent
         ) { cached ->
+            if (requestedPath != mPath || isDestroyed || isFinishing) return@getCachedMedia
             if (cached.isEmpty()) {
                 runOnUiThread { binding.mediaRefreshLayout.isRefreshing = true }
             } else {
@@ -1012,8 +1023,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
             startAsyncTask()
         }
-
-        mLoadedInitialPhotos = true
     }
 
     // startAsyncTask() é chamado de dentro de callbacks de getCachedMedia(), que rodam em
@@ -1487,7 +1496,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 binding.mediaEmptyTextPlaceholder.text = getString(R.string.no_media_with_filters)
             }
             binding.mediaFastscroller.beVisibleIf(binding.mediaEmptyTextPlaceholder.isGone())
-            if (!isFromCache) setupAdapter()
+            // O cache do Room também é uma fonte válida para a primeira pintura.
+            // Antes, isFromCache=true deixava a grade sem adapter até o scan terminar,
+            // anulando todo o ganho e fazendo a entrada parecer travada por segundos.
+            if (media.isNotEmpty() || !isFromCache) setupAdapter()
         }
 
         if (!isFromCache) {
