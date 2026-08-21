@@ -5,7 +5,11 @@
     <string name="raw">RAW</string>
     <string name="svg">SVG</string>
     <string name="package_name">com.goodwy.gallery</string>
-    <string name="playback_speed_display_text">2x >></string>
+    <string name="playback_speed_display_text">2x &gt;&gt;</string>
+
+    <string name="round10_whats_new_title">Novidades e melhorias</string>
+    <string name="round10_whats_new_message">GIFs das capas mais leves e fluidos\nThumbnails com melhor qualidade e mais tentativas de carregamento\nEntrada de pastas mais rápida com cache persistente\nScroll e reciclagem de imagens otimizados\nEfeitos no arraste e no toque lateral estabilizados\nPlayer de vídeo e controles mais responsivos\nOCR melhorado para fotos, vídeos, acentos e símbolos</string>
+    <string name="round10_whats_new_dont_show">Não mostrar novamente</string>
 
     <!-- Release notes -->
     <string name="release_820">

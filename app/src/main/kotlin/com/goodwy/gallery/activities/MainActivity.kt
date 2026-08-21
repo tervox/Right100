@@ -15,9 +15,13 @@ import android.provider.MediaStore.Video
 import android.speech.RecognizerIntent
 import android.view.MenuItem
 import android.view.ViewGroup
+import android.widget.CheckBox
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.RelativeLayout
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.children
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -60,6 +64,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         private const val PICK_MEDIA = 2
         private const val PICK_WALLPAPER = 3
         private const val LAST_MEDIA_CHECK_PERIOD = 3000L
+        private const val WHATS_NEW_PREFS = "right100_whats_new"
+        private const val WHATS_NEW_ROUND_KEY = "round10_dont_show"
     }
 
     private var mIsPickImageIntent = false
@@ -1821,9 +1827,36 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun checkWhatsNewDialog() {
-        whatsNewList().apply {
-            checkWhatsNew(this, BuildConfig.VERSION_CODE)
+        val preferences = getSharedPreferences(WHATS_NEW_PREFS, MODE_PRIVATE)
+        if (preferences.getBoolean(WHATS_NEW_ROUND_KEY, false) || isFinishing || isDestroyed) return
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24.dpToPx(this@MainActivity), 0, 24.dpToPx(this@MainActivity), 0)
         }
+        val message = TextView(this).apply {
+            text = getString(R.string.round10_whats_new_message)
+            setTextColor(getProperTextColor())
+            textSize = 16f
+            setPadding(0, 8.dpToPx(this@MainActivity), 0, 8.dpToPx(this@MainActivity))
+        }
+        val dontShowAgain = CheckBox(this).apply {
+            text = getString(R.string.round10_whats_new_dont_show)
+            setTextColor(getProperTextColor())
+            isChecked = false
+        }
+        content.addView(message, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        content.addView(dontShowAgain, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.round10_whats_new_title)
+            .setView(content)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                if (dontShowAgain.isChecked) {
+                    preferences.edit().putBoolean(WHATS_NEW_ROUND_KEY, true).apply()
+                }
+            }
+            .show()
     }
 
     // Goodwy
