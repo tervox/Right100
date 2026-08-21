@@ -5,10 +5,12 @@ import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
 import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.RelativeLayout
 import android.widget.TextView
@@ -35,7 +37,8 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
     private var init = false
 
     private var mSlideInfoText = ""
-    private var mSlideInfoFadeHandler = Handler()
+    private var mSlideInfoFadeHandler = Handler(Looper.getMainLooper())
+    private var mPendingSingleTap: Runnable? = null
     internal var onVerticalScroll: (() -> Unit)? = null
     private var mParentView: ViewGroup? = null
     private var activity: Activity? = null
@@ -62,15 +65,31 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
     }
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-            if (init) singleTap(e.rawX, e.rawY)
+        override fun onDown(e: MotionEvent): Boolean = true
+
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            // onSingleTapConfirmed espera o timeout completo de duplo toque e deixava a
+            // troca lateral parecer ignorada. Um atraso curto mantém espaço para cancelar
+            // em onDoubleTap, mas deixa o pager iniciar logo no primeiro toque.
+            mPendingSingleTap?.let { removeCallbacks(it) }
+            val x = e.rawX
+            val y = e.rawY
+            val pending = Runnable {
+                if (init && !mPassTouches) singleTap(x, y)
+            }
+            mPendingSingleTap = pending
+            postDelayed(pending, ViewConfiguration.getDoubleTapTimeout().toLong() / 2L)
             return true
         }
 
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean = true
+
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (doubleTap != null) {
-                doubleTap!!.invoke(e.rawX, e.rawY)
+            mPendingSingleTap?.let {
+                removeCallbacks(it)
+                mPendingSingleTap = null
             }
+            doubleTap?.invoke(e.rawX, e.rawY)
             return true
         }
     })
@@ -246,6 +265,8 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
 
     fun cleanup() {
         mSlideInfoFadeHandler.removeCallbacksAndMessages(null)
+        mPendingSingleTap?.let { removeCallbacks(it) }
+        mPendingSingleTap = null
         activity = null
         mParentView = null
         mPassTouches = false

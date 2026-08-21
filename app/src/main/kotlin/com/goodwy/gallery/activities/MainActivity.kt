@@ -21,7 +21,6 @@ import android.widget.Toast
 import androidx.core.view.children
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import com.goodwy.commons.dialogs.CreateNewFolderDialog
 import com.goodwy.commons.dialogs.FilePickerDialog
 import com.goodwy.commons.dialogs.RadioGroupDialog
@@ -160,28 +159,18 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             )
         }
 
-        // Glide.pauseRequests()/resumeRequests() NÃO para GIFs/WebP animados que já
-        // terminaram de carregar e estão exibidos na tela — essas duas funções só evitam que
-        // NOVAS imagens comecem a ser decodificadas. Um GifDrawable já carregado continua
-        // decodificando e desenhando quadro a quadro independente disso. Com ~30 capas de
-        // pasta animadas na tela, isso é o que realmente pesava a UI, e a versão anterior
-        // (só pauseRequests/resumeRequests) não reduzia esse custo — por isso não fazia
-        // diferença nenhuma. Aqui paramos/retomamos a animação de cada capa visível de fato.
+        // Não pause requests globais do Glide durante o scroll: isso fazia imagens estáticas
+        // desaparecerem/reaparecerem e reiniciava decodificações ao voltar para cima. Controle
+        // apenas os drawables animados que estão efetivamente visíveis.
         binding.directoriesGrid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 try {
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
-                        Glide.with(this@MainActivity).resumeRequests()
-                        setVisibleGifAnimations(true)
-                        // Só recarrega as pastas (por causa do ContentObserver acima) quando a
-                        // lista está parada — nunca no meio de um scroll ou toque.
-                        if (mMediaStoreDirty && !mIsGettingDirs) {
-                            mMediaStoreDirty = false
-                            getDirectories()
-                        }
-                    } else {
-                        Glide.with(this@MainActivity).pauseRequests()
-                        setVisibleGifAnimations(false)
+                    setVisibleGifAnimations(newState == RecyclerView.SCROLL_STATE_IDLE)
+                    // Só recarrega as pastas (por causa do ContentObserver acima) quando a
+                    // lista está parada — nunca no meio de um scroll ou toque.
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE && mMediaStoreDirty && !mIsGettingDirs) {
+                        mMediaStoreDirty = false
+                        getDirectories()
                     }
                 } catch (_: Exception) {}
             }
@@ -1582,11 +1571,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         binding.directoriesGrid.scheduleLayoutAnimation()
                   }
 
-                    // Retoma as capas GIF que terminaram de carregar depois da pintura inicial.
-                    // As duas chamadas com delay cobrem capas que chegam em momentos diferentes,
-                    // sem reiniciar requests ou limitar a quantidade de GIFs visíveis.
-                    binding.directoriesGrid.postDelayed({ setVisibleGifAnimations(true) }, 400)
-                    binding.directoriesGrid.postDelayed({ setVisibleGifAnimations(true) }, 1200)
+                    // A animação é retomada pelo listener de scroll e pelo primeiro layout;
+                    // não agende dois passes globais que reiniciam dezenas de GIFs.
+                    binding.directoriesGrid.post { setVisibleGifAnimations(true) }
                 }
             }
         } else {

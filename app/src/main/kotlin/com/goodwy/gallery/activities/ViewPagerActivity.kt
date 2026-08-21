@@ -138,7 +138,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.viewPager.currentItem = mPos
         binding.viewPager.addOnPageChangeListener(this)
 
-        binding.viewPager.offscreenPageLimit = 2
+        // Um vizinho de cada lado é suficiente para a troca com efeito. Manter dois
+        // carregava até cinco TextureViews/ExoPlayers simultaneamente, deixando o toque
+        // lateral e o arraste disputarem CPU e memória.
+        binding.viewPager.offscreenPageLimit = 1
         applyViewerTransformer()
     }
 
@@ -703,36 +706,64 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
-    private fun animatePagerTransition(forward: Boolean) {
-        val animator = ValueAnimator.ofInt(0, binding.viewPager.width)
-        animator.interpolator = DecelerateInterpolator()
-        animator.duration = SLIDESHOW_SLIDE_DURATION
-        val start = binding.viewPager.currentItem
-        var oldDrag = 0
+    private var pagerTransitionAnimator: ValueAnimator? = null
 
+    private fun animatePagerTransition(forward: Boolean) {
+        val pager = binding.viewPager
+        val start = pager.currentItem
+        val target = start + if (forward) 1 else -1
+        if (target !in mMediums.indices || pager.width <= 0 || pager.isFakeDragging) {
+            if (target in mMediums.indices) pager.setCurrentItem(target, true)
+            else if (mIsSlideshowActive) {
+                stopSlideshow()
+                toast(R.string.slideshow_ended)
+            }
+            return
+        }
+
+        pagerTransitionAnimator?.cancel()
+        val animator = ValueAnimator.ofInt(0, pager.width).apply {
+            interpolator = DecelerateInterpolator()
+            duration = SLIDESHOW_SLIDE_DURATION
+        }
+        pagerTransitionAnimator = animator
+        var oldDrag = 0
         animator.addUpdateListener { anim ->
-            if (binding.viewPager.isFakeDragging) {
+            if (pager.isFakeDragging) {
                 val drag = anim.animatedValue as Int
-                try { binding.viewPager.fakeDragBy((drag - oldDrag) * if (forward) -1f else 1f) }
-                catch (_: Exception) { stopSlideshow() }
-                oldDrag = drag
+                try {
+                    pager.fakeDragBy((drag - oldDrag) * if (forward) -1f else 1f)
+                    oldDrag = drag
+                } catch (_: Exception) {
+                    animator.cancel()
+                }
             }
         }
         animator.addListener(object : Animator.AnimatorListener {
             override fun onAnimationEnd(a: Animator) {
-                if (binding.viewPager.isFakeDragging) {
-                    try { binding.viewPager.endFakeDrag() } catch (_: Exception) { stopSlideshow() }
-                    if (binding.viewPager.currentItem == start) {
-                        stopSlideshow(); toast(R.string.slideshow_ended)
-                    }
+                if (pager.isFakeDragging) {
+                    try { pager.endFakeDrag() } catch (_: Exception) {}
+                }
+                if (pagerTransitionAnimator === animator) pagerTransitionAnimator = null
+                if (pager.currentItem == start && mIsSlideshowActive) {
+                    stopSlideshow()
+                    toast(R.string.slideshow_ended)
                 }
             }
-            override fun onAnimationCancel(a: Animator) { try { binding.viewPager.endFakeDrag() } catch (_: Exception) {} }
+            override fun onAnimationCancel(a: Animator) {
+                if (pager.isFakeDragging) {
+                    try { pager.endFakeDrag() } catch (_: Exception) {}
+                }
+                if (pagerTransitionAnimator === animator) pagerTransitionAnimator = null
+            }
             override fun onAnimationStart(a: Animator) {}
             override fun onAnimationRepeat(a: Animator) {}
         })
-        binding.viewPager.beginFakeDrag()
-        animator.start()
+        if (pager.beginFakeDrag()) animator.start()
+        else {
+            pagerTransitionAnimator = null
+            pager.setCurrentItem(target, true)
+        }
     }
 
     private var mOcrInProgress = false
@@ -1177,13 +1208,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val target = binding.viewPager.currentItem + offset
         if (target !in mMediums.indices) return
         if (!mIsSlideshowActive && config.viewerAnimation != SLIDESHOW_ANIMATION_NONE) {
-            // O toque lateral acontece fora da área que o ViewPager usa para iniciar o drag.
-            // Reinstalar o transformer no início da troca garante que fade/zoom/cube/flip/depth
-            // também sejam executados com setCurrentItem(..., true), não somente no arraste.
+            // O toque lateral não passa pelo drag normal do ViewPager. Usar o mesmo fake-drag
+            // do slideshow faz fade/zoom/cube/flip/depth aparecerem também nesse caminho.
             applyViewerTransformer()
             mRandomTransformerAppliedForGesture = config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM
+            animatePagerTransition(offset > 0)
+        } else {
+            binding.viewPager.setCurrentItem(target, true)
         }
-        binding.viewPager.setCurrentItem(target, true)
     }
 
     override fun goToPrevItem() = navigateToItem(-1)

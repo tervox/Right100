@@ -20,6 +20,7 @@ import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.bumptech.glide.Glide
 import com.bumptech.glide.Priority
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.bumptech.glide.integration.webp.WebpBitmapFactory
 import com.bumptech.glide.integration.webp.decoder.WebpDownsampler
 import com.bumptech.glide.integration.webp.decoder.WebpDrawable
@@ -584,7 +585,7 @@ fun Context.loadImage(
             isVideo = type == TYPE_VIDEOS,
             // O fallback também cobre JPEG/WEBP locais corrompidos no cache do Glide;
             // content:// permanece no Glide porque o Picasso antigo aqui usa file://.
-            tryLoadingWithPicasso = type == TYPE_IMAGES && !path.startsWith("content://"),
+            tryLoadingWithPicasso = (type == TYPE_IMAGES || type == TYPE_GIFS) && !path.startsWith("content://"),
             columnCount = columnCount,
             onError = onError
         )
@@ -644,7 +645,10 @@ fun Context.loadImageBase(
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
         .priority(Priority.NORMAL)
         .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-        .format(DecodeFormat.PREFER_RGB_565)
+        // ARGB_8888 evita imagens pretas em arquivos com alfa, perfis de cor ou
+        // transformações que não funcionam corretamente em RGB_565. GIFs recebem RGB_565
+        // explicitamente abaixo, onde a economia de memória é mais importante.
+        .format(DecodeFormat.PREFER_ARGB_8888)
         .placeholder(R.drawable.placeholder_square)
         .error(R.drawable.ic_vector_warning_colored)
 
@@ -674,8 +678,9 @@ fun Context.loadImageBase(
         options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(FitCenter()))
     }
 
-    // animation is only supported without rounded corners and the file must be a GIF or WEBP.
-    if (animate && roundCorners == ROUNDED_CORNERS_NONE && (path.isGif() || path.isWebP())) {
+    // Animation is supported only without rounded corners and for GIF/animated WebP.
+    val shouldAnimate = animate && roundCorners == ROUNDED_CORNERS_NONE && (path.isGif() || path.isWebP())
+    if (shouldAnimate) {
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
         if (path.isGif()) {
@@ -685,7 +690,10 @@ fun Context.loadImageBase(
             // frame — capas de pasta raramente precisam de transparência.
             options.downsample(DownsampleStrategy.CENTER_INSIDE)
             options.priority(Priority.LOW)
-            options.override(140, 140)
+            // Capas podem ser decodificadas menores que a célula sem perder a animação.
+            // 128 px reduz o custo de cada frame quando dezenas de GIFs estão visíveis.
+            val gifSize = maxThumbSize.coerceAtMost(128)
+            options.override(gifSize, gifSize)
             options.format(DecodeFormat.PREFER_RGB_565)
         }
     } else {
@@ -718,7 +726,13 @@ fun Context.loadImageBase(
         .load(imageModel)
         .apply(options)
         .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
-        .transition(getOptionalCrossFadeTransition(crossFadeDuration))
+        .transition(if (shouldAnimate) {
+            // Crossfade cria uma camada transitória por cima de cada GIF e aumenta o
+            // trabalho do compositor durante a rolagem.
+            DrawableTransitionOptions()
+        } else {
+            getOptionalCrossFadeTransition(crossFadeDuration)
+        })
 
     builder = builder.listener(object : RequestListener<Drawable> {
         override fun onLoadFailed(

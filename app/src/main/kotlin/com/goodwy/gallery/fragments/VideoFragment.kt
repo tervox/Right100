@@ -104,6 +104,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mTimerHandler = android.os.Handler(mTimerThread.looper)
     private val mMainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var mTimerRunnable: Runnable? = null  // referencia para poder cancelar o loop
+    private var mPendingInstantTap: Runnable? = null
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
 
@@ -198,19 +199,38 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mTextureView.surfaceTextureListener = this@VideoFragment
 
             val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    if (!mConfig.allowInstantChange) { toggleFullscreen(); return true }
-                    val viewWidth = root.width
-                    val instantWidth = viewWidth / 7
-                    when {
-                        e.rawX <= instantWidth -> listener?.goToPrevItem()
-                        e.rawX >= viewWidth - instantWidth -> listener?.goToNextItem()
-                        else -> toggleFullscreen()
+                override fun onDown(e: MotionEvent): Boolean = true
+
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
+                    mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
+                    val x = e.rawX
+                    val y = e.rawY
+                    val pending = Runnable {
+                        mPendingInstantTap = null
+                        if (!isAdded || !mIsFragmentVisible) return@Runnable
+                        if (!mConfig.allowInstantChange) {
+                            toggleFullscreen()
+                        } else {
+                            val instantWidth = mView.width / 7
+                            when {
+                                x <= instantWidth -> listener?.goToPrevItem()
+                                x >= mView.width - instantWidth -> listener?.goToNextItem()
+                                else -> toggleFullscreen()
+                            }
+                        }
                     }
+                    mPendingInstantTap = pending
+                    mMainHandler.postDelayed(pending, ViewConfiguration.getDoubleTapTimeout().toLong() / 2L)
                     return true
                 }
 
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean = true
+
                 override fun onDoubleTap(e: MotionEvent): Boolean {
+                    mPendingInstantTap?.let {
+                        mMainHandler.removeCallbacks(it)
+                        mPendingInstantTap = null
+                    }
                     handleDoubleTap(e.rawX)
                     return true
                 }
@@ -776,6 +796,8 @@ fun releasePlayerForFileOp() = cleanup()
 
     private fun cleanup() {
         mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
+        mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
+        mPendingInstantTap = null
         mTimerRunnable = null
         mExoPlayer?.release(); mExoPlayer = null
         mTimerHandler.removeCallbacksAndMessages(null)

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
+import android.graphics.drawable.Animatable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Icon
 import android.text.TextUtils
@@ -15,6 +16,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.RelativeLayout
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -61,6 +63,7 @@ class DirectoryAdapter(
     RecyclerViewFastScroller.OnPopupTextUpdate {
 
     private val config = activity.config
+    private val attachedRecyclerView = recyclerView
     private val isListViewType = config.viewTypeFolders == VIEW_TYPE_LIST
     private var pinnedFolders = config.pinnedFolders
     private var scrollHorizontally = config.scrollHorizontally
@@ -210,10 +213,33 @@ class DirectoryAdapter(
         swipeRefreshLayout?.isEnabled = activity.config.enablePullToRefresh
     }
 
+    override fun onViewAttachedToWindow(holder: ViewHolder) {
+        super.onViewAttachedToWindow(holder)
+        if (attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+            (holder.itemView.findViewById<ImageView>(R.id.dir_thumbnail)?.drawable as? Animatable)?.let {
+                try { if (!it.isRunning) it.start() } catch (_: Exception) {}
+            }
+        }
+    }
+
+    override fun onViewDetachedFromWindow(holder: ViewHolder) {
+        (holder.itemView.findViewById<ImageView>(R.id.dir_thumbnail)?.drawable as? Animatable)?.let {
+            try { if (it.isRunning) it.stop() } catch (_: Exception) {}
+        }
+        super.onViewDetachedFromWindow(holder)
+    }
+
     override fun onViewRecycled(holder: ViewHolder) {
         super.onViewRecycled(holder)
         if (!activity.isDestroyed) {
-            Glide.with(activity).clear(bindItem(holder.itemView).dirThumbnail)
+            val thumbnail = holder.itemView.findViewById<ImageView>(R.id.dir_thumbnail)
+            if (thumbnail != null) {
+                (thumbnail.drawable as? Animatable)?.let {
+                    try { if (it.isRunning) it.stop() } catch (_: Exception) {}
+                }
+                thumbnail.tag = null
+                Glide.with(thumbnail).clear(thumbnail)
+            }
         }
     }
 
@@ -778,10 +804,18 @@ class DirectoryAdapter(
     fun updateDirs(newDirs: ArrayList<Directory>) {
         val directories = newDirs.clone() as ArrayList<Directory>
         if (directories.hashCode() != currentDirectoriesHash) {
+            val oldDirs = dirs
             currentDirectoriesHash = directories.hashCode()
             dirs = directories
             fillLockedFolders()
-            notifyDataSetChanged()
+            DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = oldDirs.size
+                override fun getNewListSize() = directories.size
+                override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) =
+                    oldDirs[oldItemPosition].path == directories[newItemPosition].path
+                override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int) =
+                    oldDirs[oldItemPosition] == directories[newItemPosition]
+            }).dispatchUpdatesTo(this)
             finishActMode()
         }
         keyToPositionCache.clear()
@@ -790,14 +824,20 @@ class DirectoryAdapter(
         }
     }
 
+    private fun rebindVisibleFolders() {
+        if (itemCount > 0) notifyItemRangeChanged(0, itemCount)
+    }
+
     fun updateAnimateGifs(animateGifs: Boolean) {
+        if (this.animateGifs == animateGifs) return
         this.animateGifs = animateGifs
-        notifyDataSetChanged()
+        rebindVisibleFolders()
     }
 
     fun updateCropThumbnails(cropThumbnails: Boolean) {
+        if (this.cropThumbnails == cropThumbnails) return
         this.cropThumbnails = cropThumbnails
-        notifyDataSetChanged()
+        rebindVisibleFolders()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -862,6 +902,8 @@ class DirectoryAdapter(
                         else -> R.drawable.placeholder_square
                     }
                 )
+                val thumbnailKey = "${directory.path}|${directory.tmb}"
+                dirThumbnail.tag = thumbnailKey
 
                 activity.loadImage(
                     type = thumbnailType,
@@ -874,8 +916,10 @@ class DirectoryAdapter(
                     signature = directory.getKey(),
                     columnCount = config.dirColumnCnt,
                     onError = {
-                        dirThumbnail.scaleType = ImageView.ScaleType.CENTER
-                        dirThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                        if (dirThumbnail.tag == thumbnailKey) {
+                            dirThumbnail.scaleType = ImageView.ScaleType.CENTER
+                            dirThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                        }
                     }
                 )
             }
