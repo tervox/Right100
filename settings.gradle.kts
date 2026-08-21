@@ -10,7 +10,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { setUrl("https://www.jitpack.io") }
+        maven {
+            setUrl("https://www.jitpack.io")
+            metadataSources {
+                mavenPom()
+                artifact()
+            }
+        }
         maven { setUrl("https://artifactory-external.vkpartner.ru/artifactory/maven") }
         mavenLocal()
     }

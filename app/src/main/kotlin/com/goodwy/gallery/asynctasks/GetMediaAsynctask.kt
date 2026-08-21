@@ -21,23 +21,26 @@ class GetMediaAsynctask(
     private val mediaFetcher = MediaFetcher(context)
 
     companion object {
-        // Cache de durações válido por 5 minutos dentro da mesma sessão do app.
-        // Evita query full ao MediaStore toda vez que o usuário abre uma pasta.
-        @Volatile private var cachedDurationsMap: HashMap<String, Int>? = null
-        @Volatile private var cachedFolderDurationsMap: HashMap<String, HashMap<String, Int>> = HashMap()
-        @Volatile private var cachedDurationsTimestamp: Long = 0L
-        private const val DURATIONS_CACHE_TTL_MS = 5 * 60 * 1000L // 5 min
+        private data class DurationCacheEntry(
+            val timestamp: Long,
+            val values: HashMap<String, Int>
+        )
+
+        // Cache de durações válido por cinco minutos dentro da mesma sessão do app.
+        // Cada entrada carrega o próprio timestamp; um acesso a uma pasta não renova
+        // artificialmente o TTL das demais pastas.
+        @Volatile private var cachedDurations: DurationCacheEntry? = null
+        @Volatile private var cachedFolderDurations: HashMap<String, DurationCacheEntry> = HashMap()
+        private const val DURATIONS_CACHE_TTL_MS = 5 * 60 * 1000L
 
         fun invalidateDurationsCache() {
-            cachedDurationsMap = null
-            cachedFolderDurationsMap = HashMap()
-            cachedDurationsTimestamp = 0L
+            cachedDurations = null
+            cachedFolderDurations = HashMap()
         }
     }
 
     override fun doInBackground(vararg params: Void): ArrayList<ThumbnailItem> {
-        // Aumenta prioridade desta thread → 1ª visita a uma pasta abre visivelmente mais rápido
-        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE)
+        // Mantém a prioridade de background para não competir com a UI durante o scan.
         val pathToUse = if (showAll) SHOW_ALL else mPath
         val folderGrouping = context.config.getFolderGrouping(pathToUse)
         val folderSorting = context.config.getFolderSorting(pathToUse)
@@ -72,28 +75,26 @@ class GetMediaAsynctask(
             if (showAll) {
                 // showAll varre todo o dispositivo — usa cache global com TTL
                 val now = System.currentTimeMillis()
-                val cached = cachedDurationsMap
-                if (cached != null && (now - cachedDurationsTimestamp) < DURATIONS_CACHE_TTL_MS) {
-                    cached
+                val cached = cachedDurations
+                if (cached != null && (now - cached.timestamp) < DURATIONS_CACHE_TTL_MS) {
+                    cached.values
                 } else {
                     val fresh = mediaFetcher.getVideoDurationsBatch()
-                    cachedDurationsMap = fresh
-                    cachedDurationsTimestamp = now
+                    cachedDurations = DurationCacheEntry(now, fresh)
                     fresh
                 }
             } else {
                 // Pasta específica: usa cache em memória com mesmo TTL de 5 min.
                 // Antes: query nova a cada abertura de pasta → lento sempre.
                 val now = System.currentTimeMillis()
-                val cachedFolder = cachedFolderDurationsMap[mPath]
-                if (cachedFolder != null && (now - cachedDurationsTimestamp) < DURATIONS_CACHE_TTL_MS) {
-                    cachedFolder
+                val cachedFolder = cachedFolderDurations[mPath]
+                if (cachedFolder != null && (now - cachedFolder.timestamp) < DURATIONS_CACHE_TTL_MS) {
+                    cachedFolder.values
                 } else {
                     val fresh = mediaFetcher.getVideoDurationsForFolder(mPath)
-                    val updated = HashMap(cachedFolderDurationsMap)
-                    updated[mPath] = fresh
-                    cachedFolderDurationsMap = updated
-                    if (cachedFolder == null) cachedDurationsTimestamp = System.currentTimeMillis()
+                    val updated = HashMap(cachedFolderDurations)
+                    updated[mPath] = DurationCacheEntry(now, fresh)
+                    cachedFolderDurations = updated
                     fresh
                 }
             }
@@ -129,28 +130,7 @@ class GetMediaAsynctask(
                 try { mediaDB.updateVideoDuration(medium.path, medium.videoDuration) } catch (_: Exception) {}
             }
 
-            // Fallback assíncrono: vídeos com duration=0 (não indexados no MediaStore)
-            // buscam duração via MediaMetadataRetriever sem bloquear o scan principal
-            val videosWithoutDuration = media.filterIsInstance<Medium>()
-                .filter { it.isVideo() && it.videoDuration == 0 }
-            .take(20)
-            if (videosWithoutDuration.isNotEmpty()) {
-                Thread {
-                    videosWithoutDuration.forEach { medium ->
-                        try {
-                            val duration = android.media.MediaMetadataRetriever().use { retriever ->
-                                retriever.setDataSource(medium.path)
-                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                                    ?.toLongOrNull()?.div(1000)?.toInt() ?: 0
-                            }
-                            if (duration > 0) {
-                                medium.videoDuration = duration
-                                mediaDB.updateVideoDuration(medium.path, duration)
-                            }
-                        } catch (_: Exception) {}
-                    }
-                }.start()
-            }
+
         }
 
         return mediaFetcher.groupMedia(media, pathToUse)

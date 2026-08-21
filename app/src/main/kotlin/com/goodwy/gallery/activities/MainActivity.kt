@@ -1571,9 +1571,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 setupZoomListener(mZoomListener)
                 runOnUiThread {
                     binding.directoriesGrid.adapter = this
-                    // Mais views mantidas fora da tela (padrão é 2) → menos reinflar/rebindar
-                    // capas de pasta ao rolar rápido pela lista de pastas.
-                    binding.directoriesGrid.setItemViewCacheSize(16)
+                    // Cache pequeno: evita reinflações imediatas sem manter muitas capas e
+                    // requests do Glide fora da tela.
+                    binding.directoriesGrid.setItemViewCacheSize(4)
                     setupScrollDirection()
 
                     if (config.viewTypeFolders == VIEW_TYPE_LIST && areSystemAnimationsEnabled) {

@@ -1,0 +1,23 @@
+# Local Android/Gradle configuration
+local.properties
+keystore.properties
+*.jks
+*.keystore
+
+# Build outputs and generated reports
+.gradle/
+build/
+app/build/
+app/foss/
+app/gplay/
+app/rustore/
+
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Kotlin/Java generated files
+.kotlin/
+*.log

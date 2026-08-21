@@ -101,11 +101,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // mMedia/mMediaPath só guardam a ÚLTIMA pasta visitada (1 slot). Navegando por
         // várias pastas (A -> B -> A), a segunda visita a A já não batia nesse cache (porque
         // mMediaPath virou B ao visitar B), caindo sempre na consulta ao banco de novo. Este
-        // mapa guarda as últimas pastas visitadas (LRU) para reaproveitar em qualquer uma delas.
-        // Medium é uma classe leve (3 Strings curtas + alguns números, ~300-500 bytes cada) -
-        // não guarda bitmaps, só metadados. Mesmo 30 pastas de ~1000 itens cada ficam na casa
-        // de poucos MB no total, então o cache pode ser generoso sem custar memória de verdade.
-        private const val FOLDER_CACHE_MAX_SIZE = 30
+        // mapa guarda as últimas quatro pastas visitadas (LRU) para reaproveitar navegação
+        // recente sem manter uma cópia grande da biblioteca inteira em memória.
+        private const val FOLDER_CACHE_MAX_SIZE = 4
         val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>?): Boolean {
                 return size > FOLDER_CACHE_MAX_SIZE
@@ -119,7 +117,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         // Chamado pela Application (App.kt) quando o Android sinaliza pressão de memória
         // (onTrimMemory/onLowMemory). Antes disso não existia NENHUM tratamento desses sinais
-        // em todo o app — os caches estáticos acima (mFolderMediaCache podendo guardar até 30
+        // em todo o app — os caches estáticos acima (mFolderMediaCache podendo guardar até 4
         // pastas inteiras, mMedia guardando a última pasta) nunca eram liberados, nem quando o
         // app ia pra segundo plano com pouca memória disponível. Isso deixa o sistema sem opção
         // além de matar o processo inteiro sem aviso — o que explica fechamentos "aleatórios",
@@ -612,11 +610,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         if (currAdapter == null) {
             initZoomListener()
             setupGlideScrollPause()
-            // Aumenta o nº de views mantidas fora da tela pelo RecyclerView (padrão é só 2).
-            // Isso evita reinflar/rebindar (e reconsultar Glide) uma view toda vez que ela sai
-            // e volta a entrar na tela num scroll rápido, um dos fatores que pesava o scroll
-            // em pastas com muita mídia.
-            binding.mediaGrid.setItemViewCacheSize(20)
+            // Um cache pequeno reduz reinflações sem manter dezenas de imagens e referências
+            // de Glide fora da tela. Valores altos aumentam muito a memória em grades grandes.
+            binding.mediaGrid.setItemViewCacheSize(4)
             MediaAdapter(
                 activity = this,
                 media = mMedia.clone() as ArrayList<ThumbnailItem>,
@@ -885,7 +881,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // synchronized: mFolderMediaCache é um LinkedHashMap comum (não thread-safe) e é
         // acessado por várias threads ao mesmo tempo — leitura/escrita concorrente nele
         // pode corromper a estrutura interna do mapa e derrubar o app.
-        val folderCached = synchronized(mFolderMediaCache) { mFolderMediaCache[mPath] }
+        val folderCached = synchronized(mFolderMediaCache) {
+            mFolderMediaCache[mPath]?.let { ArrayList(it) }
+        }
         if (!folderCached.isNullOrEmpty()) {
             mMedia = folderCached
             mMediaPath = mPath
@@ -932,14 +930,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             if (isDestroyed || isFinishing) return@runOnUiThread
 
             mCurrAsyncTask?.stopFetching()
+            val requestedPath = mPath
             val task = GetMediaAsynctask(
                 context = applicationContext,
-                mPath = mPath,
+                mPath = requestedPath,
                 isPickImage = mIsGetImageIntent && !mIsGetVideoIntent,
                 isPickVideo = mIsGetVideoIntent && !mIsGetImageIntent,
                 showAll = mShowAll
             ) {
                 ensureBackgroundThread {
+                    // Cancelar AsyncTask não impede todo callback já enfileirado; descarte
+                    // resultados que pertencem a uma pasta que deixou de estar visível.
+                    if (requestedPath != mPath || isFinishing || isDestroyed) {
+                        return@ensureBackgroundThread
+                    }
                     val oldMedia = synchronized(mediaLock) { mMedia.clone() as ArrayList<ThumbnailItem> }
                     val newMedia = it
                     try {
@@ -950,10 +954,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         fillMissingVideoDurations(newMedia)
 
                         // remove cached files that are no longer valid for whatever reason
-                        val newPaths = newMedia.mapNotNull { it as? Medium }.map { it.path }
+                        val newPaths = newMedia.asSequence()
+                            .filterIsInstance<Medium>()
+                            .map { it.path }
+                            .toHashSet()
                         oldMedia
-                            .mapNotNull { it as? Medium }
-                            .filter { !newPaths.contains(it.path) }
+                            .asSequence()
+                            .filterIsInstance<Medium>()
+                            .filter { it.path !in newPaths }
                             .forEach {
                                 if (mPath == FAVORITES && getDoesFilePathExist(it.path)) {
                                     favoritesDB.deleteFavoritePath(it.path)
@@ -975,9 +983,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         if (!config.showThumbnailVideoDuration) return
         val videosWithout = media.filterIsInstance<Medium>()
             .filter { it.isVideo() && it.videoDuration == 0 }
+            .take(20)
         if (videosWithout.isEmpty()) return
 
-        Thread {
+        // Usa o executor compartilhado do app e limita o lote para não iniciar uma thread
+        // dedicada nem abrir centenas de MediaMetadataRetriever numa única navegação.
+        ensureBackgroundThread {
             videosWithout.forEach { medium ->
                 try {
                     val duration = android.media.MediaMetadataRetriever().use { r ->
@@ -998,7 +1009,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     }
                 } catch (_: Exception) {}
             }
-        }.start()
+        }
     }
 
     private fun setupSelectAllFab() {
@@ -1322,7 +1333,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mMediaPath = mPath
         }
         if (media.isNotEmpty()) {
-            synchronized(mFolderMediaCache) { mFolderMediaCache[mPath] = media }
+            synchronized(mFolderMediaCache) {
+                mFolderMediaCache[mPath] = ArrayList(media)
+            }
         }
 
         runOnUiThread {
@@ -1400,8 +1413,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 return@deleteFiles
             }
 
+            val filteredPaths = filtered.asSequence().map { it.path }.toHashSet()
             synchronized(mediaLock) {
-                mMedia.removeAll { filtered.map { it.path }.contains((it as? Medium)?.path) }
+                mMedia.removeAll { (it as? Medium)?.path in filteredPaths }
             }
             // mFolderMediaCache guarda uma cópia separada por pasta (pro caso de A -> B -> A).
             // Sem atualizar ela também, voltar pra essa pasta mostrava a versão antiga, com o
@@ -1409,7 +1423,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // "por baixo" corrigir sozinha — o que o usuário vê como "o item apagado continua lá".
             synchronized(mFolderMediaCache) {
                 mFolderMediaCache[mPath]?.removeAll {
-                    filtered.map { f -> f.path }.contains((it as? Medium)?.path)
+                    (it as? Medium)?.path in filteredPaths
                 }
             }
 

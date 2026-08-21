@@ -481,10 +481,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun renameCurrentFile() {
         val medium = getCurrentMedium() ?: return
-        RenameItemDialog(this, medium.path) { newPath ->
+        val oldPath = medium.path
+        RenameItemDialog(this, oldPath) { newPath ->
             medium.path = newPath
             medium.name = newPath.getFilenameFromPath()
-            ensureBackgroundThread { updateDBMediaPath(medium.path, newPath) }
+            ensureBackgroundThread { updateDBMediaPath(oldPath, newPath) }
             updateTitle()
         }
     }

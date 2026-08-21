@@ -555,7 +555,7 @@ fun Context.loadImage(
     cropThumbnails: Boolean,
     roundCorners: Int,
     signature: ObjectKey,
-    skipMemoryCacheAtPaths: ArrayList<String>? = null,
+    skipMemoryCacheAtPaths: Set<String>? = null,
     // Nº de colunas do grid que está pedindo o thumbnail (capas de pasta: config.dirColumnCnt;
     // grid de mídia: config.mediaColumnCnt). Usado pra decodificar no tamanho real da célula
     // em vez de um valor fixo — ver loadImageBase().
@@ -628,7 +628,7 @@ fun Context.loadImageBase(
     cropThumbnails: Boolean,
     roundCorners: Int,
     signature: ObjectKey,
-    skipMemoryCacheAtPaths: ArrayList<String>? = null,
+    skipMemoryCacheAtPaths: Set<String>? = null,
     animate: Boolean = false,
     isVideo: Boolean = false,
     tryLoadingWithPicasso: Boolean = false,
@@ -816,11 +816,6 @@ fun Context.getCachedDirectories(
     callback: (ArrayList<Directory>) -> Unit,
 ) {
     ensureBackgroundThread {
-        try {
-            Process.setThreadPriority(Process.THREAD_PRIORITY_MORE_FAVORABLE)
-        } catch (ignored: Exception) {
-        }
-
         val directories = try {
             directoryDB.getAll() as ArrayList<Directory>
         } catch (e: Exception) {
@@ -1031,7 +1026,7 @@ fun Context.updateDBMediaPath(oldPath: String, newPath: String) {
     val newFilename = newPath.getFilenameFromPath()
     val newParentPath = newPath.getParentPath()
     try {
-        mediaDB.updateMedium(newFilename, newPath, newParentPath, oldPath)
+        mediaDB.updateMedium(oldPath, newParentPath, newFilename, newPath)
         favoritesDB.updateFavorite(newFilename, newPath, newParentPath, oldPath)
     } catch (ignored: Exception) {
     }

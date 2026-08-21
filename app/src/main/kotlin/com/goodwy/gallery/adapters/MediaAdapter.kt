@@ -64,7 +64,7 @@ class MediaAdapter(
     private val config = activity.config
     private val viewType = config.getFolderViewType(if (config.showAll) SHOW_ALL else path)
     private val isListViewType = viewType == VIEW_TYPE_LIST
-    private var rotatedImagePaths = ArrayList<String>()
+    private val rotatedImagePaths = HashSet<String>()
     private var currentMediaHash = media.hashCode()
     private val hasOTGConnected = activity.hasOTGConnected()
 
@@ -655,9 +655,14 @@ class MediaAdapter(
                     val new = thumbnailItems.getOrNull(newPos)
                     return when {
                         old is Medium && new is Medium ->
+                            old.name == new.name &&
+                            old.type == new.type &&
                             old.videoDuration == new.videoDuration &&
                             old.size == new.size &&
-                            old.modified == new.modified
+                            old.modified == new.modified &&
+                            old.taken == new.taken &&
+                            old.isFavorite == new.isFavorite &&
+                            old.deletedTS == new.deletedTS
                         else -> old == new
                     }
                 }
@@ -673,25 +678,32 @@ class MediaAdapter(
         }
     }
 
-    @SuppressLint("NotifyDataSetChanged")
+    private fun rebindVisibleItems() {
+        if (itemCount > 0) {
+            // Rebind de intervalo preserva a estrutura da lista e evita o custo de
+            // notifyDataSetChanged(), que invalida todo o RecyclerView.
+            notifyItemRangeChanged(0, itemCount)
+        }
+    }
+
     fun updateDisplayFilenames(displayFilenames: Boolean) {
         this.displayFilenames = displayFilenames
-        notifyDataSetChanged()
+        rebindVisibleItems()
     }
 
     fun updateAnimateGifs(animateGifs: Boolean) {
         this.animateGifs = animateGifs
-        notifyDataSetChanged()
+        rebindVisibleItems()
     }
 
     fun updateCropThumbnails(cropThumbnails: Boolean) {
         this.cropThumbnails = cropThumbnails
-        notifyDataSetChanged()
+        rebindVisibleItems()
     }
 
     fun updateShowFileTypes(showFileTypes: Boolean) {
         this.showFileTypes = showFileTypes
-        notifyDataSetChanged()
+        rebindVisibleItems()
     }
 
     private fun setupThumbnail(view: View, medium: Medium) {

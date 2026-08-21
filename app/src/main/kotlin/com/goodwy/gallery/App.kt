@@ -16,10 +16,17 @@ import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Executors
 
 class App : RightApp() {
 
     companion object {
+        private val maintenanceExecutor = Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "Right100-maintenance").apply {
+                priority = Thread.MIN_PRIORITY
+            }
+        }
+
         // Pasta pública de Downloads: getExternalFilesDir() (usado antes) grava em
         // Android/data/com.goodwy.gallery/files/, que o Android bloqueia de QUALQUER outro app
         // enxergar desde a versão 11 — inclusive o Termux, mesmo com todas as permissões de
@@ -42,8 +49,7 @@ class App : RightApp() {
         // heap quase cheio e sysLowMemory=true, é sinal forte de que o sistema matou o app por
         // falta de memória, não um bug de código específico.
         fun logMemoryState(context: android.content.Context, tag: String) {
-            try {
-                val logFile = File(logsDir(), "memory_log.txt")
+            val line = try {
                 val rt = Runtime.getRuntime()
                 val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1024 / 1024
                 val maxMb = rt.maxMemory() / 1024 / 1024
@@ -53,15 +59,24 @@ class App : RightApp() {
                 am.getMemoryInfo(memInfo)
                 val sysAvailMb = memInfo.availMem / 1024 / 1024
                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-                val line = "$timestamp [$tag] heapApp=${usedMb}MB/${maxMb}MB " +
+                "$timestamp [$tag] heapApp=${usedMb}MB/${maxMb}MB " +
                     "sistemaDisponivel=${sysAvailMb}MB sistemaPoucaMemoria=${memInfo.lowMemory}\n"
-                logFile.appendText(line)
-                // mantém só as últimas ~300 linhas pra não crescer pra sempre
-                val lines = logFile.readLines()
-                if (lines.size > 300) {
-                    logFile.writeText(lines.takeLast(300).joinToString("\n") + "\n")
-                }
             } catch (_: Exception) {
+                return
+            }
+
+            // O snapshot é calculado rapidamente; criação de diretório e I/O ficam fora da UI.
+            maintenanceExecutor.execute {
+                try {
+                    val logFile = File(logsDir(), "memory_log.txt")
+                    logFile.appendText(line)
+                    // Só relê o arquivo quando ele ultrapassa um limite, evitando I/O em toda abertura.
+                    if (logFile.length() > 64 * 1024) {
+                        val lines = logFile.readLines()
+                        logFile.writeText(lines.takeLast(300).joinToString("\n") + "\n")
+                    }
+                } catch (_: Exception) {
+                }
             }
         }
     }
@@ -93,13 +108,13 @@ class App : RightApp() {
         val prefs = getSharedPreferences("right100_maintenance", MODE_PRIVATE)
         val key = "cleared_stale_glide_disk_cache_v1"
         if (!prefs.getBoolean(key, false)) {
-            Thread {
+            maintenanceExecutor.execute {
                 try {
                     // clearDiskCache() precisa rodar fora da UI thread (exigência do Glide)
                     Glide.get(this).clearDiskCache()
                 } catch (_: Exception) {
                 }
-            }.start()
+            }
             prefs.edit().putBoolean(key, true).apply()
         }
     }
