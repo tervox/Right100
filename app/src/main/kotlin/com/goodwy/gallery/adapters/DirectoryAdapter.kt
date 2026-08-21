@@ -239,6 +239,7 @@ class DirectoryAdapter(
                 }
                 thumbnail.tag = null
                 Glide.with(thumbnail).clear(thumbnail)
+                thumbnail.setImageDrawable(null)
             }
         }
     }

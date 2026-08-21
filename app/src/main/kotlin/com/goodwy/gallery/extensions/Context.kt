@@ -3,16 +3,21 @@ package com.goodwy.gallery.extensions
 import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.PictureDrawable
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Process
+import android.provider.MediaStore
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.widget.ImageView
@@ -562,6 +567,7 @@ fun Context.loadImage(
     // grid de mídia: config.mediaColumnCnt). Usado pra decodificar no tamanho real da célula
     // em vez de um valor fixo — ver loadImageBase().
     columnCount: Int = 3,
+    fallbackPath: String? = null,
     onError: (() -> Unit)? = null
 ) {
     target.isHorizontalScrolling = horizontalScroll
@@ -586,7 +592,9 @@ fun Context.loadImage(
             // O fallback também cobre JPEG/WEBP locais corrompidos no cache do Glide;
             // content:// permanece no Glide porque o Picasso antigo aqui usa file://.
             tryLoadingWithPicasso = (type == TYPE_IMAGES || type == TYPE_GIFS) && !path.startsWith("content://"),
+            isGif = type == TYPE_GIFS,
             columnCount = columnCount,
+            fallbackPath = fallbackPath,
             onError = onError
         )
     }
@@ -636,10 +644,47 @@ fun Context.loadImageBase(
     animate: Boolean = false,
     isVideo: Boolean = false,
     tryLoadingWithPicasso: Boolean = false,
+    isGif: Boolean = false,
     crossFadeDuration: Int = THUMBNAIL_FADE_DURATION_MS,
     columnCount: Int = 3,
+    fallbackPath: String? = null,
+    allowMediaStoreFallback: Boolean = true,
     onError: (() -> Unit)? = null
 ) {
+    val requestToken = target.tag
+    val shouldAnimate = animate && roundCorners == ROUNDED_CORNERS_NONE && (isGif || path.isGif())
+    if (shouldAnimate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        loadAnimatedGifWithImageDecoder(
+            path = path,
+            target = target,
+            cropThumbnails = cropThumbnails,
+            onFallback = {
+                if (fallbackPath != null && fallbackPath != path) {
+                    loadImageBase(
+                        path = fallbackPath,
+                        target = target,
+                        cropThumbnails = cropThumbnails,
+                        roundCorners = roundCorners,
+                        signature = ObjectKey("$signature-fallback"),
+                        skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
+                        animate = animate,
+                        isVideo = isVideo,
+                        tryLoadingWithPicasso = tryLoadingWithPicasso,
+                        isGif = isGif,
+                        crossFadeDuration = crossFadeDuration,
+                        columnCount = columnCount,
+                        onError = onError
+                    )
+                } else if (!path.startsWith("content://")) {
+                    tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
+                } else {
+                    onError?.invoke()
+                }
+            }
+        )
+        return
+    }
+
     val options = RequestOptions()
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
@@ -678,9 +723,10 @@ fun Context.loadImageBase(
         options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(FitCenter()))
     }
 
-    // Animation is supported only without rounded corners and for GIF/animated WebP.
-    val shouldAnimate = animate && roundCorners == ROUNDED_CORNERS_NONE && (path.isGif() || path.isWebP())
-    if (shouldAnimate) {
+    // GIFs on Android 10+ returned early above through ImageDecoder. GIFs/WebP em
+    // versões anteriores continuam usando o drawable animado do Glide.
+    val shouldAnimateDrawable = animate && roundCorners == ROUNDED_CORNERS_NONE && (isGif || path.isGif() || path.isWebP())
+    if (shouldAnimateDrawable) {
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
         if (path.isGif()) {
@@ -726,7 +772,7 @@ fun Context.loadImageBase(
         .load(imageModel)
         .apply(options)
         .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
-        .transition(if (shouldAnimate) {
+        .transition(if (shouldAnimateDrawable) {
             // Crossfade cria uma camada transitória por cima de cada GIF e aumenta o
             // trabalho do compositor durante a rolagem.
             DrawableTransitionOptions()
@@ -741,7 +787,60 @@ fun Context.loadImageBase(
             targetBitmap: Target<Drawable>,
             isFirstResource: Boolean
         ): Boolean {
-            if (tryLoadingWithPicasso && !path.startsWith("content://")) {
+            if (fallbackPath != null && fallbackPath != path) {
+                // Alguns aparelhos permitem abrir a mídia somente pelo provider; outros
+                // aceitam apenas o caminho físico. Tente o segundo modelo uma vez antes de
+                // pintar erro definitivo na célula.
+                loadImageBase(
+                    path = fallbackPath,
+                    target = target,
+                    cropThumbnails = cropThumbnails,
+                    roundCorners = roundCorners,
+                    signature = ObjectKey("$signature-fallback"),
+                    skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
+                    animate = animate,
+                    isVideo = isVideo,
+                    tryLoadingWithPicasso = tryLoadingWithPicasso,
+                    isGif = isGif,
+                    crossFadeDuration = crossFadeDuration,
+                    columnCount = columnCount,
+                    allowMediaStoreFallback = false,
+                    onError = onError
+                )
+            } else if (allowMediaStoreFallback && !path.startsWith("content://") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // O caminho DATA pode existir no banco, mas estar bloqueado pelo scoped
+                // storage. Consulte o provider em background somente depois de o acesso
+                // direto falhar, evitando custo extra no caminho normal.
+                ensureBackgroundThread {
+                    val mediaStorePath = findMediaStorePath(path)
+                    target.post {
+                        if (target.tag != requestToken) return@post
+                        if (mediaStorePath != null) {
+                            loadImageBase(
+                                path = mediaStorePath,
+                                target = target,
+                                cropThumbnails = cropThumbnails,
+                                roundCorners = roundCorners,
+                                signature = ObjectKey("$signature-mediastore"),
+                                skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
+                                animate = animate,
+                                isVideo = isVideo,
+                                tryLoadingWithPicasso = false,
+                                isGif = isGif,
+                                crossFadeDuration = crossFadeDuration,
+                                columnCount = columnCount,
+                                fallbackPath = path,
+                                allowMediaStoreFallback = false,
+                                onError = onError
+                            )
+                        } else if (tryLoadingWithPicasso) {
+                            tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
+                        } else {
+                            onError?.invoke()
+                        }
+                    }
+                }
+            } else if (tryLoadingWithPicasso && !path.startsWith("content://")) {
                 tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
             } else {
                 onError?.invoke()
@@ -760,6 +859,72 @@ fun Context.loadImageBase(
     })
 
     builder.into(target)
+}
+
+private fun Context.findMediaStorePath(path: String): String? {
+    return try {
+        val projection = arrayOf(MediaStore.MediaColumns._ID)
+        contentResolver.query(
+            Files.getContentUri("external"),
+            projection,
+            "${MediaStore.MediaColumns.DATA} = ?",
+            arrayOf(path),
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                ContentUris.withAppendedId(Files.getContentUri("external"), cursor.getLong(0)).toString()
+            } else null
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+@Suppress("NewApi")
+private fun Context.loadAnimatedGifWithImageDecoder(
+    path: String,
+    target: MySquareImageView,
+    cropThumbnails: Boolean,
+    onFallback: () -> Unit
+) {
+    val requestToken = target.tag
+    val screenWidthPx = resources.displayMetrics.widthPixels
+    val gifSize = (screenWidthPx / 3).coerceIn(96, 160)
+    target.scaleType = if (cropThumbnails) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
+    Glide.with(target).clear(target)
+    target.setImageResource(R.drawable.placeholder_square)
+
+    ensureBackgroundThread {
+        val drawable = try {
+            val source = if (path.startsWith("content://")) {
+                ImageDecoder.createSource(contentResolver, path.toUri())
+            } else {
+                ImageDecoder.createSource(File(path))
+            }
+            ImageDecoder.decodeDrawable(source) { decoder, _, _ ->
+                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
+                decoder.setMemorySizePolicy(ImageDecoder.MEMORY_POLICY_LOW_RAM)
+                decoder.setTargetSize(gifSize, gifSize)
+            } as? AnimatedImageDrawable
+        } catch (_: Exception) {
+            null
+        }
+
+        target.post {
+            if (target.tag != requestToken) {
+                drawable?.stop()
+                return@post
+            }
+            if (drawable == null) {
+                onFallback()
+            } else {
+                target.setImageDrawable(drawable)
+                // O bind pode terminar antes de o ViewHolder entrar na viewport. Não
+                // iniciar nesse caso; onViewAttachedToWindow retoma apenas quando visível.
+                if (target.isAttachedToWindow) drawable.start()
+            }
+        }
+    }
 }
 
 fun Context.loadSVG(

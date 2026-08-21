@@ -146,10 +146,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private var mCurrentTransformer: ViewPager.PageTransformer? = null
+    private var mLastRandomAnimation: Int? = null
 
     private fun applyViewerTransformer() {
         val animation = if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) {
-            mRandomAnimations.random()
+            val choices = mRandomAnimations.filter { it != mLastRandomAnimation }
+            choices.random().also { mLastRandomAnimation = it }
         } else {
             config.viewerAnimation
         }
@@ -707,6 +709,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private var pagerTransitionAnimator: ValueAnimator? = null
+    private var pagerScrollState = ViewPager.SCROLL_STATE_IDLE
+    private var pendingNavigationOffset: Int? = null
+
+    private fun dispatchPendingNavigation() {
+        val offset = pendingNavigationOffset ?: return
+        if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) return
+        pendingNavigationOffset = null
+        binding.viewPager.post { navigateToItem(offset) }
+    }
 
     private fun animatePagerTransition(forward: Boolean) {
         val pager = binding.viewPager
@@ -749,12 +760,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     stopSlideshow()
                     toast(R.string.slideshow_ended)
                 }
+                pager.post { dispatchPendingNavigation() }
             }
             override fun onAnimationCancel(a: Animator) {
                 if (pager.isFakeDragging) {
                     try { pager.endFakeDrag() } catch (_: Exception) {}
                 }
                 if (pagerTransitionAnimator === animator) pagerTransitionAnimator = null
+                pager.post { dispatchPendingNavigation() }
             }
             override fun onAnimationStart(a: Animator) {}
             override fun onAnimationRepeat(a: Animator) {}
@@ -1098,15 +1111,20 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun getCurrentPath(): String = getCurrentMedium()?.path ?: ""
 
     private fun runWhenCurrentVideoFragmentReady(action: (VideoFragment) -> Unit) {
+        val expectedPath = getCurrentPath()
         var attempts = 0
         fun tryNow() {
             val fragment = getCurrentFragment() as? VideoFragment
-            if (fragment != null && fragment.isAdded && fragment.view != null) {
+            val isTheCurrentVideo = fragment?.let {
+                try { it.getMediumPath() == expectedPath } catch (_: Exception) { false }
+            } == true
+            if (isTheCurrentVideo && fragment!!.isAdded && fragment.view != null) {
                 action(fragment)
-            } else if (!isDestroyed && attempts++ < 8) {
-                // FragmentStatePagerAdapter registra o fragmento depois do primeiro callback
-                // de página. Repetir por poucos frames evita que o primeiro toque seja perdido.
-                binding.viewPager.postDelayed({ tryNow() }, 32L)
+            } else if (!isDestroyed && attempts++ < 20) {
+                // Durante fake-drag/setCurrentItem o mapa do adapter pode ainda conter o
+                // vídeo anterior. Aguarde a página correta por alguns frames, sem exigir
+                // vários cliques do usuário.
+                binding.viewPager.postDelayed({ tryNow() }, 24L)
             }
         }
         tryNow()
@@ -1148,6 +1166,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     override fun onPageScrollStateChanged(state: Int) {
+        pagerScrollState = state
         when (state) {
             ViewPager.SCROLL_STATE_DRAGGING, ViewPager.SCROLL_STATE_SETTLING -> {
                 // Escolher outro transformer no onPageSelected trocava o PageTransformer
@@ -1168,6 +1187,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 // Não remova e reaplique o transformer aqui: essa troca desnecessária
                 // pode desanexar a TextureView e interromper o surface do ExoPlayer.
                 refreshMenuItems()
+                dispatchPendingNavigation()
             }
         }
     }
@@ -1208,6 +1228,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val target = binding.viewPager.currentItem + offset
         if (target !in mMediums.indices) return
         if (!mIsSlideshowActive && config.viewerAnimation != SLIDESHOW_ANIMATION_NONE) {
+            if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) {
+                pendingNavigationOffset = offset
+                return
+            }
             // O toque lateral não passa pelo drag normal do ViewPager. Usar o mesmo fake-drag
             // do slideshow faz fade/zoom/cube/flip/depth aparecerem também nesse caminho.
             applyViewerTransformer()

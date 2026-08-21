@@ -1,6 +1,10 @@
 package com.goodwy.gallery.adapters
 
 import android.annotation.SuppressLint
+import android.content.ContentUris
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import android.content.Intent
@@ -249,6 +253,7 @@ class MediaAdapter(
                 }
                 thumbnail.tag = null
                 Glide.with(thumbnail).clear(thumbnail)
+                thumbnail.setImageDrawable(null)
             }
         }
     }
@@ -811,6 +816,21 @@ class MediaAdapter(
             if (hasOTGConnected && root.context.isPathOnOTG(path)) {
                 path = path.getOTGPublicPath(root.context)
             }
+            // Em Android 11+ o DATA path pode existir no banco, mas não ser aberto pelo
+            // processo por causa do scoped storage. O ID persistido na consulta MediaStore
+            // permite ao Glide abrir o mesmo item por content URI, inclusive para vídeos,
+            // HEIC e arquivos cujo decoder físico falhava.
+            val thumbnailPath = if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                medium.mediaStoreId > 0L &&
+                !path.startsWith("content://") &&
+                !root.context.isPathOnOTG(path) &&
+                  !Environment.isExternalStorageManager()
+            ) {
+                ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), medium.mediaStoreId).toString()
+            } else {
+                path
+            }
 
             val roundedCorners = when {
                 isListViewType -> ROUNDED_CORNERS_SMALL
@@ -827,11 +847,11 @@ class MediaAdapter(
             )
             // A ViewHolder pode ser reciclado antes do callback de Glide/Picasso. A tag
             // permite ignorar callbacks antigos que não pertencem mais a esta célula.
-            mediumThumbnail.tag = path
+            mediumThumbnail.tag = thumbnailPath
 
             activity.loadImage(
                 type = medium.type,
-                path = path,
+                path = thumbnailPath,
                 target = mediumThumbnail,
                 horizontalScroll = scrollHorizontally,
                 animateGifs = animateGifs,
@@ -840,8 +860,9 @@ class MediaAdapter(
                 signature = medium.getKey(),
                 skipMemoryCacheAtPaths = rotatedImagePaths,
                 columnCount = config.mediaColumnCnt,
+                fallbackPath = medium.path.takeIf { it != thumbnailPath },
                 onError = {
-                    if (mediumThumbnail.tag == path) {
+                    if (mediumThumbnail.tag == thumbnailPath) {
                         mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
                         mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
                     }

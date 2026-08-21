@@ -114,7 +114,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // mapa guarda as últimas quatro pastas visitadas (LRU) para reaproveitar navegação
         // recente sem manter uma cópia grande da biblioteca inteira em memória.
         private const val FOLDER_CACHE_MAX_SIZE = 4
-        private const val MEDIA_CACHE_TTL_MS = 30_000L
+        // A lista em memória permanece válida por alguns minutos; alterações reais são
+        // detectadas pelo checkLastMediaChanged e ações explícitas usam forceRefresh.
+        private const val MEDIA_CACHE_TTL_MS = 5 * 60_000L
         val mFolderMediaCacheUpdatedAt = HashMap<String, Long>()
         val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>?): Boolean {
@@ -322,6 +324,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     }
                 }
             }
+        } else {
+            // O polling era cancelado no onPause e não era reiniciado ao voltar do
+            // visualizador. Reative-o sem refazer a carga da grade.
+            checkLastMediaChanged()
         }
     }
 
@@ -902,8 +908,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         val now = System.currentTimeMillis()
-        val hasFreshCurrentMedia = mMedia.isNotEmpty()
-            && mMediaPath == mPath
+        val hasFreshCurrentMedia = mMediaPath == mPath
             && !mMediaInvalidated
             && now - mLastSuccessfulMediaLoadAt < MEDIA_CACHE_TTL_MS
         if (hasFreshCurrentMedia) {
@@ -916,18 +921,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         mIsGettingMedia = true
 
-        // mMedia é companion object - persiste na memória mesmo quando a Activity é recriada
-        // Se já tem dados DA MESMA PASTA, mostra INSTANTÂNEO e sincroniza em background
-        if (mMedia.isNotEmpty() && mMediaPath == mPath) {
+        // mMedia é companion object e persiste enquanto o processo continua vivo. Mostre
+        // a grade imediatamente e revalide somente depois que a primeira pintura terminar;
+        // consultar Room e iniciar o scanner antes disso competia com o Glide durante a entrada.
+        if (!forceRefresh && mMedia.isNotEmpty() && mMediaPath == mPath) {
+            mIsGettingMedia = false
             runOnUiThread { setupAdapter() }
-            getCachedMedia(
-                mPath,
-                mIsGetVideoIntent && !mIsGetImageIntent,
-                mIsGetImageIntent && !mIsGetVideoIntent
-            ) { cached ->
-                if (cached.isNotEmpty()) gotMedia(cached, true)
-                startAsyncTask()
-            }
+            checkLastMediaChanged()
             mLoadedInitialPhotos = true
             return
         }
@@ -946,23 +946,16 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val folderCached = folderCacheState.first
         val folderCacheFresh = folderCacheState.second > 0L
             && System.currentTimeMillis() - folderCacheState.second < MEDIA_CACHE_TTL_MS
-        if (!folderCached.isNullOrEmpty()) {
+        if (!forceRefresh && folderCached != null) {
             mMedia = folderCached
             mMediaPath = mPath
             mMediaInvalidated = !folderCacheFresh
             runOnUiThread { setupAdapter() }
-            if (folderCacheFresh) {
-                mIsGettingMedia = false
-                mLoadedInitialPhotos = true
-                return
-            }
-            getCachedMedia(
-                mPath,
-                mIsGetVideoIntent && !mIsGetImageIntent,
-                mIsGetImageIntent && !mIsGetVideoIntent
-            ) { cached ->
-                if (cached.isNotEmpty()) gotMedia(cached, true)
-                startAsyncTask()
+            mIsGettingMedia = false
+            if (!folderCacheFresh) {
+                binding.mediaGrid.post { if (!isDestroyed && mPath == mMediaPath) startAsyncTask() }
+            } else {
+                checkLastMediaChanged()
             }
             mLoadedInitialPhotos = true
             return
@@ -1434,11 +1427,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mMedia = media
             mMediaPath = mPath
         }
-        if (media.isNotEmpty()) {
-            synchronized(mFolderMediaCache) {
-                mFolderMediaCache[mPath] = ArrayList(media)
-                mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
-            }
+        // Registre também uma pasta vazia: sem isso, cada reentrada em uma pasta sem
+        // mídias repetia toda a consulta ao banco e o scan completo.
+        synchronized(mFolderMediaCache) {
+            mFolderMediaCache[mPath] = ArrayList(media)
+            mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
         }
 
         // Também preenche os itens que vieram do Room/cache, não apenas os que chegaram

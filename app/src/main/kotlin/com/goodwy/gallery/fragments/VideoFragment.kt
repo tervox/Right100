@@ -3,11 +3,14 @@
 package com.goodwy.gallery.fragments
 
 import android.annotation.SuppressLint
+import android.content.ContentUris
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Point
 import android.graphics.SurfaceTexture
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import android.os.Bundle
 import android.os.Handler
 import android.view.GestureDetector
@@ -20,6 +23,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.provider.MediaStore
 import android.widget.ImageView
 import android.widget.RelativeLayout
 import android.widget.SeekBar
@@ -35,16 +39,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.ContentDataSource
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.FileDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.bumptech.glide.Glide
 import com.goodwy.commons.extensions.*
 import com.goodwy.commons.helpers.DEFAULT_ANIMATION_DURATION
@@ -144,6 +142,19 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private var mVolumeController: VolumeController? = null
     private var mMuteInit: Boolean = false
+
+    private fun getMediaUri(): Uri {
+        if (mMedium.path.startsWith("content://")) return mMedium.path.toUri()
+        return if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            mMedium.mediaStoreId > 0L &&
+            !Environment.isExternalStorageManager()
+        ) {
+            ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), mMedium.mediaStoreId)
+        } else {
+            Uri.fromFile(File(mMedium.path))
+        }
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(
@@ -263,7 +274,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         updatePlaybackSpeed(mConfig.playbackSpeed)
         storeStateVariables()
-        Glide.with(context).load(mMedium.path).into(binding.videoPreview)
+        Glide.with(context).load(getMediaUri()).into(binding.videoPreview)
 
         if (!mIsFragmentVisible && activity is VideoActivity) mIsFragmentVisible = true
         mIsFullscreen = listener?.isFullScreen() == true
@@ -331,7 +342,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onPause() {
         super.onPause()
         storeStateVariables()
-        pauseVideo()
+        pauseVideo(updateActivityControls = false)
         if (mStoredRememberLastVideoPosition && mIsFragmentVisible && mWasVideoStarted) saveVideoProgress()
     }
 
@@ -344,7 +355,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun setMenuVisibility(menuVisible: Boolean) {
         super.setMenuVisibility(menuVisible)
         if (mIsFragmentVisible && !menuVisible) {
-            pauseVideo()
+            pauseVideo(updateActivityControls = false)
             mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
             mTimerRunnable = null
         }
@@ -411,17 +422,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun initExoPlayer() {
         if (activity == null || mConfig.gestureVideoPlayer || mIsPanorama || mExoPlayer != null) return
-        val isContentUri = mMedium.path.startsWith("content://")
-        val uri = if (isContentUri) mMedium.path.toUri() else Uri.fromFile(File(mMedium.path))
-        val dataSpec = DataSpec(uri)
-        val fileDataSource = if (isContentUri) ContentDataSource(requireContext()) else FileDataSource()
-        try { fileDataSource.open(dataSpec) } catch (e: Exception) { fileDataSource.close(); return }
-        val factory = DataSource.Factory { fileDataSource }
-        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
-        fileDataSource.close()
-        // A intenção de tocar é definida por playVideo(), não pela simples criação do
-        // player. Assim, abrir/trocar de página não inicia vídeos quando o autoplay está
-        // desligado, mas um toque durante a preparação fica pendente e não é perdido.
+        val uri = getMediaUri()
+        // Não abra o arquivo manualmente na UI e não reutilize um DataSource já fechado.
+        // O Media3 abre o URI de forma assíncrona; o caminho anterior podia bloquear o
+        // primeiro toque e ainda deixar a fonte inválida depois de uma troca animada.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS)
             .setPrioritizeTimeOverSizeThresholds(true).build()
@@ -429,14 +433,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
             .setSeekParameters(SeekParameters.CLOSEST_SYNC).setLoadControl(loadControl).build().apply {
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) repeatMode = Player.REPEAT_MODE_ONE
-                setPlaybackSpeed(mConfig.playbackSpeed); setMediaSource(mediaSource)
+                setPlaybackSpeed(mConfig.playbackSpeed)
+                setMediaItem(MediaItem.fromUri(uri))
                 setAudioAttributes(AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), false)
-                // ExoPlayer nasce com playWhenReady=true por padrão. Sem essa linha, o player
-                // criado aqui (chamado por onSurfaceTextureAvailable assim que a superfície do
-                // TextureView fica pronta, SEM checar mConfig.autoplayVideos) começava a tocar
-                // sozinho — inclusive com "reprodução automática" desligada nas configurações.
-                // Toda reprodução real agora só começa via playVideo(), que já conecta a
-                // superfície de vídeo antes de habilitar a reprodução.
+                // A reprodução real só começa por playVideo(), que também consome um
+                // toque ocorrido antes de STATE_READY.
                 playWhenReady = false
                 prepare()
                 mSurface?.let { setVideoSurface(it) }
@@ -587,6 +588,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mIsDragged = false
     }
 
+    fun getMediumPath(): String = mMedium.path
+
     fun getCurrentVideoPositionMs(): Long = mExoPlayer?.currentPosition ?: mCurrTime
 
     fun captureCurrentFrame(): android.graphics.Bitmap? =
@@ -644,9 +647,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         setupTimer()
     }
 
-    private fun pauseVideo() {
+    private fun pauseVideo(updateActivityControls: Boolean = true) {
         if (mExoPlayer == null) return
-        listener?.updatePlayPause(true)
+        if (updateActivityControls) listener?.updatePlayPause(true)
         mIsPlaying = false
         if (!videoEnded()) mExoPlayer?.playWhenReady = false
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
@@ -686,8 +689,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         mIsPlayerPrepared = true
         mWasPlayerInited = true
 
-        // Consome tanto um toque que chegou antes do READY quanto o autoplay configurado.
-        if ((mPlayOnPrepared || (mIsFragmentVisible && mConfig.autoplayVideos)) && !mIsPlaying) {
+        // Consome tanto um toque que chegou antes do READY quanto o autoplay configurado,
+        // mas nunca inicia um player que já ficou escondido por uma troca de página.
+        if (mIsFragmentVisible && (mPlayOnPrepared || mConfig.autoplayVideos) && !mIsPlaying) {
             if (mPositionAtPause != 0L) {
                 mExoPlayer?.seekTo(mPositionAtPause)
                 mPositionAtPause = 0L
@@ -788,7 +792,7 @@ fun onBecameVisible() {
 
 fun onBecameHidden() {
     mIsFragmentVisible = false
-    pauseVideo()
+    pauseVideo(updateActivityControls = false)
 }
 
 fun releasePlayerForFileOp() = cleanup()
