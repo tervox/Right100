@@ -17,11 +17,13 @@ import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.view.allViews
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.bumptech.glide.Glide
+import com.bumptech.glide.signature.ObjectKey
 import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
 import com.goodwy.commons.activities.BaseSimpleActivity
 import com.goodwy.commons.adapters.MyRecyclerViewAdapter
@@ -736,7 +738,14 @@ class MediaAdapter(
         val item = media[position] as? Medium ?: return
         if (item.videoDuration == duration) return
         item.videoDuration = duration
-        notifyItemChanged(position)
+
+        // Atualize somente o texto visível. notifyItemChanged() rebinda a célula
+        // inteira e dispara Glide novamente para cada vídeo resolvido em background,
+        // criando picos de trabalho justamente durante a rolagem.
+        attachedRecyclerView.findViewHolderForAdapterPosition(position)?.itemView
+            ?.findViewById<TextView>(R.id.video_duration)?.apply {
+                text = duration.getFormattedDuration()
+            }
     }
 
     private fun setupThumbnail(view: View, medium: Medium) {
@@ -857,7 +866,9 @@ class MediaAdapter(
                 animateGifs = animateGifs,
                 cropThumbnails = cropThumbnails,
                 roundCorners = roundedCorners,
-                signature = medium.getKey(),
+                // Nova assinatura força a remoção lógica de thumbnails antigas
+                // que foram armazenadas em baixa resolução nas rodadas anteriores.
+                signature = ObjectKey("thumbnail-v11-${medium.getKey()}"),
                 skipMemoryCacheAtPaths = rotatedImagePaths,
                 columnCount = config.mediaColumnCnt,
                 fallbackPath = medium.path.takeIf { it != thumbnailPath },

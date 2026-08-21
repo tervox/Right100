@@ -65,7 +65,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         private const val PICK_WALLPAPER = 3
         private const val LAST_MEDIA_CHECK_PERIOD = 3000L
         private const val WHATS_NEW_PREFS = "right100_whats_new"
-        private const val WHATS_NEW_ROUND_KEY = "round10_dont_show"
+        private const val WHATS_NEW_ROUND_KEY = "round11_dont_show"
     }
 
     private var mIsPickImageIntent = false
@@ -94,6 +94,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mTimeFormat = ""
     private var mLastMediaHandler = Handler()
     private var mTempShowHiddenHandler = Handler()
+    private val mWhatsNewHandler = Handler(Looper.getMainLooper())
+    private var mWhatsNewShownForSession = false
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
     private var mLastMediaFetcher: MediaFetcher? = null
     private var mDirs = ArrayList<Directory>()
@@ -240,6 +242,16 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mTempShowHiddenHandler.removeCallbacksAndMessages(null)
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && !mWhatsNewShownForSession) {
+            // Permissões e o aviso de gerenciamento de arquivos podem ocupar a janela
+            // logo após onCreate. Só exiba a novidade quando esses diálogos terminarem.
+            mWhatsNewHandler.removeCallbacksAndMessages(null)
+            mWhatsNewHandler.postDelayed({ checkWhatsNewDialog() }, 450L)
+        }
+    }
+
     @SuppressLint("UnsafeIntentLaunch")
     override fun onResume() {
         super.onResume()
@@ -249,6 +261,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mTimeFormat = getTimeFormat()
 
         refreshMenuItems()
+        if (!mWhatsNewShownForSession) {
+            mWhatsNewHandler.postDelayed({ checkWhatsNewDialog() }, 900L)
+        }
 
         if (config.needRestart || mStoredHideTopBarWhenScroll != config.hideTopBarWhenScroll) {
             finish()
@@ -372,6 +387,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     override fun onDestroy() {
+        mWhatsNewHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
         if (!isChangingConfigurations) {
             config.temporarilyShowHidden = false
@@ -1106,24 +1122,24 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun itemClicked(path: String, dirSize: Long = 0L) {
-        // Grava o estado de memória bem antes de abrir a pasta — se o app morrer sem gravar
-        // nada no crash_log.txt, essa é a última pista de que sobra: mostra se a memória já
-        // estava no limite justo no momento em que o crash acontece.
-        com.goodwy.gallery.App.logMemoryState(this, "folder_open:$path")
-        handleLockedFolderOpening(path) { success ->
-            if (success) {
-                Intent(this, MediaActivity::class.java).apply {
-                    putExtra(SKIP_AUTHENTICATION, true)
-                    putExtra(DIRECTORY, path)
-                    if (dirSize > 0) putExtra(DIR_SIZE, dirSize)
-                    handleMediaIntent(this)
-                }
+        // Pastas comuns não precisam passar por uma cadeia de autenticação que pode
+        // atrasar o startActivity. Pastas protegidas continuam usando o fluxo seguro.
+        val openFolder = {
+            Intent(this, MediaActivity::class.java).apply {
+                putExtra(SKIP_AUTHENTICATION, true)
+                putExtra(DIRECTORY, path)
+                if (dirSize > 0) putExtra(DIR_SIZE, dirSize)
+                handleMediaIntent(this)
             }
+        }
+        if (config.isFolderProtected(path)) {
+            handleLockedFolderOpening(path) { success -> if (success) openFolder() }
+        } else {
+            openFolder()
         }
     }
 
     private fun handleMediaIntent(intent: Intent) {
-        hideKeyboard()
         intent.apply {
             if (mIsSetWallpaperIntent) {
                 putExtra(SET_WALLPAPER_INTENT, true)
@@ -1136,6 +1152,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 startActivityForResult(this, PICK_MEDIA)
             }
         }
+        // Não atrase o startActivity por uma chamada ao InputMethodManager.
+        hideKeyboard()
     }
 
     private fun gotDirectories(newDirs: ArrayList<Directory>) {
@@ -1570,15 +1588,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     binding.directoriesGrid.setHasFixedSize(true)
                     // Cache pequeno: evita reinflações imediatas sem manter muitas capas e
                     // requests do Glide fora da tela.
-                    binding.directoriesGrid.setItemViewCacheSize(4)
+                    binding.directoriesGrid.setItemViewCacheSize(8)
                     setupScrollDirection()
 
-                    if (config.viewTypeFolders == VIEW_TYPE_LIST && areSystemAnimationsEnabled) {
-                        binding.directoriesGrid.scheduleLayoutAnimation()
-                  }
-
-                    // A animação é retomada pelo listener de scroll e pelo primeiro layout;
-                    // não agende dois passes globais que reiniciam dezenas de GIFs.
+                    // Não execute animação global de layout: ela reinflava/reposicionava
+                    // todos os cards na entrada e disputava CPU com os GIFs visíveis.
                     binding.directoriesGrid.post { setVisibleGifAnimations(true) }
                 }
             }
@@ -1828,20 +1842,23 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun checkWhatsNewDialog() {
         val preferences = getSharedPreferences(WHATS_NEW_PREFS, MODE_PRIVATE)
-        if (preferences.getBoolean(WHATS_NEW_ROUND_KEY, false) || isFinishing || isDestroyed) return
+        if (mWhatsNewShownForSession || preferences.getBoolean(WHATS_NEW_ROUND_KEY, false)
+            || isFinishing || isDestroyed || !hasWindowFocus()
+        ) return
 
+        mWhatsNewShownForSession = true
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24.dpToPx(this@MainActivity), 0, 24.dpToPx(this@MainActivity), 0)
         }
         val message = TextView(this).apply {
-            text = getString(R.string.round10_whats_new_message)
+            text = getString(R.string.round11_whats_new_message)
             setTextColor(getProperTextColor())
             textSize = 16f
             setPadding(0, 8.dpToPx(this@MainActivity), 0, 8.dpToPx(this@MainActivity))
         }
         val dontShowAgain = CheckBox(this).apply {
-            text = getString(R.string.round10_whats_new_dont_show)
+            text = getString(R.string.round11_whats_new_dont_show)
             setTextColor(getProperTextColor())
             isChecked = false
         }
@@ -1849,7 +1866,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         content.addView(dontShowAgain, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
 
         AlertDialog.Builder(this)
-            .setTitle(R.string.round10_whats_new_title)
+            .setTitle(R.string.round11_whats_new_title)
             .setView(content)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 if (dontShowAgain.isChecked) {

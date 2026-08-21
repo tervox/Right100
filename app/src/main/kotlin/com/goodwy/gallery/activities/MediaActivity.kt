@@ -69,6 +69,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mLoadedInitialPhotos = false
     private var mShowLoadingIndicator = true
     private var mWasFullscreenViewOpen = false
+    private var mTabsHideListenerAdded = false
     private var mLastSearchedText = ""
     private var mLatestMediaId = 0L
     private var mLatestMediaDateId = 0L
@@ -647,7 +648,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             setupGlideScrollPause()
             // Um cache pequeno reduz reinflações sem manter dezenas de imagens e referências
             // de Glide fora da tela. Valores altos aumentam muito a memória em grades grandes.
-            binding.mediaGrid.setItemViewCacheSize(4)
+            // Poucas views fora da viewport reduzem pressão de memória; a reutilização
+            // de bitmaps é responsabilidade do cache do Glide, não de dezenas de views.
+            binding.mediaGrid.setItemViewCacheSize(2)
             MediaAdapter(
                 activity = this,
                 media = mMedia.clone() as ArrayList<ThumbnailItem>,
@@ -679,7 +682,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         setupScrollDirection()
-        if (config.hideGroupingBarWhenScroll && !config.hideGroupingBar) setupTabsHide()
+        if (config.hideGroupingBarWhenScroll && !config.hideGroupingBar && !mTabsHideListenerAdded) {
+            mTabsHideListenerAdded = true
+            setupTabsHide()
+        }
     }
 
     private fun setupScrollDirection() {

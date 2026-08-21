@@ -11,6 +11,15 @@
     <string name="round10_whats_new_message">GIFs das capas mais leves e fluidos\nThumbnails com melhor qualidade e mais tentativas de carregamento\nEntrada de pastas mais rápida com cache persistente\nScroll e reciclagem de imagens otimizados\nEfeitos no arraste e no toque lateral estabilizados\nPlayer de vídeo e controles mais responsivos\nOCR melhorado para fotos, vídeos, acentos e símbolos</string>
     <string name="round10_whats_new_dont_show">Não mostrar novamente</string>
 
+    <string name="round11_whats_new_title">Novidades e melhorias</string>
+    <string name="round11_whats_new_message">Correção do formato das thumbnails: fotos, vídeos e capas agora preservam a proporção original
+Thumbnails de fotos e vídeos solicitadas em resolução maior e sem distorção
+Scroll das grades aliviado com a remoção de animações globais de layout
+Abertura de pastas priorizando o cache antes do scan
+Trocas rápidas preservando cada toque e sem voltar à mídia anterior
+Controles do player preparados novamente após cada troca</string>
+    <string name="round11_whats_new_dont_show">Não mostrar novamente</string>
+
     <!-- Release notes -->
     <string name="release_820">
         Compatibility updates for Android 15 &amp; 16\n

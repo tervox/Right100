@@ -649,7 +649,9 @@ fun Context.loadImageBase(
     isVideo: Boolean = false,
     tryLoadingWithPicasso: Boolean = false,
     isGif: Boolean = false,
-    crossFadeDuration: Int = THUMBNAIL_FADE_DURATION_MS,
+    // Crossfade em cada reciclagem cria trabalho extra no compositor durante o scroll.
+    // A grade prioriza pintura direta; a qualidade vem do tamanho de decode correto.
+    crossFadeDuration: Int = 0,
     columnCount: Int = 3,
     fallbackPath: String? = null,
     allowMediaStoreFallback: Boolean = true,
@@ -706,8 +708,14 @@ fun Context.loadImageBase(
         .placeholder(R.drawable.placeholder_square)
         .error(R.drawable.ic_vector_warning_colored)
 
-    // Downsample todas as imagens para o tamanho do thumbnail (economia de memória)
-    options.downsample(DownsampleStrategy.CENTER_INSIDE)
+    // Para thumbnails recortadas, a imagem precisa ser decodificada por fora do
+    // quadrado. CENTER_INSIDE primeiro reduzia uma foto 16:9 para 360x203 e depois
+    // CENTER_CROP ampliava esse bitmap, causando a pixelização relatada. Sem recorte,
+    // CENTER_INSIDE preserva a proporção e evita pixels desnecessários.
+    options.downsample(
+        if (cropThumbnails) DownsampleStrategy.CENTER_OUTSIDE
+        else DownsampleStrategy.CENTER_INSIDE
+    )
     // Tamanho máximo do thumbnail baseado no nº real de colunas do grid, não mais um valor
     // fixo de metade da tela. Com 3-5 colunas, metade da tela é MUITO maior que a célula
     // realmente exibida — isso fazia cada item decodificar mais que o dobro do necessário,
@@ -718,7 +726,11 @@ fun Context.loadImageBase(
     val screenWidthPx = resources.displayMetrics.widthPixels
     val cellWidthPx = screenWidthPx / columnCount.coerceAtLeast(1)
     val upperBound = maxOf(150, minOf(720, screenWidthPx / 2))
-    val maxThumbSize = cellWidthPx.coerceIn(150, upperBound)
+    // Um pequeno overscan evita ampliar um bitmap exatamente no limite da célula,
+    // sem decodificar a imagem original inteira.
+    val desiredThumbSize = (cellWidthPx * 1.35f).roundToInt()
+    val minThumbSize = minOf(180, upperBound)
+    val maxThumbSize = desiredThumbSize.coerceIn(minThumbSize, upperBound)
     options.override(maxThumbSize, maxThumbSize)
 
     if (cropThumbnails) {
@@ -742,7 +754,10 @@ fun Context.loadImageBase(
             // Decodifica cada frame do GIF no tamanho do thumbnail (não no tamanho original do arquivo).
             // Ex: GIF 500×500 em thumbnail 220×220 → bem menos memória por frame, sem
             // reduzir a capa a um bitmap visivelmente pixelado.
-            options.downsample(DownsampleStrategy.CENTER_INSIDE)
+            options.downsample(
+                if (cropThumbnails) DownsampleStrategy.CENTER_OUTSIDE
+                else DownsampleStrategy.CENTER_INSIDE
+            )
             // A prioridade LOW deixava GIFs visíveis esperando atrás de outros requests.
             // O tamanho continua limitado ao necessário para a célula, mas a imagem não
             // sofre a perda visível do RGB_565.
@@ -923,11 +938,20 @@ private fun Context.loadAnimatedGifWithImageDecoder(
                 // entre FIT_CENTER e CENTER_CROP.
                 val sourceWidth = info.size.width.coerceAtLeast(1)
                 val sourceHeight = info.size.height.coerceAtLeast(1)
-                val scale = minOf(
-                    gifSize.toFloat() / sourceWidth,
-                    gifSize.toFloat() / sourceHeight,
-                    1f
-                )
+                val scale = if (cropThumbnails) {
+                    // CENTER_CROP precisa de pixels suficientes para cobrir o
+                    // quadrado; preserve a proporção e dimensione pelo lado externo.
+                    maxOf(
+                        gifSize.toFloat() / sourceWidth,
+                        gifSize.toFloat() / sourceHeight
+                    ).coerceAtMost(1f)
+                } else {
+                    minOf(
+                        gifSize.toFloat() / sourceWidth,
+                        gifSize.toFloat() / sourceHeight,
+                        1f
+                    )
+                }
                 val targetWidth = (sourceWidth * scale).roundToInt().coerceAtLeast(1)
                 val targetHeight = (sourceHeight * scale).roundToInt().coerceAtLeast(1)
                 decoder.setTargetSize(targetWidth, targetHeight)

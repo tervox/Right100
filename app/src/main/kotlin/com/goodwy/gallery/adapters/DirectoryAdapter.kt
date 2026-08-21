@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.bumptech.glide.Glide
+import com.bumptech.glide.signature.ObjectKey
 import com.google.gson.Gson
 import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
 import com.goodwy.commons.activities.BaseSimpleActivity
@@ -914,7 +915,8 @@ class DirectoryAdapter(
                     animateGifs = animateGifs,
                     cropThumbnails = cropThumbnails,
                     roundCorners = roundedCorners,
-                    signature = directory.getKey(),
+                    // Evita reutilizar capas antigas decodificadas com resolução baixa.
+                    signature = ObjectKey("directory-thumbnail-v11-${directory.getKey()}"),
                     columnCount = config.dirColumnCnt,
                     onError = {
                         if (dirThumbnail.tag == thumbnailKey) {
