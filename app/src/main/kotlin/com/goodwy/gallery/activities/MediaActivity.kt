@@ -1588,6 +1588,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     (it as? Medium)?.path in filteredPaths
                 }
             }
+            // Terceiro cache, esse persistido em disco (SharedPreferences, sobrevive a fechar
+            // o app) — mesmo problema dos dois de cima: sem atualizar aqui também, excluir um
+            // item e depois fechar/reabrir o app (ou só esperar o TTL do cache em memória
+            // expirar) mostrava o item excluído de volta, lido direto desse snapshot antigo,
+            // antes da varredura nova conseguir corrigir.
+            applicationContext.saveMediaSnapshot(mPath, mMedia)
 
             ensureBackgroundThread {
                 val useRecycleBin = config.useRecycleBin
