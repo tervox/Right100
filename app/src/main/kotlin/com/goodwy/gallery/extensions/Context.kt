@@ -16,6 +16,7 @@ import android.graphics.drawable.PictureDrawable
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
+import java.util.concurrent.Executors
 import android.os.Process
 import android.provider.MediaStore
 import android.provider.MediaStore.Files
@@ -907,6 +908,14 @@ private fun Context.findMediaStorePath(path: String): String? {
     }
 }
 
+private val gifDecodeExecutor = Executors.newFixedThreadPool(
+    2.coerceAtMost(Runtime.getRuntime().availableProcessors().coerceAtLeast(1))
+) { runnable ->
+    Thread(runnable, "Right100-gif-decode").apply {
+        priority = Thread.NORM_PRIORITY - 1
+    }
+}
+
 @Suppress("NewApi")
 private fun Context.loadAnimatedGifWithImageDecoder(
     path: String,
@@ -923,7 +932,8 @@ private fun Context.loadAnimatedGifWithImageDecoder(
     Glide.with(target).clear(target)
     target.setImageResource(R.drawable.placeholder_square)
 
-    ensureBackgroundThread {
+    gifDecodeExecutor.execute {
+        if (target.tag != requestToken) return@execute
         val drawable = try {
             val source = if (path.startsWith("content://")) {
                 ImageDecoder.createSource(contentResolver, path.toUri())

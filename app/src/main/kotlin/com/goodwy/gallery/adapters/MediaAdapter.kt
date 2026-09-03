@@ -90,6 +90,26 @@ class MediaAdapter(
     init {
         setupDragListener(true)
         setHasStableIds(true)
+        attachedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                setVisibleAnimatablesRunning(newState == RecyclerView.SCROLL_STATE_IDLE)
+            }
+        })
+    }
+
+    private fun setVisibleAnimatablesRunning(running: Boolean) {
+        for (i in 0 until attachedRecyclerView.childCount) {
+            val child = attachedRecyclerView.getChildAt(i) ?: continue
+            val drawable = child.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable ?: continue
+            try {
+                if (running) {
+                    if (!drawable.isRunning) drawable.start()
+                } else {
+                    if (drawable.isRunning) drawable.stop()
+                }
+            } catch (_: Exception) {
+            }
+        }
     }
 
     override fun getActionMenuId() = R.menu.cab_media
