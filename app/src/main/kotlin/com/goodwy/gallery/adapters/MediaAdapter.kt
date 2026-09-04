@@ -92,7 +92,12 @@ class MediaAdapter(
         setHasStableIds(true)
         attachedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                setVisibleAnimatablesRunning(newState == RecyclerView.SCROLL_STATE_IDLE)
+                val idle = newState == RecyclerView.SCROLL_STATE_IDLE
+                setVisibleAnimatablesRunning(idle)
+                try {
+                    if (idle) Glide.with(activity).resumeRequests() else Glide.with(activity).pauseRequests()
+                } catch (_: Exception) {
+                }
             }
         })
     }
