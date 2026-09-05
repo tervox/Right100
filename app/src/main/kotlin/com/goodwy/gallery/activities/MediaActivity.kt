@@ -142,11 +142,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // além de matar o processo inteiro sem aviso — o que explica fechamentos "aleatórios",
         // sem relação com nenhuma tela específica.
         fun clearMemoryCaches(aggressive: Boolean) {
-            synchronized(mFolderMediaCache) {
-                mFolderMediaCache.clear()
-                mFolderMediaCacheUpdatedAt.clear()
-            }
             if (aggressive) {
+                synchronized(mFolderMediaCache) {
+                    mFolderMediaCache.clear()
+                    mFolderMediaCacheUpdatedAt.clear()
+                }
                 synchronized(mediaLock) {
                     mMedia = ArrayList()
                     mMediaPath = ""
