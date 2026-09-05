@@ -114,7 +114,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // mMediaPath virou B ao visitar B), caindo sempre na consulta ao banco de novo. Este
         // mapa guarda as últimas quatro pastas visitadas (LRU) para reaproveitar navegação
         // recente sem manter uma cópia grande da biblioteca inteira em memória.
-        private const val FOLDER_CACHE_MAX_SIZE = 4
+        private const val FOLDER_CACHE_MAX_SIZE = 60
         // A lista em memória permanece válida por alguns minutos; alterações reais são
         // detectadas pelo checkLastMediaChanged e ações explícitas usam forceRefresh.
         private const val MEDIA_CACHE_TTL_MS = 5 * 60_000L
@@ -143,10 +143,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // sem relação com nenhuma tela específica.
         fun clearMemoryCaches(aggressive: Boolean) {
             if (aggressive) {
-                synchronized(mFolderMediaCache) {
-                    mFolderMediaCache.clear()
-                    mFolderMediaCacheUpdatedAt.clear()
-                }
                 synchronized(mediaLock) {
                     mMedia = ArrayList()
                     mMediaPath = ""
