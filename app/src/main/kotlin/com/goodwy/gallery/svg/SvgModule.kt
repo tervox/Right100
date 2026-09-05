@@ -30,8 +30,8 @@ class SvgModule : AppGlideModule() {
         // de memória. Reduzido pra bem abaixo do padrão do Glide, adequado a um aparelho de
         // pouca RAM.
         val calculator = MemorySizeCalculator.Builder(context)
-            .setMemoryCacheScreens(1f)
-            .setBitmapPoolScreens(0.5f)
+            .setMemoryCacheScreens(2f)
+            .setBitmapPoolScreens(0.75f)
             .build()
         builder.setMemoryCache(LruResourceCache(calculator.memoryCacheSize.toLong()))
         builder.setBitmapPool(LruBitmapPool(calculator.bitmapPoolSize.toLong()))
