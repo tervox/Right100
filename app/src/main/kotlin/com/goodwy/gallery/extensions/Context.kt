@@ -656,7 +656,8 @@ fun Context.loadImageBase(
     columnCount: Int = 3,
     fallbackPath: String? = null,
     allowMediaStoreFallback: Boolean = true,
-    onError: (() -> Unit)? = null
+    onError: (() -> Unit)? = null,
+    retryCount: Int = 0
 ) {
     val requestToken = target.tag
     // MySquareImageView define apenas a área quadrada da célula; ele não deve esticar
@@ -870,6 +871,28 @@ fun Context.loadImageBase(
                 }
             } else if (tryLoadingWithPicasso && !path.startsWith("content://")) {
                 tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
+            } else if (retryCount < 2) {
+                target.postDelayed({
+                    if (target.tag != requestToken) return@postDelayed
+                    loadImageBase(
+                        path = path,
+                        target = target,
+                        cropThumbnails = cropThumbnails,
+                        roundCorners = roundCorners,
+                        signature = signature,
+                        skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
+                        animate = animate,
+                        isVideo = isVideo,
+                        tryLoadingWithPicasso = tryLoadingWithPicasso,
+                        isGif = isGif,
+                        crossFadeDuration = crossFadeDuration,
+                        columnCount = columnCount,
+                        fallbackPath = fallbackPath,
+                        allowMediaStoreFallback = allowMediaStoreFallback,
+                        onError = onError,
+                        retryCount = retryCount + 1
+                    )
+                }, 400L * (retryCount + 1))
             } else {
                 onError?.invoke()
             }
