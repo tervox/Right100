@@ -250,7 +250,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             videoPreview.setOnTouchListener { _, event -> handleEvent(event); false }
 
             videoSurfaceFrame.setOnTouchListener { _, event ->
-                if (videoSurfaceFrame.controller.state.zoom == 1f) handleEvent(event)
+                if (abs(videoSurfaceFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE) handleEvent(event)
                 handleTouchHoldEvent(event)
                 if (mIsLongPressActive) return@setOnTouchListener true
                 gestureDetector.onTouchEvent(event)
