@@ -67,6 +67,8 @@ import java.text.DecimalFormat
 import androidx.core.net.toUri
 import kotlin.math.max
 import kotlin.math.abs
+import com.alexvasilkov.gestures.GestureController
+import com.alexvasilkov.gestures.State
 
 class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     SeekBar.OnSeekBarChangeListener, PlaybackSpeedListener {
@@ -79,6 +81,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private var mIsFullscreen = false
+    private var mHasVideoInitialZoom = false
+    private var mVideoInitialZoom = 1f
+    private var mCurrentVideoZoom = 1f
     private var mWasFragmentInit = false
     private var mIsPanorama = false
     private var mIsFragmentVisible = false
@@ -183,6 +188,15 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             videoSurfaceFrame.controller.settings.swallowDoubleTaps = true
+            videoSurfaceFrame.controller.addOnStateChangeListener(object : GestureController.OnStateChangeListener {
+                override fun onStateChanged(state: State) {
+                    if (!mHasVideoInitialZoom) {
+                        mVideoInitialZoom = state.zoom
+                        mHasVideoInitialZoom = true
+                    }
+                    mCurrentVideoZoom = state.zoom
+                }
+            })
 
             videoPlayOutline.setOnClickListener {
                 if (mConfig.gestureVideoPlayer) activity.launchGesturePlayer(mMedium.path)
@@ -250,7 +264,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             videoPreview.setOnTouchListener { _, event -> handleEvent(event); false }
 
             videoSurfaceFrame.setOnTouchListener { _, event ->
-                if (abs(videoSurfaceFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE) handleEvent(event)
+                if (mHasVideoInitialZoom && abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) handleEvent(event)
                 handleTouchHoldEvent(event)
                 if (mIsLongPressActive) return@setOnTouchListener true
                 gestureDetector.onTouchEvent(event)
