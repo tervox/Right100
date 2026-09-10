@@ -44,7 +44,7 @@ jobs:
 
       - name: Build APK
         run: |
-          ./gradlew assembleFossDebug --no-daemon --stacktrace -Pandroid.builder.sdkDownload=true
+          ./gradlew assembleFossRelease --no-daemon --stacktrace -Pandroid.builder.sdkDownload=true
 
       - name: Find APK
         id: find_apk
@@ -56,7 +56,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
+          name: release-apk
           path: ${{ steps.find_apk.outputs.apk_path }}
           retention-days: 30
 
