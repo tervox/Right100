@@ -527,8 +527,8 @@ class MediaAdapter(
             val newPaths = fileDirItems.map { "$destinationPath/${it.name}" }.toMutableList() as ArrayList<String>
 
             if (!isCopyOperation) {
-                // Refresh imediato: itens somem da tela sem esperar MediaStore
-                activity.runOnUiThread { listener?.refreshItems() }
+                val movedPaths = fileDirItems.map { it.path }
+                activity.runOnUiThread { listener?.removeMediaImmediately(movedPaths) }
                 activity.updateFavoritePaths(fileDirItems, destinationPath)
             }
 
@@ -656,6 +656,7 @@ class MediaAdapter(
                 media.removeAll(removeMedia)
                 listener?.tryDeleteFiles(fileDirItems, skipRecycleBin)
                 listener?.updateMediaGridDecoration(media)
+                listener?.removeMediaImmediately(removeMedia.map { it.path })
                 removeSelectedItems(positions)
                 currentMediaHash = media.hashCode()
             }

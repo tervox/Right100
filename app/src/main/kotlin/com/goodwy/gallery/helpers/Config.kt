@@ -30,9 +30,19 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean("show_select_all_fab", false)
         set(value) = prefs.edit { putBoolean("show_select_all_fab", value) }
 
+    var photoViewerAnimation: Int
+        get() = prefs.getInt("photo_viewer_animation", SLIDESHOW_ANIMATION_SLIDE)
+        set(value) = prefs.edit { putInt("photo_viewer_animation", value) }
+
+    var videoViewerAnimation: Int
+        get() = prefs.getInt("video_viewer_animation", SLIDESHOW_ANIMATION_NONE)
+        set(value) = prefs.edit { putInt("video_viewer_animation", value) }
+
     var viewerAnimation: Int
-        get() = prefs.getInt("viewer_animation", SLIDESHOW_ANIMATION_SLIDE)
-        set(value) = prefs.edit { putInt("viewer_animation", value) }
+        get() = photoViewerAnimation
+        set(value) {
+            photoViewerAnimation = value
+        }
 
     
     

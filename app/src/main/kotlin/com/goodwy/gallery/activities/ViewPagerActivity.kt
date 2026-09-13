@@ -148,12 +148,18 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private var mCurrentTransformer: ViewPager.PageTransformer? = null
     private var mLastRandomAnimation: Int? = null
 
-    private fun applyViewerTransformer() {
-        val animation = if (config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM) {
+    private fun involvesVideo(vararg positions: Int): Boolean =
+        positions.any { pos -> mMediums.getOrNull(pos)?.isVideo() == true }
+
+    private fun applyViewerTransformer(vararg relevantPositions: Int) {
+        val positions = if (relevantPositions.isEmpty()) intArrayOf(mPos) else relevantPositions
+        val configuredAnimation = if (involvesVideo(*positions)) config.videoViewerAnimation else config.photoViewerAnimation
+
+        val animation = if (configuredAnimation == SLIDESHOW_ANIMATION_RANDOM) {
             val choices = mRandomAnimations.filter { it != mLastRandomAnimation }
             choices.random().also { mLastRandomAnimation = it }
         } else {
-            config.viewerAnimation
+            configuredAnimation
         }
         mCurrentTransformer = createCleanTransformer(buildTransformer(animation))
         binding.viewPager.setPageTransformer(false, mCurrentTransformer)
@@ -1199,11 +1205,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 // vídeo muda de página e pode deixar o player sem superfície/controles.
                 // Escolha uma única vez no início do gesto e mantenha o mesmo transformer
                 // até o fim. O slideshow automático aplica o próprio efeito antes do fake drag.
+                val currentAnimationSetting = if (involvesVideo(binding.viewPager.currentItem)) config.videoViewerAnimation else config.photoViewerAnimation
                 if (!mIsSlideshowActive
-                    && config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM
+                    && currentAnimationSetting == SLIDESHOW_ANIMATION_RANDOM
                     && !mRandomTransformerAppliedForGesture
                 ) {
-                    applyViewerTransformer()
+                    applyViewerTransformer(binding.viewPager.currentItem)
                     mRandomTransformerAppliedForGesture = true
                 }
             }
@@ -1256,14 +1263,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
 
-        val target = binding.viewPager.currentItem + offset
+        val current = binding.viewPager.currentItem
+        val target = current + offset
         if (target !in mMediums.indices) return
-        if (!mIsSlideshowActive && config.viewerAnimation != SLIDESHOW_ANIMATION_NONE) {
-            // Para o toque lateral, setCurrentItem(true) usa o mecanismo nativo de
-            // settling e mantém o PageTransformer. Cada pedido seguinte fica na fila
-            // e só é iniciado quando o pager chega a IDLE.
-            applyViewerTransformer()
-            mRandomTransformerAppliedForGesture = config.viewerAnimation == SLIDESHOW_ANIMATION_RANDOM
+        val relevantAnimation = if (involvesVideo(current, target)) config.videoViewerAnimation else config.photoViewerAnimation
+        if (!mIsSlideshowActive && relevantAnimation != SLIDESHOW_ANIMATION_NONE) {
+            applyViewerTransformer(current, target)
+            mRandomTransformerAppliedForGesture = relevantAnimation == SLIDESHOW_ANIMATION_RANDOM
         }
         binding.viewPager.setCurrentItem(target, true)
     }

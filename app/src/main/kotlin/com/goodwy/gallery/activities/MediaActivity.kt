@@ -1612,6 +1612,25 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         getMedia(forceRefresh = true)
     }
 
+    override fun removeMediaImmediately(paths: List<String>) {
+        val pathSet = paths.toHashSet()
+        synchronized(mediaLock) {
+            if (mMediaPath == mPath) {
+                mMedia = ArrayList(mMedia.filter { item ->
+                    !(item is Medium && pathSet.contains(item.path))
+                })
+            }
+        }
+        synchronized(mFolderMediaCache) {
+            mFolderMediaCache[mPath]?.let { cached ->
+                mFolderMediaCache[mPath] = ArrayList(cached.filter { item ->
+                    !(item is Medium && pathSet.contains(item.path))
+                })
+            }
+        }
+        runOnUiThread { setupAdapter() }
+    }
+
     override fun selectedPaths(paths: ArrayList<String>) {
         Intent().apply {
             putExtra(PICKED_PATHS, paths)

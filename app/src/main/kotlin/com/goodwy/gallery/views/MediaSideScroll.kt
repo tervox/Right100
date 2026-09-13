@@ -134,9 +134,33 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
                 val diffX = mTouchDownX - event.rawX
                 val diffY = mTouchDownY - event.rawY
 
-                if (abs(diffY) > dragThreshold && abs(diffY) > abs(diffX)) {
+                val rawPercent = ((diffY / mViewHeight) * 100).toInt() * 3
+                val alreadyAtFloorAndPullingFurther = rawPercent < -100 && abs(diffY) > abs(diffX)
+                if (alreadyAtFloorAndPullingFurther) {
+                    val parent = mParentView
+                    if (parent != null && parent.isAttachedToWindow) {
+                        try {
+                            if (!mPassTouches) {
+                                val downEvent = MotionEvent.obtain(event)
+                                downEvent.action = MotionEvent.ACTION_DOWN
+                                downEvent.setLocation(event.rawX, event.rawY)
+                                parent.dispatchTouchEvent(downEvent)
+                                downEvent.recycle()
+                            }
+                            mPassTouches = true
+                            val moveEvent = MotionEvent.obtain(event)
+                            parent.dispatchTouchEvent(moveEvent)
+                            moveEvent.recycle()
+                        } catch (e: Exception) {
+                            mPassTouches = false
+                        }
+                    } else {
+                        mPassTouches = false
+                    }
+                    return false
+                } else if (abs(diffY) > dragThreshold && abs(diffY) > abs(diffX)) {
                     onVerticalScroll?.invoke()
-                    var percent = ((diffY / mViewHeight) * 100).toInt() * 3
+                    var percent = rawPercent
                     percent = 100.coerceAtMost((-100).coerceAtLeast(percent))
 
                     if ((percent == 100 && event.rawY > mLastTouchY) || (percent == -100 && event.rawY < mLastTouchY)) {

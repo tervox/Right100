@@ -6,6 +6,8 @@ import com.goodwy.gallery.models.ThumbnailItem
 interface MediaOperationsListener {
     fun refreshItems()
 
+    fun removeMediaImmediately(paths: List<String>)
+
     fun tryDeleteFiles(fileDirItems: ArrayList<FileDirItem>, skipRecycleBin: Boolean)
 
     fun selectedPaths(paths: ArrayList<String>)

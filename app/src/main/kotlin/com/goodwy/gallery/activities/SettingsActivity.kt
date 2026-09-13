@@ -136,6 +136,7 @@ class SettingsActivity : SimpleActivity() {
         // setupVideoFillScreen()
         setupScreenRotation()
         setupViewerAnimation()
+        setupVideoViewerAnimation()
         setupHideSystemUI()
         setupFileDeletionPasswordProtection()
         setupDeleteEmptyFolders()
@@ -987,7 +988,7 @@ class SettingsActivity : SimpleActivity() {
     )
 
     private fun setupViewerAnimation() {
-        binding.settingsViewerAnimation.text = getViewerAnimationText()
+        binding.settingsViewerAnimation.text = getViewerAnimationText(config.photoViewerAnimation)
         binding.settingsViewerAnimationHolder.setOnClickListener {
             val items = arrayListOf(
                 RadioItem(SLIDESHOW_ANIMATION_NONE, getString(R.string.no_animation)),
@@ -1001,15 +1002,37 @@ class SettingsActivity : SimpleActivity() {
                 RadioItem(SLIDESHOW_ANIMATION_RANDOM, getString(R.string.random_animation))
             )
 
-            RadioGroupDialog(this@SettingsActivity, items, config.viewerAnimation, R.string.viewer_animation_setting) {
-                config.viewerAnimation = it as Int
-                binding.settingsViewerAnimation.text = getViewerAnimationText()
+            RadioGroupDialog(this@SettingsActivity, items, config.photoViewerAnimation, R.string.viewer_animation_setting) {
+                config.photoViewerAnimation = it as Int
+                binding.settingsViewerAnimation.text = getViewerAnimationText(config.photoViewerAnimation)
             }
         }
     }
 
-    private fun getViewerAnimationText() = getString(
-        when (config.viewerAnimation) {
+    private fun setupVideoViewerAnimation() {
+        binding.settingsVideoViewerAnimation.text = getViewerAnimationText(config.videoViewerAnimation)
+        binding.settingsVideoViewerAnimationHolder.setOnClickListener {
+            val items = arrayListOf(
+                RadioItem(SLIDESHOW_ANIMATION_NONE, getString(R.string.no_animation)),
+                RadioItem(SLIDESHOW_ANIMATION_SLIDE, getString(R.string.slide)),
+                RadioItem(SLIDESHOW_ANIMATION_FADE, getString(R.string.fade)),
+                RadioItem(SLIDESHOW_ANIMATION_ZOOM_IN, getString(R.string.zoom_in)),
+                RadioItem(SLIDESHOW_ANIMATION_ZOOM_OUT, getString(R.string.zoom_out)),
+                RadioItem(SLIDESHOW_ANIMATION_FLIP, getString(R.string.flip)),
+                RadioItem(SLIDESHOW_ANIMATION_CUBE, getString(R.string.cube)),
+                RadioItem(SLIDESHOW_ANIMATION_DEPTH, getString(R.string.depth)),
+                RadioItem(SLIDESHOW_ANIMATION_RANDOM, getString(R.string.random_animation))
+            )
+
+            RadioGroupDialog(this@SettingsActivity, items, config.videoViewerAnimation, R.string.video_viewer_animation_setting) {
+                config.videoViewerAnimation = it as Int
+                binding.settingsVideoViewerAnimation.text = getViewerAnimationText(config.videoViewerAnimation)
+            }
+        }
+    }
+
+    private fun getViewerAnimationText(animation: Int) = getString(
+        when (animation) {
             SLIDESHOW_ANIMATION_NONE -> R.string.no_animation
             SLIDESHOW_ANIMATION_FADE -> R.string.fade
             SLIDESHOW_ANIMATION_ZOOM_IN -> R.string.zoom_in
