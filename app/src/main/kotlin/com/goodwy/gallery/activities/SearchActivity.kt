@@ -292,6 +292,10 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
         startAsyncTask(true)
     }
 
+    override fun removeMediaImmediately(paths: List<String>) {
+        startAsyncTask(true)
+    }
+
     override fun tryDeleteFiles(fileDirItems: ArrayList<FileDirItem>, skipRecycleBin: Boolean) {
         val filtered = fileDirItems.filter { File(it.path).isFile && it.path.isMediaFile() } as ArrayList
         if (filtered.isEmpty()) {
