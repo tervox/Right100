@@ -18,11 +18,11 @@ import com.awxkee.jxlcoder.JxlCoder
 abstract class ViewPagerFragment : Fragment() {
     var listener: FragmentListener? = null
 
-    private var mTouchDownTime = 0L
-    private var mTouchDownX = 0f
-    private var mTouchDownY = 0f
-    private var mCloseDownThreshold = 100f
-    private var mIgnoreCloseDown = false
+    protected var mTouchDownTime = 0L
+    protected var mTouchDownX = 0f
+    protected var mTouchDownY = 0f
+    protected var mCloseDownThreshold = 100f
+    protected var mIgnoreCloseDown = false
 
     abstract fun fullscreenToggled(isFullscreen: Boolean)
 
