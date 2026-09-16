@@ -109,6 +109,29 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         @Volatile
         var mMediaPath = ""
 
+        // Paths removidos recentemente pelo usuário (delete/move). Mantidos por 10s
+        // para impedir que uma varredura do MediaStore anterior à atualização do sistema
+        // reintroduza o item apagado/movido, causando a "tela de erro" persistente.
+        private val recentlyRemovedPaths = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        private const val RECENTLY_REMOVED_TTL_MS = 10_000L
+
+        fun markRecentlyRemoved(paths: List<String>) {
+            val now = System.currentTimeMillis()
+            paths.forEach { recentlyRemovedPaths[it] = now }
+            // Limpa entradas expiradas
+            recentlyRemovedPaths.entries.removeAll { now - it.value > RECENTLY_REMOVED_TTL_MS }
+        }
+
+        fun filterRecentlyRemoved(media: ArrayList<ThumbnailItem>): ArrayList<ThumbnailItem> {
+            if (recentlyRemovedPaths.isEmpty()) return media
+            val now = System.currentTimeMillis()
+            recentlyRemovedPaths.entries.removeAll { now - it.value > RECENTLY_REMOVED_TTL_MS }
+            if (recentlyRemovedPaths.isEmpty()) return media
+            return ArrayList(media.filter { item ->
+                !(item is Medium && recentlyRemovedPaths.containsKey(item.path))
+            })
+        }
+
         // mMedia/mMediaPath só guardam a ÚLTIMA pasta visitada (1 slot). Navegando por
         // várias pastas (A -> B -> A), a segunda visita a A já não batia nesse cache (porque
         // mMediaPath virou B ao visitar B), caindo sempre na consulta ao banco de novo. Este
@@ -1472,27 +1495,30 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
+        // Filtra itens recentemente removidos pelo usuário — impede que o MediaStore
+        // (que pode estar desatualizado) reintroduza arquivos já apagados/movidos.
+        val filteredMedia = filterRecentlyRemoved(media)
         synchronized(mediaLock) {
-            mMedia = media
+            mMedia = filteredMedia
             mMediaPath = mPath
         }
         // Registre também uma pasta vazia: sem isso, cada reentrada em uma pasta sem
         // mídias repetia toda a consulta ao banco e o scan completo.
         synchronized(mFolderMediaCache) {
-            mFolderMediaCache[mPath] = ArrayList(media)
+            mFolderMediaCache[mPath] = ArrayList(filteredMedia)
             mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
         }
-        applicationContext.saveMediaSnapshot(mPath, media)
+        applicationContext.saveMediaSnapshot(mPath, filteredMedia)
 
         // Também preenche os itens que vieram do Room/cache, não apenas os que chegaram
         // pelo scan novo do MediaStore.
-        fillMissingVideoDurations(media)
+        fillMissingVideoDurations(filteredMedia)
 
         runOnUiThread {
             binding.loadingIndicator.hide()
             binding.mediaRefreshLayout.isRefreshing = false
-            binding.mediaEmptyTextPlaceholder.beVisibleIf(media.isEmpty() && !isFromCache)
-            binding.mediaEmptyTextPlaceholder2.beVisibleIf(media.isEmpty() && !isFromCache)
+            binding.mediaEmptyTextPlaceholder.beVisibleIf(filteredMedia.isEmpty() && !isFromCache)
+            binding.mediaEmptyTextPlaceholder2.beVisibleIf(filteredMedia.isEmpty() && !isFromCache)
 
             if (binding.mediaEmptyTextPlaceholder.isVisible()) {
                 binding.mediaEmptyTextPlaceholder.text = getString(R.string.no_media_with_filters)
@@ -1501,7 +1527,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // O cache do Room também é uma fonte válida para a primeira pintura.
             // Antes, isFromCache=true deixava a grade sem adapter até o scan terminar,
             // anulando todo o ganho e fazendo a entrada parecer travada por segundos.
-            if (media.isNotEmpty() || !isFromCache) setupAdapter()
+            if (filteredMedia.isNotEmpty() || !isFromCache) setupAdapter()
         }
 
         if (!isFromCache) {
@@ -1513,7 +1539,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLatestMediaDateId = getLatestMediaByDateId()
         if (!isFromCache) {
             val mediaToInsert =
-                (mMedia).filter { it is Medium && it.deletedTS == 0L }.map { it as Medium }
+                (filteredMedia).filter { it is Medium && it.deletedTS == 0L }.map { it as Medium }
             Thread {
                 try {
                     mediaDB.insertAll(mediaToInsert)
@@ -1614,6 +1640,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     override fun removeMediaImmediately(paths: List<String>) {
         val pathSet = paths.toHashSet()
+        // Marca os paths como "recentemente removidos" para impedir que uma varredura
+        // do MediaStore anterior à atualização do sistema os reintroduza.
+        markRecentlyRemoved(paths)
         synchronized(mediaLock) {
             if (mMediaPath == mPath) {
                 mMedia = ArrayList(mMedia.filter { item ->
@@ -1628,6 +1657,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 })
             }
         }
+        // Também limpa do snapshot em disco para não ressurgir ao reabrir o app
+        applicationContext.saveMediaSnapshot(mPath, mMedia)
         runOnUiThread { setupAdapter() }
     }
 

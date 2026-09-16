@@ -1270,8 +1270,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         if (!mIsSlideshowActive && relevantAnimation != SLIDESHOW_ANIMATION_NONE) {
             applyViewerTransformer(current, target)
             mRandomTransformerAppliedForGesture = relevantAnimation == SLIDESHOW_ANIMATION_RANDOM
+            // Usa fake drag animado para que o PageTransformer produza o efeito visual
+            // (fade, cube, depth, etc.) também em trocas por clique nas laterais.
+            animatePagerTransition(offset > 0)
+        } else {
+            binding.viewPager.setCurrentItem(target, true)
         }
-        binding.viewPager.setCurrentItem(target, true)
     }
 
     override fun goToPrevItem() = navigateToItem(-1)
