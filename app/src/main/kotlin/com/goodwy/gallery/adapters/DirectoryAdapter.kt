@@ -62,11 +62,6 @@ class DirectoryAdapter(
 ) :
     MyRecyclerViewAdapter(activity, recyclerView, itemClick), ItemTouchHelperContract,
     RecyclerViewFastScroller.OnPopupTextUpdate {
-
-
-        }
-    }
-
     private val config = activity.config
     private val attachedRecyclerView = recyclerView
     private val isListViewType = config.viewTypeFolders == VIEW_TYPE_LIST
