@@ -554,8 +554,8 @@ class MediaAdapter(
 
             activity.rescanPaths(newPaths) {
                 activity.fixDateTaken(newPaths, false)
-                // Segundo refresh apos MediaStore atualizar
-                if (!isCopyOperation) activity.runOnUiThread { listener?.refreshItems() }
+                // Não recarregar tudo - removeMediaImmediately já atualizou a UI
+                // refreshItems() aqui causava flicker e reaparecimento do item
             }
         }
     }

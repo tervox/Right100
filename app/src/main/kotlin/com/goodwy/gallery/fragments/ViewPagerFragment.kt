@@ -21,7 +21,7 @@ abstract class ViewPagerFragment : Fragment() {
     protected var mTouchDownTime = 0L
     protected var mTouchDownX = 0f
     protected var mTouchDownY = 0f
-    protected var mCloseDownThreshold = 100f
+    protected var mCloseDownThreshold = 60f  // reduzido para facilitar puxão
     protected var mIgnoreCloseDown = false
 
     abstract fun fullscreenToggled(isFullscreen: Boolean)

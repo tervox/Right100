@@ -130,6 +130,17 @@ class PhotoFragment : ViewPagerFragment() {
 
         // Registra touch listener no root view pra capturar swipe antes do GestureController
         mView.setOnTouchListener { v, event ->
+            // Bloquear GestureController quando detectar puxão vertical
+            when (event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = abs(event.rawY - mRootTouchDownY)
+                    val dx = abs(event.rawX - mRootTouchDownX)
+                    if (dy > dx && dy > 30f) {
+                        // Puxão vertical detectado - bloquear gesturesView
+                        binding.gesturesView.requestDisallowInterceptTouchEvent(true)
+                    }
+                }
+            }
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     mRootTouchDownTime = System.currentTimeMillis()
