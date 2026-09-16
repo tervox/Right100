@@ -78,10 +78,6 @@ import kotlin.math.abs
 import kotlin.math.ceil
 
 class PhotoFragment : ViewPagerFragment() {
-    private var mRootTouchDownTime = 0L
-    private var mRootTouchDownX = 0f
-    private var mRootTouchDownY = 0f
-    private var mRootIgnoreClose = false
     private val DEFAULT_DOUBLE_TAP_ZOOM = 2f
     private val ZOOMABLE_VIEW_LOAD_DELAY = 100L
     private val SAME_ASPECT_RATIO_THRESHOLD = 0.01
@@ -128,60 +124,6 @@ class PhotoFragment : ViewPagerFragment() {
         binding = PagerPhotoItemBinding.inflate(inflater, container, false)
         mView = binding.root
 
-        // Registra touch listener no root view pra capturar swipe antes do GestureController
-        mView.setOnTouchListener { v, event ->
-            // Bloquear GestureController quando detectar puxão vertical
-            when (event.actionMasked) {
-                MotionEvent.ACTION_MOVE -> {
-                    val dy = abs(event.rawY - mRootTouchDownY)
-                    val dx = abs(event.rawX - mRootTouchDownX)
-                    if (dy > dx && dy > 30f) {
-                        // Puxão vertical detectado - bloquear gesturesView
-                        binding.gesturesView.requestDisallowInterceptTouchEvent(true)
-                    }
-                }
-            }
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    mRootTouchDownTime = System.currentTimeMillis()
-                    mRootTouchDownX = event.rawX
-                    mRootTouchDownY = event.rawY
-                    mRootIgnoreClose = false
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (!mRootIgnoreClose) {
-                        val dx = abs(event.rawX - mRootTouchDownX)
-                        val dy = abs(event.rawY - mRootTouchDownY)
-                        if (dy > dx && dy > mCloseDownThreshold / 2) {
-                            v.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                    }
-                }
-                MotionEvent.ACTION_POINTER_DOWN -> mRootIgnoreClose = true
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.parent?.requestDisallowInterceptTouchEvent(false)
-                    if (!mRootIgnoreClose && context?.config?.allowDownGesture == true) {
-                        val diffX = mRootTouchDownX - event.rawX
-                        val diffY = mRootTouchDownY - event.rawY
-                        val duration = System.currentTimeMillis() - mRootTouchDownTime
-                        val isZoomedOut = when {
-                            binding.subsamplingView.isVisible() -> binding.subsamplingView.isZoomedOut()
-                            binding.gifViewFrame.isVisible() -> abs(binding.gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE
-                            else -> abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
-                        }
-                        if (isZoomedOut && abs(diffY) > abs(diffX) && abs(diffY) > mCloseDownThreshold && duration < MAX_CLOSE_DOWN_GESTURE_DURATION) {
-                            activity?.finish()
-                            if (diffY < 0) {
-                                activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
-                            } else {
-                                activity?.overridePendingTransition(com.goodwy.commons.R.anim.slide_down, 0)
-                            }
-                        }
-                    }
-                }
-            }
-            false
-        }
 
         if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) {
             return mView
@@ -217,7 +159,18 @@ class PhotoFragment : ViewPagerFragment() {
             })
 
             gifView.setOnTouchListener { v, event ->
-                if (context.config.allowDownGesture && abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE) handleEvent(event)
+                if (context.config.allowDownGesture && abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE) {
+                    handleEvent(event)
+                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                        val dy = abs(event.rawY - mTouchDownY)
+                        val dx = abs(event.rawX - mTouchDownX)
+                        if (dy > dx && dy > 30f) {
+                            v.parent?.parent?.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        v.parent?.parent?.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
                 false
             }
 
@@ -226,12 +179,33 @@ class PhotoFragment : ViewPagerFragment() {
                 val allowDownGesture = context.config.allowDownGesture
                 if (allowDownGesture && abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) {
                     handleEvent(event)
+                    // Bloquear ViewPager de interceptar quando detectar puxão vertical
+                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                        val dy = abs(event.rawY - mTouchDownY)
+                        val dx = abs(event.rawX - mTouchDownX)
+                        if (dy > dx && dy > 30f) {
+                            v.parent?.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        v.parent?.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
                 }
                 false
             }
 
             subsamplingView.setOnTouchListener { v, event ->
-                if (subsamplingView.isZoomedOut() && context.config.allowDownGesture) handleEvent(event)
+                if (subsamplingView.isZoomedOut() && context.config.allowDownGesture) {
+                    handleEvent(event)
+                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                        val dy = abs(event.rawY - mTouchDownY)
+                        val dx = abs(event.rawX - mTouchDownX)
+                        if (dy > dx && dy > 30f) {
+                            v.parent?.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        v.parent?.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
                 false
             }
         }

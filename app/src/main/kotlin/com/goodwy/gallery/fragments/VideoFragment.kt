@@ -81,10 +81,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private var mIsFullscreen = false
-    private var mRootTouchDownTime = 0L
-    private var mRootTouchDownX = 0f
-    private var mRootTouchDownY = 0f
-    private var mRootIgnoreClose = false
     private var mHasVideoInitialZoom = false
     private var mVideoInitialZoom = 1f
     private var mCurrentVideoZoom = 1f
@@ -265,12 +261,34 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 }
             })
 
-            videoPreview.setOnTouchListener { _, event -> handleEvent(event); false }
+            videoPreview.setOnTouchListener { v, event ->
+                handleEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                    val dy = abs(event.rawY - mTouchDownY)
+                    val dx = abs(event.rawX - mTouchDownX)
+                    if (dy > dx && dy > 30f) {
+                        v.parent?.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    v.parent?.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                false
+            }
 
-            videoSurfaceFrame.setOnTouchListener { _, event ->
+            videoSurfaceFrame.setOnTouchListener { v, event ->
                 if (mHasVideoInitialZoom && abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) handleEvent(event)
                 handleTouchHoldEvent(event)
                 if (mIsLongPressActive) return@setOnTouchListener true
+                // Bloquear ViewPager de interceptar quando detectar puxão vertical
+                if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                    val dy = abs(event.rawY - mTouchDownY)
+                    val dx = abs(event.rawX - mTouchDownX)
+                    if (dy > dx && dy > 30f) {
+                        v.parent?.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    v.parent?.parent?.requestDisallowInterceptTouchEvent(false)
+                }
                 gestureDetector.onTouchEvent(event)
                 false
             }
@@ -289,56 +307,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         mView = binding.root
 
-        // Registra touch listener no root view pra capturar swipe antes do GestureController
-        mView.setOnTouchListener { v, event ->
-            // Bloquear GestureController quando detectar puxão vertical
-            when (event.actionMasked) {
-                MotionEvent.ACTION_MOVE -> {
-                    val dy = abs(event.rawY - mRootTouchDownY)
-                    val dx = abs(event.rawX - mRootTouchDownX)
-                    if (dy > dx && dy > 30f) {
-                        // Puxão vertical detectado - bloquear gesturesView
-                        binding.gesturesView.requestDisallowInterceptTouchEvent(true)
-                    }
-                }
-            }
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    mRootTouchDownTime = System.currentTimeMillis()
-                    mRootTouchDownX = event.rawX
-                    mRootTouchDownY = event.rawY
-                    mRootIgnoreClose = false
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (!mRootIgnoreClose) {
-                        val dx = abs(event.rawX - mRootTouchDownX)
-                        val dy = abs(event.rawY - mRootTouchDownY)
-                        if (dy > dx && dy > mCloseDownThreshold / 2) {
-                            mView.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                    }
-                }
-                MotionEvent.ACTION_POINTER_DOWN -> mRootIgnoreClose = true
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    mView.parent?.requestDisallowInterceptTouchEvent(false)
-                    if (!mRootIgnoreClose && context?.config?.allowDownGesture == true) {
-                        val diffX = mRootTouchDownX - event.rawX
-                        val diffY = mRootTouchDownY - event.rawY
-                        val duration = System.currentTimeMillis() - mRootTouchDownTime
-                        val isZoomedOut = !mHasVideoInitialZoom || abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
-                        if (isZoomedOut && abs(diffY) > abs(diffX) && abs(diffY) > mCloseDownThreshold && duration < MAX_CLOSE_DOWN_GESTURE_DURATION) {
-                            activity?.finish()
-                            if (diffY < 0) {
-                                activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
-                            } else {
-                                activity?.overridePendingTransition(com.goodwy.commons.R.anim.slide_down, 0)
-                            }
-                        }
-                    }
-                }
-            }
-            false
-        }
 
         if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) return mView
 
