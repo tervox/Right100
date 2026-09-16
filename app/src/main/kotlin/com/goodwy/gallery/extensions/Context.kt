@@ -816,30 +816,29 @@ fun Context.loadImageBase(
             targetBitmap: Target<Drawable>,
             isFirstResource: Boolean
         ): Boolean {
+            // Glide proíbe iniciar novos loads dentro de RequestListener callbacks.
+            // Todas as chamadas recursivas precisam ser postadas na main thread.
             if (fallbackPath != null && fallbackPath != path) {
-                // Alguns aparelhos permitem abrir a mídia somente pelo provider; outros
-                // aceitam apenas o caminho físico. Tente o segundo modelo uma vez antes de
-                // pintar erro definitivo na célula.
-                loadImageBase(
-                    path = fallbackPath,
-                    target = target,
-                    cropThumbnails = cropThumbnails,
-                    roundCorners = roundCorners,
-                    signature = ObjectKey("$signature-fallback"),
-                    skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
-                    animate = animate,
-                    isVideo = isVideo,
-                    tryLoadingWithPicasso = tryLoadingWithPicasso,
-                    isGif = isGif,
-                    crossFadeDuration = crossFadeDuration,
-                    columnCount = columnCount,
-                    allowMediaStoreFallback = false,
-                    onError = onError
-                )
+                target.post {
+                    if (target.tag != requestToken) return@post
+                    loadImageBase(
+                        path = fallbackPath,
+                        target = target,
+                        cropThumbnails = cropThumbnails,
+                        roundCorners = roundCorners,
+                        signature = ObjectKey("$signature-fallback"),
+                        skipMemoryCacheAtPaths = skipMemoryCacheAtPaths,
+                        animate = animate,
+                        isVideo = isVideo,
+                        tryLoadingWithPicasso = tryLoadingWithPicasso,
+                        isGif = isGif,
+                        crossFadeDuration = crossFadeDuration,
+                        columnCount = columnCount,
+                        allowMediaStoreFallback = false,
+                        onError = onError
+                    )
+                }
             } else if (allowMediaStoreFallback && !path.startsWith("content://") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // O caminho DATA pode existir no banco, mas estar bloqueado pelo scoped
-                // storage. Consulte o provider em background somente depois de o acesso
-                // direto falhar, evitando custo extra no caminho normal.
                 ensureBackgroundThread {
                     val mediaStorePath = findMediaStorePath(path)
                     target.post {
@@ -870,7 +869,10 @@ fun Context.loadImageBase(
                     }
                 }
             } else if (tryLoadingWithPicasso && !path.startsWith("content://")) {
-                tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
+                target.post {
+                    if (target.tag != requestToken) return@post
+                    tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
+                }
             } else if (retryCount < 2) {
                 target.postDelayed({
                     if (target.tag != requestToken) return@postDelayed
