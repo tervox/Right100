@@ -63,6 +63,24 @@ class DirectoryAdapter(
     MyRecyclerViewAdapter(activity, recyclerView, itemClick), ItemTouchHelperContract,
     RecyclerViewFastScroller.OnPopupTextUpdate {
 
+
+    private val mPauseAnimatedOnScroll = object : RecyclerView.OnScrollListener() {
+        override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+            val idle = newState == RecyclerView.SCROLL_STATE_IDLE
+            for (i in 0 until rv.childCount) {
+                val child = rv.getChildAt(i) ?: continue
+                val iv = child.findViewById<ImageView>(R.id.dir_thumbnail) ?: continue
+                val d = iv.drawable as? Animatable ?: continue
+                try {
+                    if (idle) { if (!d.isRunning) d.start() } else { if (d.isRunning) d.stop() }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    init {
+        attachedRecyclerView.addOnScrollListener(mPauseAnimatedOnScroll)
+    }
     private val config = activity.config
     private val attachedRecyclerView = recyclerView
     private val isListViewType = config.viewTypeFolders == VIEW_TYPE_LIST
@@ -122,23 +140,6 @@ class DirectoryAdapter(
     override fun getActionMenuId() = R.menu.cab_directories
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-    private val mPauseAnimatedOnScroll = object : RecyclerView.OnScrollListener() {
-        override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
-            val idle = newState == RecyclerView.SCROLL_STATE_IDLE
-            for (i in 0 until rv.childCount) {
-                val child = rv.getChildAt(i) ?: continue
-                val iv = child.findViewById<ImageView>(R.id.dir_thumbnail) ?: continue
-                val d = iv.drawable as? Animatable ?: continue
-                try {
-                    if (idle) { if (!d.isRunning) d.start() } else { if (d.isRunning) d.stop() }
-                } catch (_: Exception) {}
-            }
-        }
-    }
-
-    init {
-        attachedRecyclerView.addOnScrollListener(mPauseAnimatedOnScroll)
-    }
 
         val binding = when {
             isListViewType -> DirectoryItemListBinding.inflate(layoutInflater, parent, false)
@@ -905,7 +906,6 @@ class DirectoryAdapter(
             }
 
 
-
             if (isListViewType) {
                 dirHolder.isSelected = isSelected
             }
@@ -1071,8 +1071,6 @@ class DirectoryAdapter(
     }
 
     override fun onChange(position: Int) = dirs.getOrNull(position)?.getBubbleText(directorySorting, activity, dateFormat, timeFormat) ?: ""
-
-
 
 
     private fun bindItem(view: View): DirectoryItemBinding {
