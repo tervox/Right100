@@ -113,7 +113,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // para impedir que uma varredura do MediaStore anterior à atualização do sistema
         // reintroduza o item apagado/movido, causando a "tela de erro" persistente.
         private val recentlyRemovedPaths = java.util.concurrent.ConcurrentHashMap<String, Long>()
-        private const val RECENTLY_REMOVED_TTL_MS = 10_000L
+        private const val RECENTLY_REMOVED_TTL_MS = 30_000L  // 30 segundos
 
         fun markRecentlyRemoved(paths: List<String>) {
             val now = System.currentTimeMillis()
@@ -127,8 +127,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             val now = System.currentTimeMillis()
             recentlyRemovedPaths.entries.removeAll { now - it.value > RECENTLY_REMOVED_TTL_MS }
             if (recentlyRemovedPaths.isEmpty()) return media
+            
+            // Filtra TODOS os itens cujo path foi removido recentemente
             return ArrayList(media.filter { item ->
-                !(item is Medium && recentlyRemovedPaths.containsKey(item.path))
+                when (item) {
+                    is Medium -> !recentlyRemovedPaths.containsKey(item.path)
+                    else -> true  // Mantém ThumbnailSection e outros tipos
+                }
             })
         }
 

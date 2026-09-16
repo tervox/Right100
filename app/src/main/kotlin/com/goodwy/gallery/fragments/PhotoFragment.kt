@@ -118,6 +118,9 @@ class PhotoFragment : ViewPagerFragment() {
     private lateinit var binding: PagerPhotoItemBinding
     private lateinit var mMedium: Medium
 
+
+    @SuppressLint("ClickableViewAccessibility")
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val context = requireContext()
