@@ -78,11 +78,9 @@ class DirectoryAdapter(
         }
     }
 
-    init {
-        attachedRecyclerView.addOnScrollListener(mPauseAnimatedOnScroll)
-    }
     private val config = activity.config
     private val attachedRecyclerView = recyclerView
+        attachedRecyclerView.addOnScrollListener(mPauseAnimatedOnScroll)
     private val isListViewType = config.viewTypeFolders == VIEW_TYPE_LIST
     private var pinnedFolders = config.pinnedFolders
     private var scrollHorizontally = config.scrollHorizontally
