@@ -78,6 +78,10 @@ import kotlin.math.abs
 import kotlin.math.ceil
 
 class PhotoFragment : ViewPagerFragment() {
+    private var mRootTouchDownTime = 0L
+    private var mRootTouchDownX = 0f
+    private var mRootTouchDownY = 0f
+    private var mRootIgnoreClose = false
     private val DEFAULT_DOUBLE_TAP_ZOOM = 2f
     private val ZOOMABLE_VIEW_LOAD_DELAY = 100L
     private val SAME_ASPECT_RATIO_THRESHOLD = 0.01
@@ -122,6 +126,40 @@ class PhotoFragment : ViewPagerFragment() {
 
         binding = PagerPhotoItemBinding.inflate(inflater, container, false)
         mView = binding.root
+
+        // Registra touch listener no root view pra capturar swipe antes do GestureController
+        mView.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    mRootTouchDownTime = System.currentTimeMillis()
+                    mRootTouchDownX = event.rawX
+                    mRootTouchDownY = event.rawY
+                    mRootIgnoreClose = false
+                }
+                MotionEvent.ACTION_POINTER_DOWN -> mRootIgnoreClose = true
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (!mRootIgnoreClose && context?.config?.allowDownGesture == true) {
+                        val diffX = mRootTouchDownX - event.rawX
+                        val diffY = mRootTouchDownY - event.rawY
+                        val duration = System.currentTimeMillis() - mRootTouchDownTime
+                        val isZoomedOut = when {
+                            binding.subsamplingView.isVisible() -> binding.subsamplingView.isZoomedOut()
+                            binding.gifViewFrame.isVisible() -> abs(binding.gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE
+                            else -> abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                        }
+                        if (isZoomedOut && abs(diffY) > abs(diffX) && abs(diffY) > mCloseDownThreshold && duration < MAX_CLOSE_DOWN_GESTURE_DURATION) {
+                            activity?.finish()
+                            if (diffY < 0) {
+                                activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
+                            } else {
+                                activity?.overridePendingTransition(com.goodwy.commons.R.anim.slide_down, 0)
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        }
 
         if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) {
             return mView

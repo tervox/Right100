@@ -81,6 +81,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private var mIsFullscreen = false
+    private var mRootTouchDownTime = 0L
+    private var mRootTouchDownX = 0f
+    private var mRootTouchDownY = 0f
+    private var mRootIgnoreClose = false
     private var mHasVideoInitialZoom = false
     private var mVideoInitialZoom = 1f
     private var mCurrentVideoZoom = 1f
@@ -284,6 +288,37 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
 
         mView = binding.root
+
+        // Registra touch listener no root view pra capturar swipe antes do GestureController
+        mView.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    mRootTouchDownTime = System.currentTimeMillis()
+                    mRootTouchDownX = event.rawX
+                    mRootTouchDownY = event.rawY
+                    mRootIgnoreClose = false
+                }
+                MotionEvent.ACTION_POINTER_DOWN -> mRootIgnoreClose = true
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (!mRootIgnoreClose && context?.config?.allowDownGesture == true) {
+                        val diffX = mRootTouchDownX - event.rawX
+                        val diffY = mRootTouchDownY - event.rawY
+                        val duration = System.currentTimeMillis() - mRootTouchDownTime
+                        val isZoomedOut = !mHasVideoInitialZoom || abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                        if (isZoomedOut && abs(diffY) > abs(diffX) && abs(diffY) > mCloseDownThreshold && duration < MAX_CLOSE_DOWN_GESTURE_DURATION) {
+                            activity?.finish()
+                            if (diffY < 0) {
+                                activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
+                            } else {
+                                activity?.overridePendingTransition(com.goodwy.commons.R.anim.slide_down, 0)
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        }
+
         if (!arguments.getBoolean(SHOULD_INIT_FRAGMENT, true)) return mView
 
         updatePlaybackSpeed(mConfig.playbackSpeed)
