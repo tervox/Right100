@@ -64,23 +64,11 @@ class DirectoryAdapter(
     RecyclerViewFastScroller.OnPopupTextUpdate {
 
 
-    private val mPauseAnimatedOnScroll = object : RecyclerView.OnScrollListener() {
-        override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
-            val idle = newState == RecyclerView.SCROLL_STATE_IDLE
-            for (i in 0 until rv.childCount) {
-                val child = rv.getChildAt(i) ?: continue
-                val iv = child.findViewById<ImageView>(R.id.dir_thumbnail) ?: continue
-                val d = iv.drawable as? Animatable ?: continue
-                try {
-                    if (idle) { if (!d.isRunning) d.start() } else { if (d.isRunning) d.stop() }
-                } catch (_: Exception) {}
-            }
         }
     }
 
     private val config = activity.config
     private val attachedRecyclerView = recyclerView
-        attachedRecyclerView.addOnScrollListener(mPauseAnimatedOnScroll)
     private val isListViewType = config.viewTypeFolders == VIEW_TYPE_LIST
     private var pinnedFolders = config.pinnedFolders
     private var scrollHorizontally = config.scrollHorizontally
