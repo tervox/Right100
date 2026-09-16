@@ -1598,6 +1598,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
 
             val filteredPaths = filtered.asSequence().map { it.path }.toHashSet()
+            markRecentlyRemoved(filteredPaths.toList())
             synchronized(mediaLock) {
                 mMedia.removeAll { (it as? Medium)?.path in filteredPaths }
             }
