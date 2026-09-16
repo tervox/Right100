@@ -181,7 +181,7 @@ abstract class ViewPagerFragment : Fragment() {
                 if (!mIgnoreCloseDown && (abs(diffY) > abs(diffX)) && (abs(diffY) > mCloseDownThreshold) && downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION && context?.config?.allowDownGesture == true) {
                     activity?.finish()
                     if (diffY < 0) {
-                        if (diffY < 0) { activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down) } else { activity?.overridePendingTransition(com.goodwy.commons.R.anim.slide_down, 0) }
+                        activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
                     } else {
                         activity?.overridePendingTransition(com.goodwy.commons.R.anim.slide_down, 0)
                     }
