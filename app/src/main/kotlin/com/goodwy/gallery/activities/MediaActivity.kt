@@ -1632,10 +1632,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 }
             }
 
-            // Atualizar UI imediatamente - item some na hora, sem flicker
-            runOnUiThread {
-                getMediaAdapter()?.updateMedia(mMedia)
-            }
+            // UI já será atualizada pelo caller (MediaAdapter.tryDeleteFiles)
+            // via removeMediaImmediately() -> updateMedia(). Não precisa atualizar
+            // aqui de novo, senão o DiffUtil roda duas vezes.
 
             if (mMedia.isEmpty()) {
                 deleteDirectoryIfEmpty()

@@ -673,12 +673,15 @@ class MediaAdapter(
                     removeMedia.add(medium)
                 }
 
-                media.removeAll(removeMedia)
+                // Chama tryDeleteFiles (vai deletar do sistema)
                 listener?.tryDeleteFiles(fileDirItems, skipRecycleBin)
-                listener?.updateMediaGridDecoration(media)
+                // removeMediaImmediately atualiza mMedia no MediaActivity e
+                // chama updateMedia() no adapter, que via DiffUtil remove os
+                // itens visualmente SEM precisar fazer removeAll() manualmente.
+                // Antes fazíamos media.removeAll() aqui ANTES do removeMediaImmediately,
+                // o que fazia o DiffUtil ver listas iguais e não atualizar nada.
                 listener?.removeMediaImmediately(removeMedia.map { it.path })
-                removeSelectedItems(positions)
-                currentMediaHash = media.hashCode()
+                finishActMode()
             }
         }
     }
