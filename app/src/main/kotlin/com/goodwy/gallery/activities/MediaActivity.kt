@@ -1632,6 +1632,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 }
             }
 
+            // Atualizar UI imediatamente - item some na hora, sem flicker
+            runOnUiThread {
+                getMediaAdapter()?.updateMedia(mMedia)
+            }
+
             if (mMedia.isEmpty()) {
                 deleteDirectoryIfEmpty()
                 deleteDBDirectory()
@@ -1679,7 +1684,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
         // Também limpa do snapshot em disco para não ressurgir ao reabrir o app
         applicationContext.saveMediaSnapshot(mPath, mMedia)
-        runOnUiThread { setupAdapter() }
+        // Atualizar UI imediatamente com DiffUtil (sem flicker)
+        runOnUiThread { getMediaAdapter()?.updateMedia(mMedia) }
     }
 
     override fun selectedPaths(paths: ArrayList<String>) {
