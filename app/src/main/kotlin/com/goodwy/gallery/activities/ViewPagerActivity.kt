@@ -609,6 +609,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun buildTransformer(animation: Int): ViewPager.PageTransformer? = when (animation) {
+        SLIDESHOW_ANIMATION_NONE -> null
+        SLIDESHOW_ANIMATION_SLIDE -> object : ViewPager.PageTransformer {
+            override fun transformPage(view: android.view.View, position: Float) {
+                view.translationX = -position * view.width
+            }
+        }
         SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
         SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
         SLIDESHOW_ANIMATION_DEPTH -> object : ViewPager.PageTransformer {
@@ -1270,11 +1276,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         if (!mIsSlideshowActive && relevantAnimation != SLIDESHOW_ANIMATION_NONE) {
             applyViewerTransformer(current, target)
             mRandomTransformerAppliedForGesture = relevantAnimation == SLIDESHOW_ANIMATION_RANDOM
+            // Usa fake drag animado para que o PageTransformer produza o efeito visual
+            // (fade, cube, depth, slide, etc.) também em trocas por clique nas laterais.
+            animatePagerTransition(offset > 0)
+        } else {
+            binding.viewPager.setCurrentItem(target, true)
         }
-        // setCurrentItem com smoothScroll=true faz o ViewPager rolar suavemente,
-        // e o PageTransformer (já aplicado acima) produz o efeito visual durante
-        // a transição. Mais confiável que beginFakeDrag() que pode falhar.
-        binding.viewPager.setCurrentItem(target, true)
     }
 
     override fun goToPrevItem() = navigateToItem(-1)

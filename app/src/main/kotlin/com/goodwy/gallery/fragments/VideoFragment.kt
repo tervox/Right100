@@ -805,10 +805,16 @@ fun onBecameVisible() {
     // O item pode virar primário antes do callback da TextureView. Se a superfície
     // já estiver disponível, prepare o player agora para que o primeiro toque não
     // seja perdido durante o efeito de transição.
-    if (!mConfig.gestureVideoPlayer && !mIsPanorama && mExoPlayer == null
-        && ::mTextureView.isInitialized && mTextureView.isAvailable
-    ) {
-        initExoPlayer()
+    if (!mConfig.gestureVideoPlayer && !mIsPanorama) {
+        if (mExoPlayer == null && ::mTextureView.isInitialized && mTextureView.isAvailable) {
+            initExoPlayer()
+        }
+        // Se o player já existe mas parou, retoma a reprodução se autoplay estiver ativo
+        if (mExoPlayer != null && !mIsPlaying && mConfig.autoplayVideos) {
+            mMainHandler.postDelayed({ 
+                if (mIsFragmentVisible && !mIsPlaying && isAdded) playVideo() 
+            }, 150L)
+        }
     }
 }
 
