@@ -374,20 +374,11 @@ class MediaAdapter(
     }
 
     private fun updateMediaCachesAfterRename(oldPath: String, newPath: String, medium: Medium) {
-        // Atualiza mMedia e mFolderMediaCache da MediaActivity pra refletir o rename
+        // Atualiza mMedia da MediaActivity via método público pra refletir o rename
         // sem precisar de um rescan completo do MediaStore.
         try {
             val activity = activity as? MediaActivity ?: return
-            synchronized(MediaActivity.mediaLock) {
-                MediaActivity.mMedia.filterIsInstance<Medium>()
-                    .firstOrNull { it.path == oldPath }
-                    ?.apply { path = newPath; name = newPath.getFilenameFromPath() }
-            }
-            // Atualiza o snapshot em disco pra não ressurgir o nome antigo ao reabrir
-            activity.applicationContext.saveMediaSnapshot(
-                activity.intent.getStringExtra(DIRECTORY) ?: "",
-                MediaActivity.mMedia
-            )
+            activity.updateMediaPathAfterRename(oldPath, newPath)
         } catch (_: Exception) {}
     }
 

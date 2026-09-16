@@ -1634,6 +1634,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
+    fun updateMediaPathAfterRename(oldPath: String, newPath: String) {
+        synchronized(mediaLock) {
+            mMedia.filterIsInstance<Medium>()
+                .firstOrNull { it.path == oldPath }
+                ?.apply { path = newPath; name = newPath.getFilenameFromPath() }
+        }
+        synchronized(mFolderMediaCache) {
+            mFolderMediaCache[mPath]?.filterIsInstance<Medium>()
+                ?.firstOrNull { it.path == oldPath }
+                ?.apply { path = newPath; name = newPath.getFilenameFromPath() }
+        }
+        applicationContext.saveMediaSnapshot(mPath, mMedia)
+    }
+
     override fun refreshItems() {
         getMedia(forceRefresh = true)
     }
