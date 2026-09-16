@@ -966,7 +966,9 @@ private fun Context.loadAnimatedWithImageDecoder(
                 ImageDecoder.createSource(File(path))
             }
             ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
-                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
+                // HARDWARE = frames em textura, composição via GPU. Com dezenas de
+                // capas animadas, SOFTWARE faz blit por CPU a cada frame e trava a UI.
+                decoder.setAllocator(ImageDecoder.ALLOCATOR_HARDWARE)
                 decoder.setMemorySizePolicy(ImageDecoder.MEMORY_POLICY_LOW_RAM)
                 // O target quadrado anterior deformava GIFs não quadrados. Reduza
                 // proporcionalmente para caber na célula e deixe o ImageView decidir

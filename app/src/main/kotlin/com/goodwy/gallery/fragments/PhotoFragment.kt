@@ -128,7 +128,7 @@ class PhotoFragment : ViewPagerFragment() {
         mView = binding.root
 
         // Registra touch listener no root view pra capturar swipe antes do GestureController
-        mView.setOnTouchListener { _, event ->
+        mView.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     mRootTouchDownTime = System.currentTimeMillis()
@@ -136,8 +136,18 @@ class PhotoFragment : ViewPagerFragment() {
                     mRootTouchDownY = event.rawY
                     mRootIgnoreClose = false
                 }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!mRootIgnoreClose) {
+                        val dx = abs(event.rawX - mRootTouchDownX)
+                        val dy = abs(event.rawY - mRootTouchDownY)
+                        if (dy > dx && dy > mCloseDownThreshold / 2) {
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    }
+                }
                 MotionEvent.ACTION_POINTER_DOWN -> mRootIgnoreClose = true
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
                     if (!mRootIgnoreClose && context?.config?.allowDownGesture == true) {
                         val diffX = mRootTouchDownX - event.rawX
                         val diffY = mRootTouchDownY - event.rawY
