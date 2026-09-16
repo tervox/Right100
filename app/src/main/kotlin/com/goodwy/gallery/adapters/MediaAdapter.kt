@@ -344,12 +344,23 @@ class MediaAdapter(
         }
 
         if (selectedKeys.size == 1) {
-            RenameItemDialog(activity, firstPath) {
+            RenameItemDialog(activity, firstPath) { newPath ->
                 ensureBackgroundThread {
-                    activity.updateDBMediaPath(firstPath, it)
+                    activity.updateDBMediaPath(firstPath, newPath)
 
                     activity.runOnUiThread {
-                        listener?.refreshItems()
+                        // Atualiza o Medium na lista local instantaneamente — sem rescan.
+                        val pos = media.indexOfFirst { it is Medium && it.path == firstPath }
+                        if (pos >= 0) {
+                            val medium = media[pos] as Medium
+                            medium.path = newPath
+                            medium.name = newPath.getFilenameFromPath()
+                            // Limpa caches de thumbnail pro Glide recarregar com o novo path
+                            rotatedImagePaths.add(firstPath)
+                            notifyItemChanged(pos)
+                            // Atualiza também os caches estáticos da MediaActivity
+                            updateMediaCachesAfterRename(firstPath, newPath, medium)
+                        }
                         finishActMode()
                     }
                 }
@@ -360,6 +371,24 @@ class MediaAdapter(
                 finishActMode()
             }
         }
+    }
+
+    private fun updateMediaCachesAfterRename(oldPath: String, newPath: String, medium: Medium) {
+        // Atualiza mMedia e mFolderMediaCache da MediaActivity pra refletir o rename
+        // sem precisar de um rescan completo do MediaStore.
+        try {
+            val activity = activity as? MediaActivity ?: return
+            synchronized(MediaActivity.mediaLock) {
+                MediaActivity.mMedia.filterIsInstance<Medium>()
+                    .firstOrNull { it.path == oldPath }
+                    ?.apply { path = newPath; name = newPath.getFilenameFromPath() }
+            }
+            // Atualiza o snapshot em disco pra não ressurgir o nome antigo ao reabrir
+            activity.applicationContext.saveMediaSnapshot(
+                activity.intent.getStringExtra(DIRECTORY) ?: "",
+                MediaActivity.mMedia
+            )
+        } catch (_: Exception) {}
     }
 
     private fun editFile() {
