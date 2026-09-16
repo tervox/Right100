@@ -5,6 +5,7 @@ import android.provider.MediaStore
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.view.MotionEvent
+import android.view.View
 import androidx.exifinterface.media.ExifInterface
 import androidx.fragment.app.Fragment
 import com.goodwy.commons.extensions.*
@@ -21,7 +22,7 @@ abstract class ViewPagerFragment : Fragment() {
     protected var mTouchDownTime = 0L
     protected var mTouchDownX = 0f
     protected var mTouchDownY = 0f
-    protected var mCloseDownThreshold = 60f  // reduzido para facilitar puxão
+    protected var mCloseDownThreshold = 48f
     protected var mIgnoreCloseDown = false
 
     abstract fun fullscreenToggled(isFullscreen: Boolean)
@@ -164,30 +165,72 @@ abstract class ViewPagerFragment : Fragment() {
         return result.trimStart(',').trim()
     }
 
+    protected fun updateVerticalGestureInterception(view: View, event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN ->
+                view.parent?.requestDisallowInterceptTouchEvent(false)
+
+            MotionEvent.ACTION_MOVE -> {
+                val dx = abs(event.rawX - mTouchDownX)
+                val dy = abs(event.rawY - mTouchDownY)
+
+                if (context?.config?.allowDownGesture == true &&
+                    !mIgnoreCloseDown &&
+                    dy > mCloseDownThreshold / 2f &&
+                    dy > dx * 1.15f
+                ) {
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                }
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                view.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+    }
+
     protected fun handleEvent(event: MotionEvent) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 mTouchDownTime = System.currentTimeMillis()
                 mTouchDownX = event.rawX
                 mTouchDownY = event.rawY
-            }
-
-            MotionEvent.ACTION_POINTER_DOWN -> mIgnoreCloseDown = true
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val diffX = mTouchDownX - event.rawX
-                val diffY = mTouchDownY - event.rawY
-
-                val downGestureDuration = System.currentTimeMillis() - mTouchDownTime
-                if (!mIgnoreCloseDown && (abs(diffY) > abs(diffX)) && (abs(diffY) > mCloseDownThreshold) && downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION && context?.config?.allowDownGesture == true) {
-                    activity?.finish()
-                    if (diffY < 0) {
-                        activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
-                    } else {
-                        activity?.overridePendingTransition(com.goodwy.commons.R.anim.slide_down, 0)
-                    }
-                }
                 mIgnoreCloseDown = false
             }
+
+            MotionEvent.ACTION_POINTER_DOWN ->
+                mIgnoreCloseDown = true
+
+            MotionEvent.ACTION_UP -> {
+                val diffX = mTouchDownX - event.rawX
+                val diffY = mTouchDownY - event.rawY
+                val downGestureDuration = System.currentTimeMillis() - mTouchDownTime
+
+                if (!mIgnoreCloseDown &&
+                    abs(diffY) > abs(diffX) &&
+                    abs(diffY) > mCloseDownThreshold &&
+                    downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION &&
+                    context?.config?.allowDownGesture == true
+                ) {
+                    activity?.finish()
+
+                    if (diffY < 0) {
+                        activity?.overridePendingTransition(
+                            0,
+                            com.goodwy.commons.R.anim.slide_down
+                        )
+                    } else {
+                        activity?.overridePendingTransition(
+                            com.goodwy.commons.R.anim.slide_down,
+                            0
+                        )
+                    }
+                }
+
+                mIgnoreCloseDown = false
+            }
+
+            MotionEvent.ACTION_CANCEL ->
+                mIgnoreCloseDown = false
         }
     }
 }

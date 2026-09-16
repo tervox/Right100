@@ -161,15 +161,7 @@ class PhotoFragment : ViewPagerFragment() {
             gifView.setOnTouchListener { v, event ->
                 if (context.config.allowDownGesture && abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE) {
                     handleEvent(event)
-                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
-                        val dy = abs(event.rawY - mTouchDownY)
-                        val dx = abs(event.rawX - mTouchDownX)
-                        if (dy > dx && dy > 30f) {
-                            v.parent?.parent?.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                    } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                        v.parent?.parent?.parent?.requestDisallowInterceptTouchEvent(false)
-                    }
+                    updateVerticalGestureInterception(v, event)
                 }
                 false
             }
@@ -179,16 +171,7 @@ class PhotoFragment : ViewPagerFragment() {
                 val allowDownGesture = context.config.allowDownGesture
                 if (allowDownGesture && abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) {
                     handleEvent(event)
-                    // Bloquear ViewPager de interceptar quando detectar puxão vertical
-                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
-                        val dy = abs(event.rawY - mTouchDownY)
-                        val dx = abs(event.rawX - mTouchDownX)
-                        if (dy > dx && dy > 30f) {
-                            v.parent?.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                    } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                        v.parent?.parent?.requestDisallowInterceptTouchEvent(false)
-                    }
+                    updateVerticalGestureInterception(v, event)
                 }
                 false
             }
@@ -196,15 +179,7 @@ class PhotoFragment : ViewPagerFragment() {
             subsamplingView.setOnTouchListener { v, event ->
                 if (subsamplingView.isZoomedOut() && context.config.allowDownGesture) {
                     handleEvent(event)
-                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
-                        val dy = abs(event.rawY - mTouchDownY)
-                        val dx = abs(event.rawX - mTouchDownX)
-                        if (dy > dx && dy > 30f) {
-                            v.parent?.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                    } else if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                        v.parent?.parent?.requestDisallowInterceptTouchEvent(false)
-                    }
+                    updateVerticalGestureInterception(v, event)
                 }
                 false
             }

@@ -1603,25 +1603,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
 
             val filteredPaths = filtered.asSequence().map { it.path }.toHashSet()
-            markRecentlyRemoved(filteredPaths.toList())
-            synchronized(mediaLock) {
-                mMedia.removeAll { (it as? Medium)?.path in filteredPaths }
-            }
-            // mFolderMediaCache guarda uma cópia separada por pasta (pro caso de A -> B -> A).
-            // Sem atualizar ela também, voltar pra essa pasta mostrava a versão antiga, com o
-            // arquivo já apagado/movido pra lixeira ainda aparecendo até uma recarga posterior
-            // "por baixo" corrigir sozinha — o que o usuário vê como "o item apagado continua lá".
-            synchronized(mFolderMediaCache) {
-                mFolderMediaCache[mPath]?.removeAll {
-                    (it as? Medium)?.path in filteredPaths
-                }
-            }
-            // Terceiro cache, esse persistido em disco (SharedPreferences, sobrevive a fechar
-            // o app) — mesmo problema dos dois de cima: sem atualizar aqui também, excluir um
-            // item e depois fechar/reabrir o app (ou só esperar o TTL do cache em memória
-            // expirar) mostrava o item excluído de volta, lido direto desse snapshot antigo,
-            // antes da varredura nova conseguir corrigir.
-            applicationContext.saveMediaSnapshot(mPath, mMedia)
+
+            // Aqui a operação física já confirmou sucesso.
+            // Centraliza cache e DiffUtil em uma única atualização.
+            removeMediaImmediately(filteredPaths.toList())
 
             ensureBackgroundThread {
                 val useRecycleBin = config.useRecycleBin

@@ -1006,9 +1006,8 @@ private fun Context.loadAnimatedWithImageDecoder(
                 onFallback()
             } else {
                 target.setImageDrawable(drawable)
-                // O bind pode terminar antes de o ViewHolder entrar na viewport. Não
-                // iniciar nesse caso; onViewAttachedToWindow retoma apenas quando visível.
-                if (target.isAttachedToWindow) drawable.start()
+                // O adapter controla start/stop conforme a viewport e o estado do scroll.
+                // Não inicie aqui: binds fora da viewport não podem manter frames ativos.
             }
         }
     }
@@ -1067,7 +1066,7 @@ private fun Context.loadAnimatedWebPWithImageDecoder(
                 onFallback()
             } else {
                 target.setImageDrawable(drawable)
-                if (target.isAttachedToWindow) drawable.start()
+                // O adapter controla start/stop conforme a viewport e o estado do scroll.
             }
         }
     }

@@ -93,12 +93,7 @@ class DirectoryAdapter(
         setHasStableIds(true)
         attachedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                val idle = newState == RecyclerView.SCROLL_STATE_IDLE
-                setVisibleAnimatablesRunning(idle)
-                try {
-                    if (idle) Glide.with(activity).resumeRequests() else Glide.with(activity).pauseRequests()
-                } catch (_: Exception) {
-                }
+                setVisibleAnimatablesRunning(newState == RecyclerView.SCROLL_STATE_IDLE)
             }
         })
     }
@@ -107,11 +102,12 @@ class DirectoryAdapter(
         for (i in 0 until attachedRecyclerView.childCount) {
             val child = attachedRecyclerView.getChildAt(i) ?: continue
             val drawable = child.findViewById<ImageView>(R.id.dir_thumbnail)?.drawable as? Animatable ?: continue
+
             try {
                 if (running) {
                     if (!drawable.isRunning) drawable.start()
-                } else {
-                    if (drawable.isRunning) drawable.stop()
+                } else if (drawable.isRunning) {
+                    drawable.stop()
                 }
             } catch (_: Exception) {
             }
@@ -242,9 +238,7 @@ class DirectoryAdapter(
     override fun onViewAttachedToWindow(holder: ViewHolder) {
         super.onViewAttachedToWindow(holder)
         if (attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
-            (holder.itemView.findViewById<ImageView>(R.id.dir_thumbnail)?.drawable as? Animatable)?.let {
-                try { if (!it.isRunning) it.start() } catch (_: Exception) {}
-            }
+            setVisibleAnimatablesRunning(true)
         }
     }
 

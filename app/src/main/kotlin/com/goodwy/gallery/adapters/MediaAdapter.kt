@@ -101,11 +101,12 @@ class MediaAdapter(
         for (i in 0 until attachedRecyclerView.childCount) {
             val child = attachedRecyclerView.getChildAt(i) ?: continue
             val drawable = child.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable ?: continue
+
             try {
                 if (running) {
                     if (!drawable.isRunning) drawable.start()
-                } else {
-                    if (drawable.isRunning) drawable.stop()
+                } else if (drawable.isRunning) {
+                    drawable.stop()
                 }
             } catch (_: Exception) {
             }
@@ -146,6 +147,36 @@ class MediaAdapter(
             }
         }
         bindViewHolder(holder)
+    }
+
+    override fun onViewAttachedToWindow(holder: ViewHolder) {
+        super.onViewAttachedToWindow(holder)
+
+        if (attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+            setVisibleAnimatablesRunning(true)
+        }
+    }
+
+    override fun onViewDetachedFromWindow(holder: ViewHolder) {
+        (holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable)?.let {
+            try {
+                if (it.isRunning) it.stop()
+            } catch (_: Exception) {
+            }
+        }
+
+        super.onViewDetachedFromWindow(holder)
+    }
+
+    override fun onViewRecycled(holder: ViewHolder) {
+        (holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable)?.let {
+            try {
+                if (it.isRunning) it.stop()
+            } catch (_: Exception) {
+            }
+        }
+
+        super.onViewRecycled(holder)
     }
 
     override fun getItemCount() = media.size
@@ -665,22 +696,13 @@ class MediaAdapter(
                 }
 
                 val fileDirItems = ArrayList<FileDirItem>(selectedKeys.size)
-                val removeMedia = ArrayList<Medium>(selectedKeys.size)
-                val positions = getSelectedItemPositions()
 
                 selectedItems.forEach { medium ->
                     fileDirItems.add(medium.toFileDirItem())
-                    removeMedia.add(medium)
                 }
 
-                // Chama tryDeleteFiles (vai deletar do sistema)
+                // Só atualiza a lista depois que a operação confirma sucesso.
                 listener?.tryDeleteFiles(fileDirItems, skipRecycleBin)
-                // removeMediaImmediately atualiza mMedia no MediaActivity e
-                // chama updateMedia() no adapter, que via DiffUtil remove os
-                // itens visualmente SEM precisar fazer removeAll() manualmente.
-                // Antes fazíamos media.removeAll() aqui ANTES do removeMediaImmediately,
-                // o que fazia o DiffUtil ver listas iguais e não atualizar nada.
-                listener?.removeMediaImmediately(removeMedia.map { it.path })
                 finishActMode()
             }
         }
