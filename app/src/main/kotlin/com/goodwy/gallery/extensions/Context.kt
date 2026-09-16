@@ -664,9 +664,9 @@ fun Context.loadImageBase(
     // o bitmap para preencher essa área. A escala do conteúdo precisa continuar
     // preservando a proporção original quando o recorte estiver desativado.
     target.scaleType = if (cropThumbnails) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
-    val shouldAnimate = animate && roundCorners == ROUNDED_CORNERS_NONE && (isGif || path.isGif())
+    val shouldAnimate = animate && roundCorners == ROUNDED_CORNERS_NONE && (isGif || path.isGif() || path.isWebP())
     if (shouldAnimate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        loadAnimatedGifWithImageDecoder(
+        loadAnimatedWithImageDecoder(
             path = path,
             target = target,
             cropThumbnails = cropThumbnails,
@@ -942,7 +942,7 @@ private val gifDecodeExecutor = Executors.newFixedThreadPool(
 }
 
 @Suppress("NewApi")
-private fun Context.loadAnimatedGifWithImageDecoder(
+private fun Context.loadAnimatedWithImageDecoder(
     path: String,
     target: MySquareImageView,
     cropThumbnails: Boolean,
