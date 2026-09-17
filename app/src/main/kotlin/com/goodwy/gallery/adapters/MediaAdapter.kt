@@ -149,36 +149,6 @@ class MediaAdapter(
         bindViewHolder(holder)
     }
 
-    override fun onViewAttachedToWindow(holder: ViewHolder) {
-        super.onViewAttachedToWindow(holder)
-
-        if (attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
-            setVisibleAnimatablesRunning(true)
-        }
-    }
-
-    override fun onViewDetachedFromWindow(holder: ViewHolder) {
-        (holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable)?.let {
-            try {
-                if (it.isRunning) it.stop()
-            } catch (_: Exception) {
-            }
-        }
-
-        super.onViewDetachedFromWindow(holder)
-    }
-
-    override fun onViewRecycled(holder: ViewHolder) {
-        (holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable)?.let {
-            try {
-                if (it.isRunning) it.stop()
-            } catch (_: Exception) {
-            }
-        }
-
-        super.onViewRecycled(holder)
-    }
-
     override fun getItemCount() = media.size
 
     override fun getItemId(position: Int): Long {
@@ -282,10 +252,9 @@ class MediaAdapter(
 
     override fun onViewAttachedToWindow(holder: ViewHolder) {
         super.onViewAttachedToWindow(holder)
+
         if (attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
-            (holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable)?.let {
-                try { if (!it.isRunning) it.start() } catch (_: Exception) {}
-            }
+            setVisibleAnimatablesRunning(true)
         }
     }
 
