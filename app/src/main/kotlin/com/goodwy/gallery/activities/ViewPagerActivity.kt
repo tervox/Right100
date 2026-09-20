@@ -55,6 +55,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     companion object {
         var pendingMediums: ArrayList<Medium>? = null
+        // Deletes made from inside the fullscreen viewer only update this
+        // activity's own mMediums list (see onCurrentFileRemoved()) - the
+        // folder grid activity that launched us is a separate, still-alive
+        // Activity instance with its own mMedia/cache that never hears about
+        // it. MediaActivity.onResume() drains this and calls
+        // removeMediaImmediately() so the item disappears from the grid too,
+        // without a full folder reload.
+        val pendingRemovedPaths = ArrayList<String>()
     }
 
     private var mMediums = ArrayList<Medium>()
@@ -483,6 +491,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun onCurrentFileRemoved() {
         if (mPos < 0 || mPos >= mMediums.size) return
+        val removedPath = mMediums[mPos].path
+        pendingRemovedPaths.add(removedPath)
         mMediums.removeAt(mPos)
         if (mMediums.isEmpty()) { finish(); return }
         if (mPos >= mMediums.size) mPos = mMediums.size - 1

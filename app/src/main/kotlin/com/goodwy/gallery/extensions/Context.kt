@@ -959,16 +959,15 @@ private fun Context.loadAnimatedWithImageDecoder(
 
     gifDecodeExecutor.execute {
         if (target.tag != requestToken) return@execute
-        val drawable = try {
+
+        fun decodeWith(allocator: Int): AnimatedImageDrawable? {
             val source = if (path.startsWith("content://")) {
                 ImageDecoder.createSource(contentResolver, path.toUri())
             } else {
                 ImageDecoder.createSource(File(path))
             }
-            ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
-                // HARDWARE = frames em textura, composição via GPU. Com dezenas de
-                // capas animadas, SOFTWARE faz blit por CPU a cada frame e trava a UI.
-                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
+            return ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
+                decoder.setAllocator(allocator)
                 decoder.setMemorySizePolicy(ImageDecoder.MEMORY_POLICY_LOW_RAM)
                 // O target quadrado anterior deformava GIFs não quadrados. Reduza
                 // proporcionalmente para caber na célula e deixe o ImageView decidir
@@ -993,8 +992,23 @@ private fun Context.loadAnimatedWithImageDecoder(
                 val targetHeight = (sourceHeight * scale).roundToInt().coerceAtLeast(1)
                 decoder.setTargetSize(targetWidth, targetHeight)
             } as? AnimatedImageDrawable
+        }
+
+        val drawable = try {
+            // HARDWARE = frames ficam em textura e a composição de cada frame da
+            // animação é feita pela GPU. Com dezenas de capas animadas ao mesmo
+            // tempo, ALLOCATOR_SOFTWARE força a CPU a fazer o blit de cada frame de
+            // cada capa manualmente a cada tick, e é isso que trava a UI - o
+            // allocator anterior (SOFTWARE) contradizia o próprio motivo pelo qual
+            // HARDWARE existe. Mantém um fallback para SOFTWARE só por segurança,
+            // caso algum aparelho específico tenha problema com bitmap HARDWARE.
+            decodeWith(ImageDecoder.ALLOCATOR_HARDWARE)
         } catch (_: Exception) {
-            null
+            try {
+                decodeWith(ImageDecoder.ALLOCATOR_SOFTWARE)
+            } catch (_: Exception) {
+                null
+            }
         }
 
         target.post {
@@ -1013,96 +1027,6 @@ private fun Context.loadAnimatedWithImageDecoder(
     }
 }
 
-
-// Otimização para WebP animado - decodifica em tamanho reduzido para evitar travamento
-@SuppressLint("NewApi")
-private fun Context.loadAnimatedWebPWithImageDecoder(
-    path: String,
-    target: MySquareImageView,
-    cropThumbnails: Boolean,
-    columnCount: Int,
-    onFallback: () -> Unit
-) {
-    val requestToken = target.tag
-    val screenWidthPx = resources.displayMetrics.widthPixels
-    val cellWidthPx = screenWidthPx / columnCount.coerceAtLeast(1)
-    val webpSize = cellWidthPx.coerceIn(160, 320)
-    target.scaleType = if (cropThumbnails) ImageView.ScaleType.CENTER_CROP else ImageView.ScaleType.FIT_CENTER
-    Glide.with(target).clear(target)
-    target.setImageResource(R.drawable.placeholder_square)
-
-    gifDecodeExecutor.execute {
-        if (target.tag != requestToken) return@execute
-        val drawable = try {
-            val source = if (path.startsWith("content://")) {
-                ImageDecoder.createSource(contentResolver, path.toUri())
-            } else {
-                ImageDecoder.createSource(File(path))
-            }
-            ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
-                decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
-                decoder.setMemorySizePolicy(ImageDecoder.MEMORY_POLICY_LOW_RAM)
-                val sourceWidth = info.size.width.coerceAtLeast(1)
-                val sourceHeight = info.size.height.coerceAtLeast(1)
-                val scale = if (cropThumbnails) {
-                    maxOf(webpSize.toFloat() / sourceWidth, webpSize.toFloat() / sourceHeight).coerceAtMost(1f)
-                } else {
-                    minOf(webpSize.toFloat() / sourceWidth, webpSize.toFloat() / sourceHeight, 1f)
-                }
-                val targetWidth = (sourceWidth * scale).roundToInt().coerceAtLeast(1)
-                val targetHeight = (sourceHeight * scale).roundToInt().coerceAtLeast(1)
-                decoder.setTargetSize(targetWidth, targetHeight)
-            } as? AnimatedImageDrawable
-        } catch (_: Exception) {
-            null
-        }
-
-        target.post {
-            if (target.tag != requestToken) {
-                drawable?.stop()
-                return@post
-            }
-            if (drawable == null) {
-                onFallback()
-            } else {
-                target.setImageDrawable(drawable)
-                // O adapter controla start/stop conforme a viewport e o estado do scroll.
-            }
-        }
-    }
-}
-
-
-private fun Context.onAnimatedWebPFallback(
-    path: String,
-    target: MySquareImageView,
-    cropThumbnails: Boolean,
-    roundCorners: Int,
-    signature: ObjectKey,
-    skipMemoryCacheAtPaths: Set<String>?,
-    animate: Boolean,
-    isVideo: Boolean,
-    tryLoadingWithPicasso: Boolean,
-    isGif: Boolean,
-    crossFadeDuration: Int,
-    columnCount: Int,
-    fallbackPath: String?,
-    allowMediaStoreFallback: Boolean,
-    onError: (() -> Unit)?,
-    retryCount: Int
-) {
-    // Fallback: carrega WebP como primeira frame estática via Glide
-    val options = RequestOptions()
-        .signature(signature)
-        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-        .format(DecodeFormat.PREFER_ARGB_8888)
-        .placeholder(R.drawable.placeholder_square)
-        .error(R.drawable.ic_vector_warning_colored)
-        .dontAnimate()
-        .decode(Bitmap::class.java)
-    val imageModel: Any = if (path.startsWith("content://") || path.startsWith("file://")) path.toUri() else File(path)
-    Glide.with(target).load(imageModel).apply(options).into(target)
-}
 
 fun Context.loadSVG(
     path: String,

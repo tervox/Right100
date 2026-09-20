@@ -17,13 +17,16 @@ import android.widget.TextView
 import com.goodwy.commons.extensions.onGlobalLayout
 import com.goodwy.gallery.R
 import com.goodwy.gallery.extensions.audioManager
+import com.goodwy.gallery.extensions.config
 import com.goodwy.gallery.helpers.DRAG_THRESHOLD
+import com.goodwy.gallery.helpers.MAX_CLOSE_DOWN_GESTURE_DURATION
 import kotlin.math.abs
 import kotlin.math.max
 
 // allow horizontal swipes through the layout, else it can cause glitches at zoomed in images
 class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(context, attrs) {
     private val SLIDE_INFO_FADE_DELAY = 1000L
+    private val DISMISS_SWIPE_HEIGHT_FRACTION = 0.20f
     private var mTouchDownX = 0f
     private var mTouchDownY = 0f
     private var mTouchDownTime = 0L
@@ -159,6 +162,45 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
                     }
                     return false
                 } else if (abs(diffY) > dragThreshold && abs(diffY) > abs(diffX)) {
+                    // This view sits on top of (and, until now, always fully
+                    // consumed) vertical drags within its edge strip - so
+                    // swipe-to-dismiss never worked when it started here,
+                    // even though ViewPagerFragment's own gesture handling is
+                    // otherwise correct. A short vertical nudge here should
+                    // still adjust brightness/volume as before, but a large,
+                    // quick vertical swipe is clearly an intentional dismiss
+                    // gesture, not a fine brightness/volume tweak - let that
+                    // one through to the parent instead, the same way a
+                    // horizontal swipe already gets handed off below.
+                    val gestureDuration = System.currentTimeMillis() - mTouchDownTime
+                    val looksLikeDismissSwipe = activity?.config?.allowDownGesture == true &&
+                        mViewHeight > 0 &&
+                        abs(diffY) > mViewHeight * DISMISS_SWIPE_HEIGHT_FRACTION &&
+                        gestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION
+                    if (looksLikeDismissSwipe) {
+                        val parent = mParentView
+                        if (parent != null && parent.isAttachedToWindow) {
+                            try {
+                                if (!mPassTouches) {
+                                    val downEvent = MotionEvent.obtain(event)
+                                    downEvent.action = MotionEvent.ACTION_DOWN
+                                    downEvent.setLocation(event.rawX, event.rawY)
+                                    parent.dispatchTouchEvent(downEvent)
+                                    downEvent.recycle()
+                                }
+                                mPassTouches = true
+                                val moveEvent = MotionEvent.obtain(event)
+                                parent.dispatchTouchEvent(moveEvent)
+                                moveEvent.recycle()
+                            } catch (e: Exception) {
+                                mPassTouches = false
+                            }
+                        } else {
+                            mPassTouches = false
+                        }
+                        return false
+                    }
+
                     onVerticalScroll?.invoke()
                     var percent = rawPercent
                     percent = 100.coerceAtMost((-100).coerceAtLeast(percent))

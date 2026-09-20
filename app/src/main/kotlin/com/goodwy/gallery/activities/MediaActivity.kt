@@ -337,6 +337,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Pular reload se voltamos de fullscreen com mídia já carregada e ordenação não-aleatória
         // Evita scan completo do MediaStore toda vez que o usuário abre/fecha uma foto
         val skipReload = mMedia.isNotEmpty() && wasFullscreen && !isRandomSorting
+
+        // Itens excluídos de dentro do visualizador fullscreen (ViewPagerActivity) só
+        // atualizavam a lista própria dele - esta Activity (a grade da pasta) nunca ficava
+        // sabendo, e como skipReload evita um reload completo por design, o item excluído
+        // continuava aparecendo aqui como se fosse uma "duplicata" do que já foi pra lixeira.
+        if (ViewPagerActivity.pendingRemovedPaths.isNotEmpty()) {
+            val removedPaths = ArrayList(ViewPagerActivity.pendingRemovedPaths)
+            ViewPagerActivity.pendingRemovedPaths.clear()
+            removeMediaImmediately(removedPaths)
+        }
+
         if (!skipReload) {
             if (shouldSkipAuthentication()) {
                 tryLoadGallery()
