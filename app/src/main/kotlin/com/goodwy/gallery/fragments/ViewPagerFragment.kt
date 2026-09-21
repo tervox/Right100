@@ -188,7 +188,7 @@ abstract class ViewPagerFragment : Fragment() {
         }
     }
 
-    protected fun handleEvent(event: MotionEvent) {
+    protected fun handleEvent(event: MotionEvent, isZoomedOut: () -> Boolean = { true }) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 mTouchDownTime = System.currentTimeMillis()
@@ -210,14 +210,15 @@ abstract class ViewPagerFragment : Fragment() {
                 val cond3 = abs(diffY) > mCloseDownThreshold
                 val cond4 = downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION
                 val cond5 = context?.config?.allowDownGesture == true
+                val cond6 = isZoomedOut()
                 com.goodwy.gallery.App.logGesture(
-                    "handleEvent ACTION_UP diffX=%.1f diffY=%.1f duration=%d ignoreCloseDown=%b(need false) vertDominant=%b threshold=%b(diffY>%.1f) duration_ok=%b allowGesture=%b -> %b".format(
-                        diffX, diffY, downGestureDuration, mIgnoreCloseDown, cond2, cond3, mCloseDownThreshold, cond4, cond5,
-                        cond1 && cond2 && cond3 && cond4 && cond5
+                    "handleEvent ACTION_UP diffX=%.1f diffY=%.1f duration=%d ignoreCloseDown=%b(need false) vertDominant=%b threshold=%b(diffY>%.1f) duration_ok=%b allowGesture=%b zoomedOutAtRelease=%b -> %b".format(
+                        diffX, diffY, downGestureDuration, mIgnoreCloseDown, cond2, cond3, mCloseDownThreshold, cond4, cond5, cond6,
+                        cond1 && cond2 && cond3 && cond4 && cond5 && cond6
                     )
                 )
 
-                if (cond1 && cond2 && cond3 && cond4 && cond5) {
+                if (cond1 && cond2 && cond3 && cond4 && cond5 && cond6) {
                     activity?.finish()
 
                     if (diffY < 0) {

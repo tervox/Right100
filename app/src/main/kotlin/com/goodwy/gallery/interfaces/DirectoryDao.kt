@@ -32,4 +32,7 @@ interface DirectoryDao {
 
     @Query("SELECT thumbnail FROM directories WHERE path = :path")
     fun getDirectoryThumbnail(path: String): String?
+
+    @Query("UPDATE directories SET thumbnail = :thumbnail WHERE path = :path COLLATE NOCASE")
+    fun updateDirectoryThumbnail(path: String, thumbnail: String)
 }

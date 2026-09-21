@@ -26,6 +26,7 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.SimpleTarget
 import com.bumptech.glide.request.transition.Transition
+import com.goodwy.gallery.App
 import com.goodwy.commons.dialogs.CreateNewFolderDialog
 import com.goodwy.commons.dialogs.RadioGroupDialog
 import com.goodwy.commons.extensions.*
@@ -113,7 +114,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // para impedir que uma varredura do MediaStore anterior à atualização do sistema
         // reintroduza o item apagado/movido, causando a "tela de erro" persistente.
         private val recentlyRemovedPaths = java.util.concurrent.ConcurrentHashMap<String, Long>()
-        private const val RECENTLY_REMOVED_TTL_MS = 30_000L  // 30 segundos
+        private const val RECENTLY_REMOVED_TTL_MS = 180_000L  // 3 minutos (era 30s)
 
         fun markRecentlyRemoved(paths: List<String>) {
             val now = System.currentTimeMillis()
@@ -127,14 +128,19 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             val now = System.currentTimeMillis()
             recentlyRemovedPaths.entries.removeAll { now - it.value > RECENTLY_REMOVED_TTL_MS }
             if (recentlyRemovedPaths.isEmpty()) return media
-            
+
             // Filtra TODOS os itens cujo path foi removido recentemente
-            return ArrayList(media.filter { item ->
+            val result = ArrayList(media.filter { item ->
                 when (item) {
                     is Medium -> !recentlyRemovedPaths.containsKey(item.path)
                     else -> true  // Mantém ThumbnailSection e outros tipos
                 }
             })
+            val removedCount = media.size - result.size
+            if (removedCount > 0) {
+                App.logGesture("filterRecentlyRemoved stripped $removedCount stale item(s) (recentlyRemovedPaths=${recentlyRemovedPaths.keys})")
+            }
+            return result
         }
 
         // mMedia/mMediaPath só guardam a ÚLTIMA pasta visitada (1 slot). Navegando por
@@ -1660,6 +1666,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     override fun removeMediaImmediately(paths: List<String>) {
         val pathSet = paths.toHashSet()
+        App.logGesture("removeMediaImmediately called paths=%s mPath=%s mMediaPath=%s mMediaSizeBefore=%d".format(paths, mPath, mMediaPath, mMedia.size))
         // Marca os paths como "recentemente removidos" para impedir que uma varredura
         // do MediaStore anterior à atualização do sistema os reintroduza.
         markRecentlyRemoved(paths)
@@ -1681,17 +1688,40 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         applicationContext.saveMediaSnapshot(mPath, mMedia)
         // Atualizar UI imediatamente com DiffUtil (sem flicker)
         runOnUiThread { getMediaAdapter()?.updateMedia(mMedia) }
+        App.logGesture("removeMediaImmediately done mMediaSizeAfter=%d".format(mMedia.size))
         // markRecentlyRemoved() só protege por 30s. Sem isto, a linha antiga no Room
         // (mediaDB) nunca era apagada - getCachedMedia() (usado pelo caminho de
         // atualização forçada do checkLastMediaChanged, a cada 3s) continuava
         // devolvendo-a, e assim que a janela de 30s expirava o item "voltava"
         // sozinho, mesmo já estando na lixeira/apagado de verdade.
+        val folderPath = mPath
+        val newThumbnailCandidate = mMedia.firstOrNull { it is Medium } as? Medium
         ensureBackgroundThread {
             paths.forEach { path ->
                 try {
                     mediaDB.deleteMediumPath(path)
-                } catch (_: Exception) {
+                    App.logGesture("mediaDB.deleteMediumPath ok path=$path")
+                } catch (e: Exception) {
+                    App.logGesture("mediaDB.deleteMediumPath FAILED path=$path error=${e.message}")
                 }
+            }
+            // A capa de uma pasta (directories.thumbnail) é um caminho de arquivo
+            // específico, em cache - se justamente esse arquivo for removido e nada
+            // atualizar a referência, a pasta passa a apontar pra um arquivo
+            // inexistente e mostra o ícone de aviso amarelo até uma varredura
+            // completa (que essas otimizações evitam) recalcular a capa sozinha.
+            try {
+                val currentThumbnail = directoryDB.getDirectoryThumbnail(folderPath)
+                if (currentThumbnail != null && pathSet.contains(currentThumbnail)) {
+                    if (newThumbnailCandidate != null) {
+                        directoryDB.updateDirectoryThumbnail(folderPath, newThumbnailCandidate.path)
+                    } else {
+                        directoryDB.deleteDirPath(folderPath)
+                    }
+                    App.logGesture("directoryDB thumbnail refreshed for folder=$folderPath new=${newThumbnailCandidate?.path}")
+                }
+            } catch (e: Exception) {
+                App.logGesture("directoryDB thumbnail refresh FAILED error=${e.message}")
             }
         }
     }

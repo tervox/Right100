@@ -163,8 +163,19 @@ class PhotoFragment : ViewPagerFragment() {
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
                     com.goodwy.gallery.App.logGesture("gifView gate allowDownGesture=%b zoomedOut=%b zoom=%.3f".format(context.config.allowDownGesture, zoomedOut, gifViewFrame.controller.state.zoom))
                 }
+                // handleEvent() must always see ACTION_DOWN to capture a fresh touch
+                // start point/time - gating the call on zoomedOut meant that, if the
+                // view was still settling its fit-zoom exactly when the finger went
+                // down, ACTION_DOWN was skipped and ACTION_UP later ran against a
+                // stale/never-set mTouchDownTime (0L), computing a bogus multi-year
+                // "duration" and always failing the dismiss check. The dismiss
+                // decision itself, made inside handleEvent on ACTION_UP, still only
+                // fires when both allowDownGesture and isZoomedOut() are true at that
+                // moment.
+                if (context.config.allowDownGesture) {
+                    handleEvent(event) { abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE }
+                }
                 if (context.config.allowDownGesture && zoomedOut) {
-                    handleEvent(event)
                     updateVerticalGestureInterception(v, event)
                 }
                 false
@@ -177,8 +188,10 @@ class PhotoFragment : ViewPagerFragment() {
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
                     com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom, mInitialZoom))
                 }
+                if (allowDownGesture) {
+                    handleEvent(event) { abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
+                }
                 if (allowDownGesture && zoomedOut) {
-                    handleEvent(event)
                     updateVerticalGestureInterception(v, event)
                 }
                 false
@@ -186,11 +199,14 @@ class PhotoFragment : ViewPagerFragment() {
 
             subsamplingView.setOnTouchListener { v, event ->
                 val zoomedOut = subsamplingView.isZoomedOut()
+                val allowDownGesture = context.config.allowDownGesture
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
-                    com.goodwy.gallery.App.logGesture("subsamplingView gate allowDownGesture=%b zoomedOut=%b".format(context.config.allowDownGesture, zoomedOut))
+                    com.goodwy.gallery.App.logGesture("subsamplingView gate allowDownGesture=%b zoomedOut=%b".format(allowDownGesture, zoomedOut))
                 }
-                if (zoomedOut && context.config.allowDownGesture) {
-                    handleEvent(event)
+                if (allowDownGesture) {
+                    handleEvent(event) { subsamplingView.isZoomedOut() }
+                }
+                if (zoomedOut && allowDownGesture) {
                     updateVerticalGestureInterception(v, event)
                 }
                 false
