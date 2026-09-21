@@ -205,12 +205,19 @@ abstract class ViewPagerFragment : Fragment() {
                 val diffY = mTouchDownY - event.rawY
                 val downGestureDuration = System.currentTimeMillis() - mTouchDownTime
 
-                if (!mIgnoreCloseDown &&
-                    abs(diffY) > abs(diffX) &&
-                    abs(diffY) > mCloseDownThreshold &&
-                    downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION &&
-                    context?.config?.allowDownGesture == true
-                ) {
+                val cond1 = !mIgnoreCloseDown
+                val cond2 = abs(diffY) > abs(diffX)
+                val cond3 = abs(diffY) > mCloseDownThreshold
+                val cond4 = downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION
+                val cond5 = context?.config?.allowDownGesture == true
+                com.goodwy.gallery.App.logGesture(
+                    "handleEvent ACTION_UP diffX=%.1f diffY=%.1f duration=%d ignoreCloseDown=%b(need false) vertDominant=%b threshold=%b(diffY>%.1f) duration_ok=%b allowGesture=%b -> %b".format(
+                        diffX, diffY, downGestureDuration, mIgnoreCloseDown, cond2, cond3, mCloseDownThreshold, cond4, cond5,
+                        cond1 && cond2 && cond3 && cond4 && cond5
+                    )
+                )
+
+                if (cond1 && cond2 && cond3 && cond4 && cond5) {
                     activity?.finish()
 
                     if (diffY < 0) {

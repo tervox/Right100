@@ -262,13 +262,20 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             })
 
             videoPreview.setOnTouchListener { v, event ->
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    com.goodwy.gallery.App.logGesture("videoPreview gate (no gating - always calls handleEvent)")
+                }
                 handleEvent(event)
                 updateVerticalGestureInterception(v, event)
                 false
             }
 
             videoSurfaceFrame.setOnTouchListener { v, event ->
-                if (mHasVideoInitialZoom && abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) handleEvent(event)
+                val zoomedOut = mHasVideoInitialZoom && abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    com.goodwy.gallery.App.logGesture("videoSurfaceFrame gate hasInitialZoom=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f isLongPress=%b".format(mHasVideoInitialZoom, zoomedOut, mCurrentVideoZoom, mVideoInitialZoom, mIsLongPressActive))
+                }
+                if (zoomedOut) handleEvent(event)
                 handleTouchHoldEvent(event)
                 if (mIsLongPressActive) return@setOnTouchListener true
                 // Bloquear ViewPager de interceptar quando detectar puxão vertical

@@ -79,6 +79,24 @@ class App : RightApp() {
                 }
             }
         }
+
+        // Diagnóstico temporário do gesto de arrastar para fechar (cima/baixo) no
+        // visualizador de fotos/vídeos. Grava cada decisão (por que disparou, por que não)
+        // em ~/storage/downloads/Right100Logs/gesture_log.txt, sem precisar de adb/logcat.
+        fun logGesture(line: String) {
+            maintenanceExecutor.execute {
+                try {
+                    val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
+                    val logFile = File(logsDir(), "gesture_log.txt")
+                    logFile.appendText("$timestamp $line\n")
+                    if (logFile.length() > 64 * 1024) {
+                        val lines = logFile.readLines()
+                        logFile.writeText(lines.takeLast(300).joinToString("\n") + "\n")
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
     }
 
     override val isAppLockFeatureAvailable = true

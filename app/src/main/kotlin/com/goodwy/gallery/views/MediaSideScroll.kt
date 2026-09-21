@@ -178,6 +178,7 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
                         abs(diffY) > mViewHeight * DISMISS_SWIPE_HEIGHT_FRACTION &&
                         gestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION
                     if (looksLikeDismissSwipe) {
+                        com.goodwy.gallery.App.logGesture("MediaSideScroll relaying to parent diffY=%.1f viewHeight=%d durationMs=%d".format(diffY, mViewHeight, gestureDuration))
                         val parent = mParentView
                         if (parent != null && parent.isAttachedToWindow) {
                             try {

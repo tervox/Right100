@@ -159,7 +159,11 @@ class PhotoFragment : ViewPagerFragment() {
             })
 
             gifView.setOnTouchListener { v, event ->
-                if (context.config.allowDownGesture && abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE) {
+                val zoomedOut = abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    com.goodwy.gallery.App.logGesture("gifView gate allowDownGesture=%b zoomedOut=%b zoom=%.3f".format(context.config.allowDownGesture, zoomedOut, gifViewFrame.controller.state.zoom))
+                }
+                if (context.config.allowDownGesture && zoomedOut) {
                     handleEvent(event)
                     updateVerticalGestureInterception(v, event)
                 }
@@ -169,7 +173,11 @@ class PhotoFragment : ViewPagerFragment() {
             setupGesturesViewStateListener()
             gesturesView.setOnTouchListener { v, event ->
                 val allowDownGesture = context.config.allowDownGesture
-                if (allowDownGesture && abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) {
+                val zoomedOut = abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom, mInitialZoom))
+                }
+                if (allowDownGesture && zoomedOut) {
                     handleEvent(event)
                     updateVerticalGestureInterception(v, event)
                 }
@@ -177,7 +185,11 @@ class PhotoFragment : ViewPagerFragment() {
             }
 
             subsamplingView.setOnTouchListener { v, event ->
-                if (subsamplingView.isZoomedOut() && context.config.allowDownGesture) {
+                val zoomedOut = subsamplingView.isZoomedOut()
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    com.goodwy.gallery.App.logGesture("subsamplingView gate allowDownGesture=%b zoomedOut=%b".format(context.config.allowDownGesture, zoomedOut))
+                }
+                if (zoomedOut && context.config.allowDownGesture) {
                     handleEvent(event)
                     updateVerticalGestureInterception(v, event)
                 }

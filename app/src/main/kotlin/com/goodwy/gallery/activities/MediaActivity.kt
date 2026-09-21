@@ -1681,6 +1681,19 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         applicationContext.saveMediaSnapshot(mPath, mMedia)
         // Atualizar UI imediatamente com DiffUtil (sem flicker)
         runOnUiThread { getMediaAdapter()?.updateMedia(mMedia) }
+        // markRecentlyRemoved() só protege por 30s. Sem isto, a linha antiga no Room
+        // (mediaDB) nunca era apagada - getCachedMedia() (usado pelo caminho de
+        // atualização forçada do checkLastMediaChanged, a cada 3s) continuava
+        // devolvendo-a, e assim que a janela de 30s expirava o item "voltava"
+        // sozinho, mesmo já estando na lixeira/apagado de verdade.
+        ensureBackgroundThread {
+            paths.forEach { path ->
+                try {
+                    mediaDB.deleteMediumPath(path)
+                } catch (_: Exception) {
+                }
+            }
+        }
     }
 
     override fun selectedPaths(paths: ArrayList<String>) {
