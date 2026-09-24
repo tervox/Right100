@@ -514,6 +514,17 @@ fun Context.rescanFolderMediaSync(path: String) {
                     }
                 } catch (ignored: Exception) {
                 }
+                // O snapshot em disco (usado pelo caminho rápido ao abrir uma pasta) é
+                // um cache separado do Room - só atualizar mediaDB aqui deixava o
+                // snapshot da pasta de destino desatualizado depois de copiar/mover um
+                // arquivo pra ela, então o próximo caminho rápido continuava mostrando
+                // a lista antiga (sem o item recém-movido) até uma revarredura
+                // completa por outro motivo corrigir por acidente.
+                try {
+                    applicationContext.saveMediaSnapshot(path, newMedia)
+                } catch (ignored: Exception) {
+                }
+                com.goodwy.gallery.App.logGesture("rescanFolderMediaSync path=$path items=${newMedia.size}")
             }
         }.execute()
     }

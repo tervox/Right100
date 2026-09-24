@@ -1012,18 +1012,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 } catch (_: Exception) {
                     null
                 }
-                // mLatestMediaId/mLatestMediaDateId só eram calculados dentro de
-                // gotMedia() (ou seja, depois de uma varredura de verdade) - nunca
-                // aqui, no caminho de restauração do snapshot. Como o valor padrão é
-                // 0L, checkLastMediaChanged() sempre via "mudou" na primeira checagem
-                // depois de reabrir o processo, forçando uma revarredura completa
-                // mesmo quando nada tinha realmente mudado desde o snapshot salvo.
-                val freshLatestMediaId = if (persisted != null && persisted.isNotEmpty()) {
-                    try { getLatestMediaId() } catch (_: Exception) { 0L }
-                } else 0L
-                val freshLatestMediaDateId = if (persisted != null && persisted.isNotEmpty()) {
-                    try { getLatestMediaByDateId() } catch (_: Exception) { 0L }
-                } else 0L
                 runOnUiThread {
                     if (isDestroyed || isFinishing || requestedPath != mPath) return@runOnUiThread
                     if (persisted != null && persisted.isNotEmpty()) {
@@ -1037,17 +1025,33 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         }
                         mMediaInvalidated = true
                         mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
-                        mLatestMediaId = freshLatestMediaId
-                        mLatestMediaDateId = freshLatestMediaDateId
-                        App.logGesture("snapshot restore path=%s items=%d latestMediaId=%d latestMediaDateId=%d".format(requestedPath, persisted.size, freshLatestMediaId, freshLatestMediaDateId))
-                        // A grade com snapshot é exibida imediatamente; a confirmação
-                        // começa só depois da primeira pintura. Antes isto sempre
-                        // forçava startAsyncTask() (uma varredura completa) mesmo
-                        // quando nada mudou desde o snapshot - agora só revarre de
-                        // verdade se checkLastMediaChanged() confirmar uma mudança real.
+                        // A grade com snapshot é exibida imediatamente - nada bloqueia
+                        // a pintura aqui. mLatestMediaId/mLatestMediaDateId (usados só
+                        // pela checagem leve abaixo) são calculados DEPOIS, num
+                        // background separado, sem atrasar essa pintura em nada; uma
+                        // tentativa anterior de calculá-los antes de setupAdapter()
+                        // fez toda abertura de pasta esperar duas consultas extras.
                         setupAdapter()
                         binding.mediaGrid.post {
-                            if (!isDestroyed && !isFinishing && mPath == mMediaPath) checkLastMediaChanged()
+                            if (isDestroyed || isFinishing || mPath != mMediaPath) return@post
+                            ensureBackgroundThread {
+                                // mLatestMediaId/mLatestMediaDateId só eram calculados
+                                // dentro de gotMedia() (depois de uma varredura de
+                                // verdade) - nunca aqui. Como o padrão é 0L,
+                                // checkLastMediaChanged() sempre via "mudou" na
+                                // primeira checagem após reabrir o processo, forçando
+                                // uma revarredura completa mesmo sem nada ter mudado.
+                                val freshId = try { getLatestMediaId() } catch (_: Exception) { 0L }
+                                val freshDateId = try { getLatestMediaByDateId() } catch (_: Exception) { 0L }
+                                if (mLatestMediaId == 0L && mLatestMediaDateId == 0L) {
+                                    mLatestMediaId = freshId
+                                    mLatestMediaDateId = freshDateId
+                                }
+                                App.logGesture("snapshot restore path=%s items=%d latestMediaId=%d latestMediaDateId=%d".format(requestedPath, persisted.size, freshId, freshDateId))
+                                runOnUiThread {
+                                    if (!isDestroyed && !isFinishing && mPath == mMediaPath) checkLastMediaChanged()
+                                }
+                            }
                         }
                     } else {
                         loadMediaFromDatabaseAndScan(requestedPath)
