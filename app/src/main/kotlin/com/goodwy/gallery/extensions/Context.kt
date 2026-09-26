@@ -2,9 +2,11 @@ package com.goodwy.gallery.extensions
 
 import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
+import android.app.Activity
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.database.Cursor
 import android.graphics.Bitmap
@@ -649,6 +651,22 @@ fun Context.getPathLocation(path: String): Int {
     }
 }
 
+// Um retry/fallback tardio (postado com delay) pode disparar depois que a
+// Activity já foi destruída (usuário saiu da tela) - Glide recusa iniciar um
+// load nesse caso com "You cannot start a load for a destroyed activity". O
+// guard existente (target.tag != requestToken) protege contra a VIEW ser
+// reciclada, mas não contra a Activity inteira ter sido destruída.
+private fun Context.isDestroyedActivity(): Boolean {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) {
+            return ctx.isDestroyed || ctx.isFinishing
+        }
+        ctx = ctx.baseContext
+    }
+    return (ctx as? Activity)?.let { it.isDestroyed || it.isFinishing } ?: false
+}
+
 @SuppressLint("CheckResult")
 fun Context.loadImageBase(
     path: String,
@@ -831,7 +849,7 @@ fun Context.loadImageBase(
             // Todas as chamadas recursivas precisam ser postadas na main thread.
             if (fallbackPath != null && fallbackPath != path) {
                 target.post {
-                    if (target.tag != requestToken) return@post
+                    if (target.tag != requestToken || isDestroyedActivity()) return@post
                     loadImageBase(
                         path = fallbackPath,
                         target = target,
@@ -853,7 +871,7 @@ fun Context.loadImageBase(
                 ensureBackgroundThread {
                     val mediaStorePath = findMediaStorePath(path)
                     target.post {
-                        if (target.tag != requestToken) return@post
+                        if (target.tag != requestToken || isDestroyedActivity()) return@post
                         if (mediaStorePath != null) {
                             loadImageBase(
                                 path = mediaStorePath,
@@ -881,12 +899,12 @@ fun Context.loadImageBase(
                 }
             } else if (tryLoadingWithPicasso && !path.startsWith("content://")) {
                 target.post {
-                    if (target.tag != requestToken) return@post
+                    if (target.tag != requestToken || isDestroyedActivity()) return@post
                     tryLoadingWithPicasso(path, target, cropThumbnails, roundCorners, signature, onError)
                 }
             } else if (retryCount < 2) {
                 target.postDelayed({
-                    if (target.tag != requestToken) return@postDelayed
+                    if (target.tag != requestToken || isDestroyedActivity()) return@postDelayed
                     loadImageBase(
                         path = path,
                         target = target,
@@ -907,7 +925,15 @@ fun Context.loadImageBase(
                     )
                 }, 400L * (retryCount + 1))
             } else {
-                onError?.invoke()
+                // Assim como todos os outros ramos acima, isto precisa ser postado -
+                // qualquer onError que tente iniciar outro carregamento do Glide
+                // (comum: mostrar um ícone de aviso, ou tentar outra fonte) trava
+                // com "You can't start or clear loads in RequestListener or Target
+                // callbacks" se chamado direto daqui dentro.
+                target.post {
+                    if (target.tag != requestToken) return@post
+                    onError?.invoke()
+                }
             }
 
             return true
