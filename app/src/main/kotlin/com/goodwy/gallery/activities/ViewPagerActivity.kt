@@ -1232,6 +1232,20 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             }
             ViewPager.SCROLL_STATE_IDLE -> {
                 mRandomTransformerAppliedForGesture = false
+                // Cura views que ficaram com alpha/escala presos apos transicoes
+                // rapidas com efeito (esmaecer etc.): garante que a pagina atual
+                // esteja visivel e interativa quando o pager assenta.
+                binding.viewPager.post {
+                    if (!isDestroyed) {
+                        getCurrentFragment()?.view?.apply {
+                            alpha = 1f
+                            scaleX = 1f
+                            scaleY = 1f
+                            translationX = 0f
+                            translationY = 0f
+                        }
+                    }
+                }
                 // Não remova e reaplique o transformer aqui: essa troca desnecessária
                 // pode desanexar a TextureView e interromper o surface do ExoPlayer.
                 refreshMenuItems()
@@ -1275,8 +1289,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun navigateToItem(offset: Int) {
         if (offset == 0) return
         if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) {
-            if (pendingNavigationRequests.size >= 4) pendingNavigationRequests.removeFirst()
-            pendingNavigationRequests.addLast(offset.coerceIn(-1, 1))
+            // Com efeito de transicao ativo (esmaecer etc.), enfileirar toques
+            // rapidos acumulava transicoes fake-drag que deixavam o pager em
+            // estado inconsistente (travamento). Descarta o toque durante a
+            // transicao; o proximo toque apos assentar funciona normalmente.
             return
         }
 
