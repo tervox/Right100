@@ -908,35 +908,77 @@ class MediaAdapter(
                 columnCount = config.mediaColumnCnt,
                 fallbackPath = medium.path.takeIf { it != thumbnailPath },
                 onError = {
-                    if (mediumThumbnail.tag == thumbnailPath) {
-                        // FIX 5: Tentar recarregar uma vez antes de mostrar warning
-                        if (mediumThumbnail.tag != "${thumbnailPath}_retry") {
-                            mediumThumbnail.tag = "${thumbnailPath}_retry"
-                            // Tentar novamente após 500ms
-                            mediumThumbnail.postDelayed({
-                                activity.loadImage(
-                                    type = medium.type,
-                                    path = thumbnailPath,
-                                    target = mediumThumbnail,
-                                    horizontalScroll = scrollHorizontally,
-                                    animateGifs = animateGifs,
-                                    cropThumbnails = cropThumbnails,
-                                    roundCorners = roundedCorners,
-                                    signature = ObjectKey("thumbnail-v11-retry-${medium.getKey()}"),
-                                    skipMemoryCacheAtPaths = rotatedImagePaths,
-                                    columnCount = config.mediaColumnCnt,
-                                    fallbackPath = medium.path.takeIf { it != thumbnailPath },
-                                    onError = {
-                                        // Agora sim mostra o warning
-                                        mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
-                                        mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                    if (mediumThumbnail.tag == thumbnailPath || mediumThumbnail.tag == "${thumbnailPath}_retried") {
+                        // Fallback final para videos: thumbnail direto do MediaStore,
+                        // sem depender do Glide (cobre decoders ausentes/permissao).
+                        var done = false
+                        if (medium.type == TYPE_VIDEOS && android.os.Build.VERSION.SDK_INT >= 29) {
+                            try {
+                                var id = medium.mediaStoreId
+                                if (id <= 0L) {
+                                    activity.contentResolver.query(
+                                        android.provider.MediaStore.Files.getContentUri("external"),
+                                        arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                                        "${android.provider.MediaStore.MediaColumns.DATA} = ?",
+                                        arrayOf(medium.path), null
+                                    )?.use { cur ->
+                                        if (cur.moveToFirst()) id = cur.getLong(0)
                                     }
-                                )
-                            }, 500)
-                        } else {
+                                }
+                                if (id > 0L) {
+                                    val uri = android.content.ContentUris.withAppendedId(
+                                        android.provider.MediaStore.Files.getContentUri("external"), id)
+                                    val bmp = activity.contentResolver.loadThumbnail(
+                                        uri, android.util.Size(320, 320), null)
+                                    mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                    mediumThumbnail.setImageBitmap(bmp)
+                                    done = true
+                                }
+                            } catch (_: Exception) { }
+                        }
+                        if (!done) {
                             mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
                             mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
                         }
+                    } else {
+                        mediumThumbnail.tag = "${thumbnailPath}_retried"
+                        mediumThumbnail.postDelayed({
+                            activity.loadImage(
+                                type = medium.type, path = medium.path, target = mediumThumbnail,
+                                horizontalScroll = scrollHorizontally, animateGifs = animateGifs,
+                                cropThumbnails = cropThumbnails, roundCorners = roundedCorners,
+                                signature = ObjectKey("thumbnail-v11-retry-${medium.getKey()}"),
+                                columnCount = config.mediaColumnCnt,
+                                onError = {
+                                    if (medium.type == TYPE_VIDEOS && android.os.Build.VERSION.SDK_INT >= 29) {
+                                        try {
+                                            var id2 = medium.mediaStoreId
+                                            if (id2 <= 0L) {
+                                                activity.contentResolver.query(
+                                                    android.provider.MediaStore.Files.getContentUri("external"),
+                                                    arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                                                    "${android.provider.MediaStore.MediaColumns.DATA} = ?",
+                                                    arrayOf(medium.path), null
+                                                )?.use { cur2 ->
+                                                    if (cur2.moveToFirst()) id2 = cur2.getLong(0)
+                                                }
+                                            }
+                                            if (id2 > 0L) {
+                                                val uri2 = android.content.ContentUris.withAppendedId(
+                                                    android.provider.MediaStore.Files.getContentUri("external"), id2)
+                                                val bmp2 = activity.contentResolver.loadThumbnail(
+                                                    uri2, android.util.Size(320, 320), null)
+                                                mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                                mediumThumbnail.setImageBitmap(bmp2)
+                                                return@postDelayed
+                                            }
+                                        } catch (_: Exception) { }
+                                    }
+                                    mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                    mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                                }
+                            )
+                        }, 300)
                     }
                 }
             )

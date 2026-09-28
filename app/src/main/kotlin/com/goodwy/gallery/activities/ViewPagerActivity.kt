@@ -1275,7 +1275,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private fun navigateToItem(offset: Int) {
         if (offset == 0) return
         if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) {
-            if (pendingNavigationRequests.size < 32) pendingNavigationRequests.addLast(offset.coerceIn(-1, 1))
+            if (pendingNavigationRequests.size >= 4) pendingNavigationRequests.removeFirst()
+            pendingNavigationRequests.addLast(offset.coerceIn(-1, 1))
             return
         }
 

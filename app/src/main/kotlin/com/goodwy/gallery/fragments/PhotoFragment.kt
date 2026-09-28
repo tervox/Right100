@@ -192,12 +192,12 @@ class PhotoFragment : ViewPagerFragment() {
             setupGesturesViewStateListener()
             gesturesView.setOnTouchListener { v, event ->
                 val allowDownGesture = context.config.allowDownGesture
-                val zoomedOut = abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                val zoomedOut = mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
                     com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom, mInitialZoom))
                 }
                 if (allowDownGesture) {
-                    handleEvent(event) { abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
+                    handleEvent(event) { mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
                 }
                 if (allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)
