@@ -970,7 +970,7 @@ class MediaAdapter(
                                                     uri2, android.util.Size(320, 320), null)
                                                 mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
                                                 mediumThumbnail.setImageBitmap(bmp2)
-                                                return@postDelayed
+                                                done2 = true
                                             }
                                         } catch (_: Exception) { }
                                     }
