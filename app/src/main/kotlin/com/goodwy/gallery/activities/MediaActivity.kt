@@ -528,7 +528,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaMenu.onSearchTextChangedListener = { text ->
             mLastSearchedText = text
             mSearchHandler.removeCallbacksAndMessages(null)
-            mSearchHandler.postDelayed({ searchQueryChanged(text) }, 300L)
+            mSearchHandler.postDelayed({ searchQueryChanged(text) }, 200L)
             binding.mediaRefreshLayout.isEnabled = text.isEmpty() && config.enablePullToRefresh
             binding.mediaMenu.clearSearch()
         }

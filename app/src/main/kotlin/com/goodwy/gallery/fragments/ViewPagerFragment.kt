@@ -237,8 +237,20 @@ abstract class ViewPagerFragment : Fragment() {
                 mIgnoreCloseDown = false
             }
 
-            MotionEvent.ACTION_CANCEL ->
+            MotionEvent.ACTION_CANCEL -> {
+                // Alguns filhos (zoom, player) roubam o gesto e entregam CANCEL em vez
+                // de UP - sem avaliar aqui o puxao "falha as vezes".
+                val cDiffX = mTouchDownX - event.rawX
+                val cDiffY = mTouchDownY - event.rawY
+                val cDur = System.currentTimeMillis() - mTouchDownTime
+                if (!mIgnoreCloseDown && abs(cDiffY) > abs(cDiffX) && abs(cDiffY) > mCloseDownThreshold
+                    && cDur < MAX_CLOSE_DOWN_GESTURE_DURATION && context?.config?.allowDownGesture == true && isZoomedOut()
+                ) {
+                    activity?.finish()
+                    activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
+                }
                 mIgnoreCloseDown = false
+            }
         }
     }
 }

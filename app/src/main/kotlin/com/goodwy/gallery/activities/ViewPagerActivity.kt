@@ -1311,8 +1311,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
     }
 
-    override fun goToPrevItem() = navigateToItem(-1)
-    override fun goToNextItem() = navigateToItem(1)
+    override fun goToPrevItem() {
+        val target = binding.viewPager.currentItem - 1
+        if (target >= 0) binding.viewPager.setCurrentItem(target, true)
+    }
+
+    override fun goToNextItem() {
+        val target = binding.viewPager.currentItem + 1
+        if (target < (binding.viewPager.adapter?.count ?: 0)) binding.viewPager.setCurrentItem(target, true)
+    }
     override fun launchViewVideoIntent(path: String) {}
 
     override fun onDestroy() {
