@@ -178,14 +178,6 @@ class PhotoFragment : ViewPagerFragment() {
                 if (context.config.allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)
                 }
-                // FIX 1: Impedir interceptação do ViewPager em gestos verticais
-                if (event.actionMasked == MotionEvent.ACTION_MOVE && zoomedOut && context.config.allowDownGesture) {
-                    val diffY = abs(event.rawY - mTouchDownY)
-                    val diffX = abs(event.rawX - mTouchDownX)
-                    if (diffY > 30 && diffY > diffX * 1.5) {
-                        v.parent?.requestDisallowInterceptTouchEvent(true)
-                    }
-                }
                 false
             }
 
@@ -202,14 +194,6 @@ class PhotoFragment : ViewPagerFragment() {
                 if (allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)
                 }
-                // FIX 1: Impedir interceptação do ViewPager em gestos verticais
-                if (event.actionMasked == MotionEvent.ACTION_MOVE && zoomedOut && allowDownGesture) {
-                    val diffY = abs(event.rawY - mTouchDownY)
-                    val diffX = abs(event.rawX - mTouchDownX)
-                    if (diffY > 30 && diffY > diffX * 1.5) {
-                        v.parent?.requestDisallowInterceptTouchEvent(true)
-                    }
-                }
                 false
             }
 
@@ -224,14 +208,6 @@ class PhotoFragment : ViewPagerFragment() {
                 }
                 if (zoomedOut && allowDownGesture) {
                     updateVerticalGestureInterception(v, event)
-                }
-                // FIX 1: Impedir interceptação do ViewPager em gestos verticais
-                if (event.actionMasked == MotionEvent.ACTION_MOVE && zoomedOut && allowDownGesture) {
-                    val diffY = abs(event.rawY - mTouchDownY)
-                    val diffX = abs(event.rawX - mTouchDownX)
-                    if (diffY > 30 && diffY > diffX * 1.5) {
-                        v.parent?.requestDisallowInterceptTouchEvent(true)
-                    }
                 }
                 false
             }

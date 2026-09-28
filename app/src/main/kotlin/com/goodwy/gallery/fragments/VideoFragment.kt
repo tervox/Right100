@@ -445,7 +445,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     mSeekBar.progress = mCurrTime.toInt()
                     mCurrTimeView.text = mCurrTime.getFormattedDuration()
                 }
-                mMainHandler.postDelayed(this, UPDATE_INTERVAL_MS)
+                if (mIsPlaying) {
+                    mMainHandler.postDelayed(this, UPDATE_INTERVAL_MS)
+                }
             }
         }
         mTimerRunnable = runnable

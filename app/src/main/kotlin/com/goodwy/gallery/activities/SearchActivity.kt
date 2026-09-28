@@ -35,6 +35,13 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
 
     private var mLastSearchedText = ""
 
+    @Volatile
+    private var mSearchGeneration = 0L
+
+    private val mSearchHandler =
+        android.os.Handler(android.os.Looper.getMainLooper())
+
+
     private var mCurrAsyncTask: GetMediaAsynctask? = null
     private var mAllMedia = ArrayList<ThumbnailItem>()
     private var isSpeechToTextAvailable = false
@@ -113,7 +120,13 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
 
         binding.searchMenu.onSearchTextChangedListener = { text ->
             mLastSearchedText = text
-            textChanged(text)
+            val generation = ++mSearchGeneration
+
+            mSearchHandler.removeCallbacksAndMessages(null)
+            mSearchHandler.postDelayed({
+                textChanged(text, generation)
+            }, 180L)
+
             binding.searchMenu.clearSearch()
         }
 
@@ -130,15 +143,75 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
         binding.searchMenu.updateColors()
     }
 
-    private fun textChanged(text: String) {
+    private fun textChanged(
+        text: String,
+        generation: Long = mSearchGeneration
+    ) {
+        val query = text.trim()
+
+        if (generation != mSearchGeneration ||
+            mLastSearchedText.trim() != query
+        ) {
+            return
+        }
+
+        if (query.isEmpty()) {
+            runOnUiThread {
+                if (generation != mSearchGeneration ||
+                    mLastSearchedText.trim() != query
+                ) {
+                    return@runOnUiThread
+                }
+
+                binding.searchEmptyTextPlaceholder.beGone()
+                handleGridSpacing(mAllMedia)
+                getMediaAdapter()?.updateMedia(mAllMedia)
+            }
+            return
+        }
+
         ensureBackgroundThread {
             try {
-                val filtered = mAllMedia.filter { it is Medium && it.name.contains(text, true) } as ArrayList
-                filtered.sortBy { it is Medium && !it.name.startsWith(text, true) }
-                val grouped = MediaFetcher(applicationContext).groupMedia(filtered as ArrayList<Medium>, "")
+                if (generation != mSearchGeneration ||
+                    mLastSearchedText.trim() != query
+                ) {
+                    return@ensureBackgroundThread
+                }
+
+                val filtered = mAllMedia
+                    .asSequence()
+                    .filterIsInstance<Medium>()
+                    .filter { it.name.contains(query, true) }
+                    .sortedWith(
+                        compareBy<Medium> {
+                            when {
+                                it.name.equals(query, true) -> 0
+                                it.name.startsWith(query, true) -> 1
+                                else -> 2
+                            }
+                        }.thenBy { it.name.length }
+                    )
+                    .toCollection(ArrayList())
+
+                if (generation != mSearchGeneration) {
+                    return@ensureBackgroundThread
+                }
+
+                val grouped = MediaFetcher(applicationContext).groupMedia(
+                    filtered,
+                    ""
+                )
+
                 runOnUiThread {
+                    if (generation != mSearchGeneration ||
+                        mLastSearchedText.trim() != query
+                    ) {
+                        return@runOnUiThread
+                    }
+
                     if (grouped.isEmpty()) {
-                        binding.searchEmptyTextPlaceholder.text = getString(com.goodwy.commons.R.string.no_items_found)
+                        binding.searchEmptyTextPlaceholder.text =
+                            getString(com.goodwy.commons.R.string.no_items_found)
                         binding.searchEmptyTextPlaceholder.beVisible()
                     } else {
                         binding.searchEmptyTextPlaceholder.beGone()
@@ -147,7 +220,7 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
                     handleGridSpacing(grouped)
                     getMediaAdapter()?.updateMedia(grouped)
                 }
-            } catch (ignored: Exception) {
+            } catch (_: Exception) {
             }
         }
     }
@@ -281,7 +354,7 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
         mCurrAsyncTask = GetMediaAsynctask(applicationContext, "", showAll = true) {
             mAllMedia = it.clone() as ArrayList<ThumbnailItem>
             if (updateItems) {
-                textChanged(mLastSearchedText)
+                textChanged(mLastSearchedText, mSearchGeneration)
             }
         }
 

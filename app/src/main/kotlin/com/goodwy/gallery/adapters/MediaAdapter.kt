@@ -547,17 +547,8 @@ class MediaAdapter(
                 listOf(destinationPath, sourcePath)
             )
 
-            activity.applicationContext.rescanFolderMedia(destinationPath) {
-                (activity as? MediaActivity)?.invalidateMediaFolderCaches(
-                    listOf(destinationPath)
-                )
-            }
-
-            activity.applicationContext.rescanFolderMedia(sourcePath) {
-                (activity as? MediaActivity)?.invalidateMediaFolderCaches(
-                    listOf(sourcePath)
-                )
-            }
+            rescanFolderMediaWithRetries(destinationPath)
+            rescanFolderMediaWithRetries(sourcePath)
 
             val newPaths = fileDirItems.map { "$destinationPath/${it.name}" }.toMutableList() as ArrayList<String>
 
@@ -571,6 +562,25 @@ class MediaAdapter(
                 activity.fixDateTaken(newPaths, false)
                 // Não recarregar tudo - removeMediaImmediately já atualizou a UI
                 // refreshItems() aqui causava flicker e reaparecimento do item
+            }
+        }
+    }
+
+    private fun rescanFolderMediaWithRetries(
+        path: String,
+        attempt: Int = 0
+    ) {
+        if (path.isEmpty()) return
+
+        activity.applicationContext.rescanFolderMedia(path) {
+            (activity as? MediaActivity)?.invalidateMediaFolderCaches(
+                listOf(path)
+            )
+
+            if (attempt < 2) {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    rescanFolderMediaWithRetries(path, attempt + 1)
+                }, 450L)
             }
         }
     }

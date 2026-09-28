@@ -1673,7 +1673,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         )
                 } == true
 
-                if (!hasMediaFile) {
+                if (!hasMediaFile && it.mediaCnt <= 0) {
                     invalidDirs.add(it)
                 }
             }

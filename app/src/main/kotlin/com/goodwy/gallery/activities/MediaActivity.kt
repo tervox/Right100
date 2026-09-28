@@ -529,9 +529,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaMenu.onSearchTextChangedListener = { text ->
             mLastSearchedText = text
             val generation = ++mSearchGeneration
+
             mSearchHandler.removeCallbacksAndMessages(null)
-            mSearchHandler.postDelayed({ searchQueryChanged(text, generation) }, 200L)
-            binding.mediaRefreshLayout.isEnabled = text.isEmpty() && config.enablePullToRefresh
+            mSearchHandler.postDelayed({
+                searchQueryChanged(text, generation)
+            }, 180L)
+
+            binding.mediaRefreshLayout.isEnabled =
+                text.isEmpty() && config.enablePullToRefresh
             binding.mediaMenu.clearSearch()
         }
 
@@ -1196,9 +1201,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
         if (!shouldStart) return
 
-        // O MediaStore e o Room normalmente resolvem a maior parte das durações. Para os
-        // restantes, processamos todos os vídeos em pequenos lotes no background, em vez de
-        // usar .take(4) e abandonar silenciosamente o quinto item em diante.
         ensureBackgroundThread {
             try {
                 val persistedDurations = try {
@@ -1213,38 +1215,82 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     emptyMap()
                 }
 
-                videosWithout.chunked(4).forEach { batch ->
-                    batch.forEach { medium ->
-                        if (requestedPath != mPath || isDestroyed) return@ensureBackgroundThread
-                        try {
-                            val persisted = persistedDurations[medium.path]
-                            val duration = persisted ?: android.media.MediaMetadataRetriever().use { retriever ->
-                                if (medium.path.startsWith("content://")) {
-                                    retriever.setDataSource(this, medium.path.toUri())
-                                } else {
-                                    retriever.setDataSource(medium.path)
-                                }
-                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-                                    ?.toLongOrNull()?.div(1000L)?.toInt() ?: 0
-                            }
-                            if (duration > 0) {
-                                medium.videoDuration = duration
-                                if (persisted == null) {
-                                    try { mediaDB.updateVideoDuration(medium.path, duration) } catch (_: Exception) {}
-                                }
-                                runOnUiThread {
-                                    if (requestedPath == mPath && !isDestroyed) {
-                                        getMediaAdapter()?.updateVideoDuration(medium.path, duration)
+                if (requestedPath != mPath || isDestroyed) {
+                    return@ensureBackgroundThread
+                }
+
+                val executor = java.util.concurrent.Executors.newFixedThreadPool(
+                    minOf(4, videosWithout.size)
+                )
+
+                try {
+                    val futures = videosWithout.map { medium ->
+                        executor.submit<Pair<Medium, Int>?> {
+                            try {
+                                val persisted = persistedDurations[medium.path]
+
+                                val duration = persisted ?: android.media.MediaMetadataRetriever().use { retriever ->
+                                    if (medium.path.startsWith("content://")) {
+                                        retriever.setDataSource(this, medium.path.toUri())
+                                    } else {
+                                        retriever.setDataSource(medium.path)
                                     }
+
+                                    retriever.extractMetadata(
+                                        android.media.MediaMetadataRetriever.METADATA_KEY_DURATION
+                                    )?.toLongOrNull()?.div(1000L)?.toInt() ?: 0
+                                }
+
+                                if (duration > 0) {
+                                    Pair(medium, duration)
+                                } else {
+                                    null
+                                }
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
+                    }
+
+                    futures.forEach { future ->
+                        if (requestedPath != mPath || isDestroyed) {
+                            return@ensureBackgroundThread
+                        }
+
+                        try {
+                            val result = future.get() ?: return@forEach
+                            val medium = result.first
+                            val duration = result.second
+                            val persisted = persistedDurations[medium.path]
+
+                            medium.videoDuration = duration
+
+                            if (persisted == null) {
+                                try {
+                                    mediaDB.updateVideoDuration(medium.path, duration)
+                                } catch (_: Exception) {
+                                }
+                            }
+
+                            runOnUiThread {
+                                if (requestedPath == mPath && !isDestroyed) {
+                                    getMediaAdapter()?.updateVideoDuration(
+                                        medium.path,
+                                        duration
+                                    )
                                 }
                             }
                         } catch (_: Exception) {
                         }
                     }
+                } finally {
+                    executor.shutdownNow()
                 }
             } finally {
                 synchronized(durationFillLock) {
-                    if (durationFillPath == requestedPath) durationFillPath = ""
+                    if (durationFillPath == requestedPath) {
+                        durationFillPath = ""
+                    }
                 }
             }
         }
