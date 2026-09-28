@@ -540,9 +540,24 @@ class MediaAdapter(
 
         activity.tryCopyMoveFilesTo(fileDirItems, isCopyOperation) {
             val destinationPath = it
+            val sourcePath = fileDirItems.first().getParentPath()
             config.tempFolderPath = ""
-            activity.applicationContext.rescanFolderMedia(destinationPath)
-            activity.applicationContext.rescanFolderMedia(fileDirItems.first().getParentPath())
+
+            (activity as? MediaActivity)?.invalidateMediaFolderCaches(
+                listOf(destinationPath, sourcePath)
+            )
+
+            activity.applicationContext.rescanFolderMedia(destinationPath) {
+                (activity as? MediaActivity)?.invalidateMediaFolderCaches(
+                    listOf(destinationPath)
+                )
+            }
+
+            activity.applicationContext.rescanFolderMedia(sourcePath) {
+                (activity as? MediaActivity)?.invalidateMediaFolderCaches(
+                    listOf(sourcePath)
+                )
+            }
 
             val newPaths = fileDirItems.map { "$destinationPath/${it.name}" }.toMutableList() as ArrayList<String>
 
@@ -914,7 +929,8 @@ class MediaAdapter(
                         if (medium.type == TYPE_VIDEOS && android.os.Build.VERSION.SDK_INT >= 29) {
                             try {
                                 var mediaId = medium.mediaStoreId
-                                if (mediaId <= 0L) {
+
+                                if (mediaId <= 0L && !medium.path.startsWith("content://")) {
                                     val cursor = activity.contentResolver.query(
                                         android.provider.MediaStore.Files.getContentUri("external"),
                                         arrayOf(android.provider.MediaStore.MediaColumns._ID),
@@ -923,16 +939,41 @@ class MediaAdapter(
                                     )
                                     cursor?.use { if (it.moveToFirst()) mediaId = it.getLong(0) }
                                 }
-                                if (mediaId > 0L) {
-                                    val uri = android.content.ContentUris.withAppendedId(
-                                        android.provider.MediaStore.Files.getContentUri("external"), mediaId)
-                                    val bmp = activity.contentResolver.loadThumbnail(
-                                        uri, android.util.Size(320, 320), null)
+
+                                val uri = when {
+                                    medium.path.startsWith("content://") ->
+                                        android.net.Uri.parse(medium.path)
+
+                                    mediaId > 0L ->
+                                        android.content.ContentUris.withAppendedId(
+                                            android.provider.MediaStore.Files.getContentUri("external"),
+                                            mediaId
+                                        )
+
+                                    else -> null
+                                }
+
+                                val bmp = if (uri != null) {
+                                    activity.contentResolver.loadThumbnail(
+                                        uri,
+                                        android.util.Size(320, 320),
+                                        null
+                                    )
+                                } else {
+                                    android.media.ThumbnailUtils.createVideoThumbnail(
+                                        medium.path,
+                                        android.util.Size(320, 320),
+                                        null
+                                    )
+                                }
+
+                                if (bmp != null) {
                                     mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
                                     mediumThumbnail.setImageBitmap(bmp)
                                     fallbackLoaded = true
                                 }
-                            } catch (e: Exception) { }
+                            } catch (_: Exception) {
+                            }
                         }
                         if (!fallbackLoaded) {
                             if (medium.type == TYPE_VIDEOS) {
@@ -945,7 +986,22 @@ class MediaAdapter(
                                     var bmp: android.graphics.Bitmap? = null
                                     try {
                                         val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
-                                        bmp = android.graphics.BitmapFactory.decodeFile(medium.path, opts)
+                                        bmp = if (medium.path.startsWith("content://")) {
+                                            activity.contentResolver
+                                                .openInputStream(android.net.Uri.parse(medium.path))
+                                                ?.use {
+                                                    android.graphics.BitmapFactory.decodeStream(
+                                                        it,
+                                                        null,
+                                                        opts
+                                                    )
+                                                }
+                                        } else {
+                                            android.graphics.BitmapFactory.decodeFile(
+                                                medium.path,
+                                                opts
+                                            )
+                                        }
                                     } catch (_: Exception) { }
                                     val finalBmp = bmp
                                     activity.runOnUiThread {

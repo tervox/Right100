@@ -486,13 +486,13 @@ fun Context.getNoMediaFoldersSync(): ArrayList<String> {
     return folders
 }
 
-fun Context.rescanFolderMedia(path: String) {
+fun Context.rescanFolderMedia(path: String, callback: (() -> Unit)? = null) {
     ensureBackgroundThread {
-        rescanFolderMediaSync(path)
+        rescanFolderMediaSync(path, callback)
     }
 }
 
-fun Context.rescanFolderMediaSync(path: String) {
+fun Context.rescanFolderMediaSync(path: String, callback: (() -> Unit)? = null) {
     getCachedMedia(path) { cached ->
         GetMediaAsynctask(
             context = applicationContext,
@@ -526,6 +526,9 @@ fun Context.rescanFolderMediaSync(path: String) {
                     applicationContext.saveMediaSnapshot(path, newMedia)
                 } catch (ignored: Exception) {
                 }
+
+                callback?.invoke()
+
                 com.goodwy.gallery.App.logGesture("rescanFolderMediaSync path=$path items=${newMedia.size}")
             }
         }.execute()

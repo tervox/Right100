@@ -244,7 +244,7 @@ abstract class ViewPagerFragment : Fragment() {
                 val cDiffY = mTouchDownY - event.rawY
                 val cDur = System.currentTimeMillis() - mTouchDownTime
                 if (!mIgnoreCloseDown && abs(cDiffY) > abs(cDiffX) && abs(cDiffY) > mCloseDownThreshold
-                    && cDur < MAX_CLOSE_DOWN_GESTURE_DURATION && context?.config?.allowDownGesture == true && isZoomedOut()
+                    && cDur < MAX_CLOSE_DOWN_GESTURE_DURATION * 3 && context?.config?.allowDownGesture == true && isZoomedOut()
                 ) {
                     activity?.finish()
                     activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)

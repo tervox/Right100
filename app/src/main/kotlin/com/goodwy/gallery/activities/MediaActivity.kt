@@ -72,6 +72,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mWasFullscreenViewOpen = false
     private var mTabsHideListenerAdded = false
     private var mLastSearchedText = ""
+    @Volatile private var mSearchGeneration = 0L
     private var mLatestMediaId = 0L
     private var mLatestMediaDateId = 0L
     private var mLastMediaHandler = Handler()
@@ -527,8 +528,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         binding.mediaMenu.onSearchTextChangedListener = { text ->
             mLastSearchedText = text
+            val generation = ++mSearchGeneration
             mSearchHandler.removeCallbacksAndMessages(null)
-            mSearchHandler.postDelayed({ searchQueryChanged(text) }, 200L)
+            mSearchHandler.postDelayed({ searchQueryChanged(text, generation) }, 200L)
             binding.mediaRefreshLayout.isEnabled = text.isEmpty() && config.enablePullToRefresh
             binding.mediaMenu.clearSearch()
         }
@@ -611,16 +613,23 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
-    private fun searchQueryChanged(text: String) {
+    private fun searchQueryChanged(text: String, generation: Long = mSearchGeneration) {
         ensureBackgroundThread {
             try {
-                val filtered = mMedia
+                val currentMedia =
+                    synchronized(mediaLock) { mMedia.clone() as ArrayList<ThumbnailItem> }
+
+                val filtered = currentMedia
                     .filter { it is Medium && it.name.contains(text, true) } as ArrayList
                 filtered.sortBy { it is Medium && !it.name.startsWith(text, true) }
                 val grouped = MediaFetcher(applicationContext).groupMedia(
                     media = filtered as ArrayList<Medium>, path = mPath
                 )
                 runOnUiThread {
+                    if (generation != mSearchGeneration || text != mLastSearchedText) {
+                        return@runOnUiThread
+                    }
+
                     if (grouped.isEmpty()) {
                         binding.mediaEmptyTextPlaceholder.text =
                             getString(com.goodwy.commons.R.string.no_items_found)
@@ -951,7 +960,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun getMedia(forceRefresh: Boolean = false) {
         if (mIsGettingMedia) {
-            return
+            if (!forceRefresh) return
+
+            mCurrAsyncTask?.stopFetching()
+            mCurrAsyncTask = null
+            mIsGettingMedia = false
+            binding.loadingIndicator.hide()
+            binding.mediaRefreshLayout.isRefreshing = false
         }
 
         if (forceRefresh) {
@@ -1580,10 +1595,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 binding.mediaEmptyTextPlaceholder.text = getString(R.string.no_media_with_filters)
             }
             binding.mediaFastscroller.beVisibleIf(binding.mediaEmptyTextPlaceholder.isGone())
-            // O cache do Room também é uma fonte válida para a primeira pintura.
-            // Antes, isFromCache=true deixava a grade sem adapter até o scan terminar,
-            // anulando todo o ganho e fazendo a entrada parecer travada por segundos.
-            if (filteredMedia.isNotEmpty() || !isFromCache) setupAdapter()
+            // Uma reconciliacao do scan nao pode sobrescrever uma pesquisa ativa.
+            if (mLastSearchedText.isNotEmpty()) {
+                searchQueryChanged(mLastSearchedText, mSearchGeneration)
+            } else if (filteredMedia.isNotEmpty() || !isFromCache) {
+                setupAdapter()
+            }
         }
 
         if (!isFromCache) {
@@ -1696,6 +1713,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     override fun refreshItems() {
         getMedia(forceRefresh = true)
+    }
+
+    fun invalidateMediaFolderCaches(paths: Collection<String>) {
+        synchronized(mFolderMediaCache) {
+            paths.forEach { path ->
+                mFolderMediaCache.remove(path)
+                mFolderMediaCacheUpdatedAt.remove(path)
+            }
+        }
+
+        if (paths.contains(mPath)) {
+            mMediaInvalidated = true
+            mLastSuccessfulMediaLoadAt = 0L
+        }
     }
 
     override fun removeMediaImmediately(paths: List<String>) {

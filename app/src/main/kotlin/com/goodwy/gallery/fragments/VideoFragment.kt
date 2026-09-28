@@ -275,11 +275,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
                     com.goodwy.gallery.App.logGesture("videoSurfaceFrame gate hasInitialZoom=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f isLongPress=%b".format(mHasVideoInitialZoom, zoomedOut, mCurrentVideoZoom, mVideoInitialZoom, mIsLongPressActive))
                 }
-                // See PhotoFragment's touch listeners for why handleEvent() must
-                // always run (unconditionally) rather than being gated on zoomedOut -
-                // gating it meant ACTION_DOWN could be skipped while the zoom was
-                // still settling, leaving mTouchDownTime stale for the whole gesture.
-                if (videoSurfaceFrame.controller.state.zoom == 1f) handleEvent(event)
+                // handleEvent precisa receber o ciclo inteiro do toque.
+                // O zoom e validado dentro da decisao de fechamento, evitando
+                // perder ACTION_DOWN/UP/CANCEL enquanto o zoom assenta.
+                handleEvent(event)
                 handleTouchHoldEvent(event)
                 if (mIsLongPressActive) return@setOnTouchListener true
                 // Bloquear ViewPager de interceptar quando detectar puxão vertical

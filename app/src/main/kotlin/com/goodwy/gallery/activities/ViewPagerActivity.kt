@@ -1288,27 +1288,24 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun navigateToItem(offset: Int) {
         if (offset == 0) return
-        if (pagerTransitionAnimator?.isRunning == true || binding.viewPager.isFakeDragging || pagerScrollState != ViewPager.SCROLL_STATE_IDLE) {
-            // Com efeito de transicao ativo (esmaecer etc.), enfileirar toques
-            // rapidos acumulava transicoes fake-drag que deixavam o pager em
-            // estado inconsistente (travamento). Descarta o toque durante a
-            // transicao; o proximo toque apos assentar funciona normalmente.
-            return
-        }
 
         val current = binding.viewPager.currentItem
         val target = current + offset
         if (target !in mMediums.indices) return
-        val relevantAnimation = if (involvesVideo(current, target)) config.videoViewerAnimation else config.photoViewerAnimation
+
+        val relevantAnimation =
+            if (involvesVideo(current, target)) config.videoViewerAnimation
+            else config.photoViewerAnimation
+
         if (!mIsSlideshowActive && relevantAnimation != SLIDESHOW_ANIMATION_NONE) {
             applyViewerTransformer(current, target)
-            mRandomTransformerAppliedForGesture = relevantAnimation == SLIDESHOW_ANIMATION_RANDOM
-            // Usa fake drag animado para que o PageTransformer produza o efeito visual
-            // (fade, cube, depth, slide, etc.) também em trocas por clique nas laterais.
-            animatePagerTransition(offset > 0)
-        } else {
-            binding.viewPager.setCurrentItem(target, true)
+            mRandomTransformerAppliedForGesture =
+                relevantAnimation == SLIDESHOW_ANIMATION_RANDOM
         }
+
+        // A troca normal usa o smooth scroll do ViewPager.
+        // Fake-drag fica reservado para o slideshow.
+        binding.viewPager.setCurrentItem(target, true)
     }
 
     override fun goToPrevItem() {
