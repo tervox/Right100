@@ -964,7 +964,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // A lista e os requests do Glide já estão vivos; não reinicie o scanner
             // só porque a Activity voltou do visualizador ou foi recriada.
             mIsGettingMedia = false
-            runOnUiThread { setupAdapter() }
+            runOnUiThread { setupAdapter(); binding.loadingIndicator.hide(); binding.mediaRefreshLayout.isRefreshing = false }
             return
         }
 
@@ -985,7 +985,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 mMediaPath = mPath
             }
             mMediaInvalidated = !folderCacheFresh
-            runOnUiThread { setupAdapter() }
+            runOnUiThread { setupAdapter(); binding.loadingIndicator.hide(); binding.mediaRefreshLayout.isRefreshing = false }
             mIsGettingMedia = false
             if (!folderCacheFresh) {
                 binding.mediaGrid.post { if (!isDestroyed && mPath == mMediaPath) startAsyncTask() }
@@ -1032,6 +1032,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         // tentativa anterior de calculá-los antes de setupAdapter()
                         // fez toda abertura de pasta esperar duas consultas extras.
                         setupAdapter()
+                        binding.loadingIndicator.hide()
+                        binding.mediaRefreshLayout.isRefreshing = false
                         binding.mediaGrid.post {
                             if (isDestroyed || isFinishing || mPath != mMediaPath) return@post
                             ensureBackgroundThread {
@@ -1069,7 +1071,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // consultar Room e iniciar o scanner antes disso competia com o Glide durante a entrada.
         if (!forceRefresh && mMedia.isNotEmpty() && mMediaPath == mPath) {
             mIsGettingMedia = false
-            runOnUiThread { setupAdapter() }
+            runOnUiThread { setupAdapter(); binding.loadingIndicator.hide(); binding.mediaRefreshLayout.isRefreshing = false }
             checkLastMediaChanged()
             mLoadedInitialPhotos = true
             return
@@ -1088,7 +1090,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         ) { cached ->
             if (requestedPath != mPath || isDestroyed || isFinishing) return@getCachedMedia
             if (cached.isEmpty()) {
-                runOnUiThread { binding.mediaRefreshLayout.isRefreshing = true }
+                runOnUiThread { binding.mediaRefreshLayout.isRefreshing = false }
             } else {
                 gotMedia(cached, true)
             }
