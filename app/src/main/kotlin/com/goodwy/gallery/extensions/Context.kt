@@ -1420,6 +1420,7 @@ fun Context.getCachedMedia(
                 if (mediaToDelete.isNotEmpty()) {
                     try {
                         mediaDB.deleteMedia(*mediaToDelete.toTypedArray())
+                        saveMediaSnapshot(path, media.filter { !mediaToDelete.contains(it) })
 
                         mediaToDelete.filter { it.isFavorite }.forEach {
                             favoritesDB.deleteFavoritePath(it.path)

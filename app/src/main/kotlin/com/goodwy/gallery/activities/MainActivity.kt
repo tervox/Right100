@@ -105,6 +105,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mMediaStoreObserver: ContentObserver? = null
     private val mMediaObserverHandler = Handler(Looper.getMainLooper())
     private var mMediaStoreDirty = false
+    private val mRefreshHandler = Handler(Looper.getMainLooper())
 
     private var mStoredAnimateGifs = true
     private var mStoredCropThumbnails = true
@@ -348,6 +349,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             val observer = object : ContentObserver(mMediaObserverHandler) {
                 override fun onChange(selfChange: Boolean) {
                     mMediaStoreDirty = true
+                    mRefreshHandler.removeCallbacksAndMessages(null)
+                    mRefreshHandler.postDelayed({
+                        if (!mIsGettingDirs && binding.directoriesGrid.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+                            mMediaStoreDirty = false
+                            getDirectories()
+                        }
+                    }, 500)
                 }
             }
             contentResolver.registerContentObserver(
@@ -363,6 +371,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override fun onPause() {
         super.onPause()
         binding.directoriesRefreshLayout.isRefreshing = false
+        mRefreshHandler.removeCallbacksAndMessages(null)
         mIsGettingDirs = false
         storeStateVariables()
         mLastMediaHandler.removeCallbacksAndMessages(null)
