@@ -284,7 +284,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (mIsLongPressActive) return@setOnTouchListener true
                 // Bloquear ViewPager de interceptar quando detectar puxão vertical
                 updateVerticalGestureInterception(v, event)
-                gestureDetector.onTouchEvent(event)
+                // Detecta puxão vertical (fechar player) - se detectar, NÃO passa para
+                // o GestureDetector que consome swipes e impede o gesto de fechar
+                val isVerticalSwipe = event.historySize > 2 && run {
+                    val dx = kotlin.math.abs(event.x - event.getHistoricalX(0))
+                    val dy = kotlin.math.abs(event.y - event.getHistoricalY(0))
+                    dy > dx * 1.5f && dy > 50f
+                }
+                if (!isVerticalSwipe) {
+                    gestureDetector.onTouchEvent(event)
+                }
                 false
             }
         }
