@@ -909,8 +909,34 @@ class MediaAdapter(
                 fallbackPath = medium.path.takeIf { it != thumbnailPath },
                 onError = {
                     if (mediumThumbnail.tag == thumbnailPath) {
-                        mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
-                        mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                        // FIX 5: Tentar recarregar uma vez antes de mostrar warning
+                        if (mediumThumbnail.tag != "${thumbnailPath}_retry") {
+                            mediumThumbnail.tag = "${thumbnailPath}_retry"
+                            // Tentar novamente após 500ms
+                            mediumThumbnail.postDelayed({
+                                activity.loadImage(
+                                    type = medium.type,
+                                    path = thumbnailPath,
+                                    target = mediumThumbnail,
+                                    horizontalScroll = scrollHorizontally,
+                                    animateGifs = animateGifs,
+                                    cropThumbnails = cropThumbnails,
+                                    roundCorners = roundedCorners,
+                                    signature = ObjectKey("thumbnail-v11-retry-${medium.getKey()}"),
+                                    skipMemoryCacheAtPaths = rotatedImagePaths,
+                                    columnCount = config.mediaColumnCnt,
+                                    fallbackPath = medium.path.takeIf { it != thumbnailPath },
+                                    onError = {
+                                        // Agora sim mostra o warning
+                                        mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                        mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                                    }
+                                )
+                            }, 500)
+                        } else {
+                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                            mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                        }
                     }
                 }
             )
