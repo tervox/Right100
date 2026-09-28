@@ -1112,13 +1112,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
             mCurrAsyncTask?.stopFetching()
             val requestedPath = mPath
-            // Safety net: garante que o spinner seja desligado mesmo se o AsyncTask falhar
-            val spinnerSafetyTimeout = Handler(Looper.getMainLooper()).postDelayed({
-                if (!isDestroyed && mPath == requestedPath) {
-                    binding.mediaRefreshLayout.isRefreshing = false
-                }
-            }, 10000) // 10 segundos de timeout
-            
             val task = GetMediaAsynctask(
                 context = applicationContext,
                 mPath = requestedPath,
@@ -1572,7 +1565,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         runOnUiThread {
             binding.loadingIndicator.hide()
             binding.mediaRefreshLayout.isRefreshing = false
-            // Cancela o safety net se gotMedia() foi chamado com sucesso
             binding.mediaEmptyTextPlaceholder.beVisibleIf(filteredMedia.isEmpty() && !isFromCache)
             binding.mediaEmptyTextPlaceholder2.beVisibleIf(filteredMedia.isEmpty() && !isFromCache)
 
