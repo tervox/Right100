@@ -75,6 +75,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mLatestMediaId = 0L
     private var mLatestMediaDateId = 0L
     private var mLastMediaHandler = Handler()
+    private val mSearchHandler = Handler()
     private var mTempShowHiddenHandler = Handler()
     private var mCurrAsyncTask: GetMediaAsynctask? = null
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
@@ -526,7 +527,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         binding.mediaMenu.onSearchTextChangedListener = { text ->
             mLastSearchedText = text
-            searchQueryChanged(text)
+            mSearchHandler.removeCallbacksAndMessages(null)
+            mSearchHandler.postDelayed({ searchQueryChanged(text) }, 300L)
             binding.mediaRefreshLayout.isEnabled = text.isEmpty() && config.enablePullToRefresh
             binding.mediaMenu.clearSearch()
         }
@@ -1034,8 +1036,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         setupAdapter()
                         binding.loadingIndicator.hide()
                         binding.mediaRefreshLayout.isRefreshing = false
+                        mIsGettingMedia = false
                         binding.mediaGrid.post {
                             if (isDestroyed || isFinishing || mPath != mMediaPath) return@post
+                            // Snapshot pode estar incompleto/desatualizado: completa a
+                            // lista com scan em background, sem spinner. Sem isso,
+                            // mIsGettingMedia ficava true para sempre e bloqueava
+                            // toda recarga (lista pela metade + pull-to-refresh morto).
+                            startAsyncTask()
                             ensureBackgroundThread {
                                 // mLatestMediaId/mLatestMediaDateId só eram calculados
                                 // dentro de gotMedia() (depois de uma varredura de

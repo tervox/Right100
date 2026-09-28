@@ -208,7 +208,7 @@ abstract class ViewPagerFragment : Fragment() {
                 val cond1 = !mIgnoreCloseDown
                 val cond2 = abs(diffY) > abs(diffX)
                 val cond3 = abs(diffY) > mCloseDownThreshold
-                val cond4 = downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION
+                val cond4 = downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION * 3
                 val cond5 = context?.config?.allowDownGesture == true
                 val cond6 = isZoomedOut()
                 com.goodwy.gallery.App.logGesture(

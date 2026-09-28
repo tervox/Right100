@@ -935,8 +935,34 @@ class MediaAdapter(
                             } catch (e: Exception) { }
                         }
                         if (!fallbackLoaded) {
-                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
-                            mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                            if (medium.type == TYPE_VIDEOS) {
+                                mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                            } else {
+                                // Glide falhou em imagem: decodifica direto do arquivo
+                                val targetTag = thumbnailPath
+                                ensureBackgroundThread {
+                                    var bmp: android.graphics.Bitmap? = null
+                                    try {
+                                        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                                        bmp = android.graphics.BitmapFactory.decodeFile(medium.path, opts)
+                                    } catch (_: Exception) { }
+                                    val finalBmp = bmp
+                                    activity.runOnUiThread {
+                                        if (mediumThumbnail.tag == targetTag) {
+                                            if (finalBmp != null) {
+                                                mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                                mediumThumbnail.setImageBitmap(finalBmp)
+                                            } else {
+                                                mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                                mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                                            }
+                                        } else {
+                                            finalBmp?.recycle()
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
