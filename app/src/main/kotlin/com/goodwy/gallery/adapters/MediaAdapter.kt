@@ -961,7 +961,7 @@ class MediaAdapter(
                                     )
                                 } else {
                                     android.media.ThumbnailUtils.createVideoThumbnail(
-                                        medium.path,
+                                        java.io.File(medium.path),
                                         android.util.Size(320, 320),
                                         null
                                     )
