@@ -937,44 +937,65 @@ class MediaAdapter(
                         var fallbackLoaded = false
                         
                         if (medium.type == TYPE_VIDEOS && android.os.Build.VERSION.SDK_INT >= 29) {
+                            fun loadViaUri(uri: android.net.Uri?): android.graphics.Bitmap? {
+                                if (uri == null) return null
+                                return try {
+                                    activity.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+                                } catch (_: Exception) {
+                                    null
+                                }
+                            }
+
                             try {
-                                var mediaId = medium.mediaStoreId
+                                // medium.mediaStoreId pode estar desatualizado (MediaStore
+                                // reatribui _id quando o arquivo e reescaneado). Antes so
+                                // buscava um _id novo quando o campo vinha vazio (<= 0L) -
+                                // nunca quando vinha errado, e um _id errado falha igual ao
+                                // content:// que ja falhou acima, sem nunca chegar no
+                                // ThumbnailUtils. Agora tenta o cacheado e, se falhar, busca
+                                // o _id atual pelo DATA antes de desistir.
+                                val mediaId = medium.mediaStoreId
 
-                                if (mediaId <= 0L && !medium.path.startsWith("content://")) {
-                                    val cursor = activity.contentResolver.query(
-                                        android.provider.MediaStore.Files.getContentUri("external"),
-                                        arrayOf(android.provider.MediaStore.MediaColumns._ID),
-                                        "${android.provider.MediaStore.MediaColumns.DATA} = ?",
-                                        arrayOf(medium.path), null
-                                    )
-                                    cursor?.use { if (it.moveToFirst()) mediaId = it.getLong(0) }
-                                }
-
-                                val uri = when {
-                                    medium.path.startsWith("content://") ->
-                                        android.net.Uri.parse(medium.path)
-
-                                    mediaId > 0L ->
-                                        android.content.ContentUris.withAppendedId(
-                                            android.provider.MediaStore.Files.getContentUri("external"),
-                                            mediaId
-                                        )
-
-                                    else -> null
-                                }
-
-                                val bmp = if (uri != null) {
-                                    activity.contentResolver.loadThumbnail(
-                                        uri,
-                                        android.util.Size(320, 320),
-                                        null
-                                    )
+                                var bmp = if (medium.path.startsWith("content://")) {
+                                    loadViaUri(android.net.Uri.parse(medium.path))
                                 } else {
-                                    android.media.ThumbnailUtils.createVideoThumbnail(
-                                        java.io.File(medium.path),
-                                        android.util.Size(320, 320),
-                                        null
+                                    loadViaUri(
+                                        if (mediaId > 0L) {
+                                            android.content.ContentUris.withAppendedId(
+                                                android.provider.MediaStore.Files.getContentUri("external"), mediaId
+                                            )
+                                        } else null
                                     )
+                                }
+
+                                if (bmp == null && !medium.path.startsWith("content://")) {
+                                    val freshId = try {
+                                        activity.contentResolver.query(
+                                            android.provider.MediaStore.Files.getContentUri("external"),
+                                            arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                                            "${android.provider.MediaStore.MediaColumns.DATA} = ?",
+                                            arrayOf(medium.path), null
+                                        )?.use { if (it.moveToFirst()) it.getLong(0) else -1L } ?: -1L
+                                    } catch (_: Exception) {
+                                        -1L
+                                    }
+                                    if (freshId > 0L && freshId != mediaId) {
+                                        bmp = loadViaUri(
+                                            android.content.ContentUris.withAppendedId(
+                                                android.provider.MediaStore.Files.getContentUri("external"), freshId
+                                            )
+                                        )
+                                    }
+                                }
+
+                                if (bmp == null) {
+                                    bmp = try {
+                                        android.media.ThumbnailUtils.createVideoThumbnail(
+                                            java.io.File(medium.path), android.util.Size(320, 320), null
+                                        )
+                                    } catch (_: Exception) {
+                                        null
+                                    }
                                 }
 
                                 if (bmp != null) {

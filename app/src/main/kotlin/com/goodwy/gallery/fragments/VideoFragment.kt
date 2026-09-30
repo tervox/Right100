@@ -278,7 +278,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 // handleEvent precisa receber o ciclo inteiro do toque.
                 // O zoom e validado dentro da decisao de fechamento, evitando
                 // perder ACTION_DOWN/UP/CANCEL enquanto o zoom assenta.
-                handleEvent(event)
+                handleEvent(event) { zoomedOut }
                 handleTouchHoldEvent(event)
                 if (mIsLongPressActive) return@setOnTouchListener true
                 // Bloquear ViewPager de interceptar quando detectar puxão vertical

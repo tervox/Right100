@@ -1229,16 +1229,57 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                             try {
                                 val persisted = persistedDurations[medium.path]
 
-                                val duration = persisted ?: android.media.MediaMetadataRetriever().use { retriever ->
-                                    if (medium.path.startsWith("content://")) {
-                                        retriever.setDataSource(this, medium.path.toUri())
-                                    } else {
-                                        retriever.setDataSource(medium.path)
+                                fun retrieveDuration(setSource: (android.media.MediaMetadataRetriever) -> Unit): Int {
+                                    return try {
+                                        android.media.MediaMetadataRetriever().use { retriever ->
+                                            setSource(retriever)
+                                            retriever.extractMetadata(
+                                                android.media.MediaMetadataRetriever.METADATA_KEY_DURATION
+                                            )?.toLongOrNull()?.div(1000L)?.toInt() ?: 0
+                                        }
+                                    } catch (_: Exception) {
+                                        0
                                     }
+                                }
 
-                                    retriever.extractMetadata(
-                                        android.media.MediaMetadataRetriever.METADATA_KEY_DURATION
-                                    )?.toLongOrNull()?.div(1000L)?.toInt() ?: 0
+                                var duration = persisted ?: if (medium.path.startsWith("content://")) {
+                                    retrieveDuration { it.setDataSource(this, medium.path.toUri()) }
+                                } else {
+                                    retrieveDuration { it.setDataSource(medium.path) }
+                                }
+
+                                // Mesmo muro de scoped storage dos thumbnails (ver onError no
+                                // MediaAdapter): um caminho bruto de arquivo de outro app pode
+                                // ser ilegivel no Android 11+ sem "acesso a todos os arquivos" -
+                                // isto falhava calado aqui e travava a duracao em 0 ("00:00")
+                                // pra sempre. Tenta de novo via content:// do MediaStore,
+                                // resolvendo um _id atual se o salvo em cache estiver errado.
+                                if (persisted == null && duration <= 0 && !medium.path.startsWith("content://") && android.os.Build.VERSION.SDK_INT >= 29) {
+                                    val cachedId = medium.mediaStoreId
+                                    if (cachedId > 0L) {
+                                        duration = retrieveDuration {
+                                            val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Files.getContentUri("external"), cachedId)
+                                            it.setDataSource(this, uri)
+                                        }
+                                    }
+                                    if (duration <= 0) {
+                                        val freshId = try {
+                                            contentResolver.query(
+                                                android.provider.MediaStore.Files.getContentUri("external"),
+                                                arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                                                "${android.provider.MediaStore.MediaColumns.DATA} = ?",
+                                                arrayOf(medium.path), null
+                                            )?.use { c -> if (c.moveToFirst()) c.getLong(0) else -1L } ?: -1L
+                                        } catch (_: Exception) {
+                                            -1L
+                                        }
+                                        if (freshId > 0L && freshId != cachedId) {
+                                            duration = retrieveDuration {
+                                                val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Files.getContentUri("external"), freshId)
+                                                it.setDataSource(this, uri)
+                                            }
+                                        }
+                                    }
                                 }
 
                                 if (duration > 0) {
