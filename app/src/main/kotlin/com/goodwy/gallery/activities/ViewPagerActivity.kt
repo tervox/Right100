@@ -1186,6 +1186,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
 
     override fun onPageSelected(position: Int) {
+        val navT0 = android.os.SystemClock.uptimeMillis()
         mPos = position
         updateTitle()
         // A visibilidade dos botões dependia apenas do onResume. Depois de trocar
@@ -1195,6 +1196,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         refreshMenuItems()
         scheduleSwipe()
         refreshCurrentPageState(position)
+        com.goodwy.gallery.App.logGesture("NAVDIAG onPageSelected pos=$position tomou=${android.os.SystemClock.uptimeMillis() - navT0}ms")
     }
 
     private fun refreshCurrentPageState(position: Int, attempt: Int = 0) {
@@ -1305,6 +1307,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
         // A troca normal usa o smooth scroll do ViewPager.
         // Fake-drag fica reservado para o slideshow.
+        com.goodwy.gallery.App.logGesture("NAVDIAG toque offset=$offset ${current}->${target} anim=$relevantAnimation")
         binding.viewPager.setCurrentItem(target, true)
     }
 

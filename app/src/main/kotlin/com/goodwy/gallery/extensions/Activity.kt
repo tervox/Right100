@@ -347,6 +347,43 @@ fun BaseSimpleActivity.toggleFileVisibility(oldPath: String, hide: Boolean, call
     }
 }
 
+// Diagnostico temporario: o toast de erro ao copiar/mover vem cortado e a excecao e tratada
+// dentro do commons (nem crash_log nem logcat mostram o texto). Reproduz aqui, em background e
+// com try/catch, o primeiro passo do commons (abrir o destino pra escrita) e grava tudo em
+// gesture_log.txt (linhas COPYDIAG).
+private fun BaseSimpleActivity.logCopyMoveDiagnostics(
+    fileDirItems: ArrayList<FileDirItem>, source: String, destination: String, isCopyOperation: Boolean
+) {
+    val firstItem = fileDirItems.first()
+    val sdk = android.os.Build.VERSION.SDK_INT
+    com.goodwy.gallery.App.logGesture("COPYDIAG inicio copy=$isCopyOperation sdk=$sdk itens=${fileDirItems.size} source=$source destino=$destination primeiro=${firstItem.path}")
+    ensureBackgroundThread {
+        fun fmt(e: Throwable): String = e.toString() + " @ " + e.stackTrace.take(10).joinToString(" | ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+        try {
+            val allFiles = if (sdk >= 30) android.os.Environment.isExternalStorageManager() else true
+            com.goodwy.gallery.App.logGesture("COPYDIAG allFilesAccess=$allFiles srcExists=${File(firstItem.path).exists()} srcCanRead=${File(firstItem.path).canRead()} dstExists=${File(destination).exists()} dstIsDir=${File(destination).isDirectory} dstCanWrite=${File(destination).canWrite()} dstViaCommons=${getDoesFilePathExist(destination)}")
+        } catch (e: Throwable) {
+            com.goodwy.gallery.App.logGesture("COPYDIAG preflight FALHOU: ${fmt(e)}")
+        }
+        val probePath = "$destination/.r100_probe_${System.currentTimeMillis()}.tmp"
+        try {
+            val out = getFileOutputStreamSync(probePath, "application/octet-stream")
+            if (out == null) {
+                com.goodwy.gallery.App.logGesture("COPYDIAG probe: getFileOutputStreamSync devolveu null (sem permissao de escrita no destino)")
+            } else {
+                out.write(0)
+                out.flush()
+                out.close()
+                com.goodwy.gallery.App.logGesture("COPYDIAG probe: escrita no destino OK")
+            }
+        } catch (e: Throwable) {
+            com.goodwy.gallery.App.logGesture("COPYDIAG probe FALHOU (esta e a excecao do toast): ${fmt(e)}")
+        } finally {
+            try { File(probePath).delete() } catch (_: Throwable) { }
+        }
+    }
+}
+
 fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, isCopyOperation: Boolean, callback: (destinationPath: String) -> Unit) {
     if (fileDirItems.isEmpty()) {
         toast(com.goodwy.commons.R.string.unknown_error_occurred)
@@ -356,11 +393,15 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
     val source = fileDirItems[0].getParentPath()
     PickDirectoryDialog(this, source, true, false, true, false) {
         val destination = it
+        logCopyMoveDiagnostics(fileDirItems, source, destination, isCopyOperation)
         handleSAFDialog(source) { sourceGranted ->
             if (sourceGranted) {
                 handleSAFDialogSdk30(destination) { destGranted ->
                     if (destGranted) {
-                        copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden, callback)
+                        copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden) { copiedTo ->
+                            com.goodwy.gallery.App.logGesture("COPYDIAG copiar/mover concluiu OK destino=$copiedTo")
+                            callback(copiedTo)
+                        }
                     }
                 }
             }
