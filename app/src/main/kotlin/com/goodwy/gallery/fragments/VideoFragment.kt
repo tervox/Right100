@@ -271,7 +271,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
 
             videoSurfaceFrame.setOnTouchListener { v, event ->
-                val zoomedOut = mHasVideoInitialZoom && abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                // Antes exigia mHasVideoInitialZoom == true, que so fica true apos o
+                // GestureController disparar um primeiro onStateChanged. Abrir o video e
+                // puxar pra fechar ANTES de qualquer zoom (o caso comum) deixava isso
+                // sempre false, bloqueando o fechamento sempre. Se ainda nao sabemos a
+                // posicao de encaixe real, assume que esta nela (nada mudou ainda).
+                val zoomedOut = !mHasVideoInitialZoom || abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
                     com.goodwy.gallery.App.logGesture("videoSurfaceFrame gate hasInitialZoom=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f isLongPress=%b".format(mHasVideoInitialZoom, zoomedOut, mCurrentVideoZoom, mVideoInitialZoom, mIsLongPressActive))
                 }
