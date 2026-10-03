@@ -99,6 +99,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
     private var mLastMediaFetcher: MediaFetcher? = null
     private var mDirs = ArrayList<Directory>()
+    private val mEmptyScanCounts = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private var mDirsIgnoringSearch = ArrayList<Directory>()
 
     // Observer que detecta novas mídias automaticamente sem recarregar tudo
@@ -1284,6 +1285,21 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     dateTakens = dateTakens,
                     android11Files = android11Files
                 )
+
+                // Uma varredura que devolve 0 midias pode ser momentanea (MediaStore ainda atualizando depois
+                // de copiar/mover, pasta em uso). Antes a pasta era apagada da lista e do banco na hora e
+                // voltava na varredura seguinte ("sumindo e voltando"), apagando tambem o cache de midias dela.
+                // Agora so remove depois de 2 varreduras vazias seguidas.
+                if (curMedia.isEmpty() && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()) {
+                    val emptyScans = (mEmptyScanCounts[directory.path] ?: 0) + 1
+                    mEmptyScanCounts[directory.path] = emptyScans
+                    com.goodwy.gallery.App.logGesture("DIRDIAG pasta sem midia na varredura n=" + emptyScans + " path=" + directory.path)
+                    if (emptyScans < 2) {
+                        continue
+                    }
+                } else if (curMedia.isNotEmpty()) {
+                    mEmptyScanCounts.remove(directory.path)
+                }
 
                 val newDir = if (curMedia.isEmpty()) {
                     if (directory.path != tempFolderPath) {

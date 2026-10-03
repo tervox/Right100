@@ -347,6 +347,67 @@ fun BaseSimpleActivity.toggleFileVisibility(oldPath: String, hide: Boolean, call
     }
 }
 
+// Caminho direto (java.io) para copiar/mover arquivos simples dentro do armazenamento principal
+// quando o app tem acesso total a arquivos. O copyMoveFilesTo do commons estava falhando com
+// IllegalArgumentException mesmo com permissao, destino gravavel e escrita de teste OK (COPYDIAG no
+// gesture_log.txt). Casos fora disso (SD/OTG, pastas, sem acesso total) continuam no commons.
+private fun BaseSimpleActivity.canDirectCopyMove(fileDirItems: ArrayList<FileDirItem>, destination: String): Boolean {
+    if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) return false
+    val primary = android.os.Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
+    if (!destination.startsWith("$primary/") || !File(destination).isDirectory) return false
+    return fileDirItems.all { it.path.startsWith("$primary/") && File(it.path).isFile }
+}
+
+private fun BaseSimpleActivity.directCopyMoveFiles(
+    fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean,
+    callback: (destinationPath: String) -> Unit
+) {
+    android.widget.Toast.makeText(this, if (isCopyOperation) "Copiando..." else "Movendo...", android.widget.Toast.LENGTH_SHORT).show()
+    ensureBackgroundThread {
+        val touched = ArrayList<String>()
+        try {
+            val destDir = File(destination)
+            for (item in fileDirItems) {
+                val src = File(item.path)
+                var dst = File(destDir, src.name)
+                var n = 1
+                while (dst.exists()) {
+                    val ext = if (src.extension.isEmpty()) "" else "." + src.extension
+                    dst = File(destDir, src.nameWithoutExtension + "(" + n + ")" + ext)
+                    n++
+                }
+                val modified = src.lastModified()
+                var done = false
+                if (!isCopyOperation) {
+                    done = try {
+                        src.renameTo(dst)
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+                if (!done) {
+                    src.copyTo(dst, false)
+                    if (modified > 0L) dst.setLastModified(modified)
+                    if (!isCopyOperation) {
+                        if (dst.length() != src.length()) {
+                            throw java.io.IOException("tamanho diferente apos copiar: " + dst.length() + " != " + src.length())
+                        }
+                        src.delete()
+                    }
+                }
+                touched.add(src.absolutePath)
+                touched.add(dst.absolutePath)
+                com.goodwy.gallery.App.logGesture("COPYDIAG direto ok " + src.name + " -> " + dst.absolutePath + " copy=" + isCopyOperation)
+            }
+            android.media.MediaScannerConnection.scanFile(applicationContext, touched.toTypedArray(), null, null)
+            runOnUiThread { callback(destination) }
+        } catch (e: Throwable) {
+            com.goodwy.gallery.App.logGesture("COPYDIAG direto FALHOU: " + e.toString() + " @ " + e.stackTrace.take(8).joinToString(" | ") { it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber })
+            runOnUiThread { showErrorToast("Falha ao copiar/mover: " + e.toString()) }
+        }
+    }
+}
+
 // Diagnostico temporario: o toast de erro ao copiar/mover vem cortado e a excecao e tratada
 // dentro do commons (nem crash_log nem logcat mostram o texto). Reproduz aqui, em background e
 // com try/catch, o primeiro passo do commons (abrir o destino pra escrita) e grava tudo em
@@ -394,7 +455,9 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
     PickDirectoryDialog(this, source, true, false, true, false) {
         val destination = it
         logCopyMoveDiagnostics(fileDirItems, source, destination, isCopyOperation)
-        handleSAFDialog(source) { sourceGranted ->
+        if (canDirectCopyMove(fileDirItems, destination)) {
+            directCopyMoveFiles(fileDirItems, destination, isCopyOperation, callback)
+        } else handleSAFDialog(source) { sourceGranted ->
             if (sourceGranted) {
                 handleSAFDialogSdk30(destination) { destGranted ->
                     if (destGranted) {

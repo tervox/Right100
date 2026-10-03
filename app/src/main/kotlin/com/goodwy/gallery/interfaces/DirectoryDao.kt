@@ -35,4 +35,7 @@ interface DirectoryDao {
 
     @Query("UPDATE directories SET thumbnail = :thumbnail WHERE path = :path COLLATE NOCASE")
     fun updateDirectoryThumbnail(path: String, thumbnail: String)
+
+    @Query("UPDATE directories SET media_count = :mediaCnt WHERE path = :path COLLATE NOCASE")
+    fun updateDirectoryMediaCount(path: String, mediaCnt: Int)
 }

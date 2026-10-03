@@ -529,6 +529,15 @@ fun Context.rescanFolderMediaSync(path: String, callback: (() -> Unit)? = null) 
 
                 callback?.invoke()
 
+                // A linha da pasta na tabela directories (media_count) so era atualizada pela varredura
+                // completa da tela principal; depois de copiar/mover ela mostrava a contagem antiga
+                // ate essa varredura terminar. Atualiza a contagem junto com o resto, na origem e no destino.
+                try {
+                    if (path.isNotEmpty() && path != FAVORITES && path != RECYCLE_BIN) {
+                        directoryDB.updateDirectoryMediaCount(path, newMedia.count { it is Medium })
+                    }
+                } catch (ignored: Exception) {
+                }
                 com.goodwy.gallery.App.logGesture("rescanFolderMediaSync path=$path items=${newMedia.size}")
             }
         }.execute()

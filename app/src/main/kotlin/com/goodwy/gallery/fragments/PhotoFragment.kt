@@ -103,6 +103,8 @@ class PhotoFragment : ViewPagerFragment() {
     private var mCurrentGestureViewZoom = 1f
     private var mInitialZoom = 1f
     private var mHasInitialZoom = false
+    private var mGifInitialZoom = 1f
+    private var mHasGifInitialZoom = false
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -159,7 +161,13 @@ class PhotoFragment : ViewPagerFragment() {
             })
 
             gifView.setOnTouchListener { v, event ->
-                val zoomedOut = abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE
+                // Comparar com 1f fixo so funciona se o encaixe do GIF for exatamente 1.0. A referencia
+                // agora e o zoom no primeiro toque (o GIF ja esta assentado nessa hora).
+                if (event.actionMasked == MotionEvent.ACTION_DOWN && !mHasGifInitialZoom) {
+                    mGifInitialZoom = gifViewFrame.controller.state.zoom
+                    mHasGifInitialZoom = true
+                }
+                val zoomedOut = !mHasGifInitialZoom || abs(gifViewFrame.controller.state.zoom - mGifInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
                     com.goodwy.gallery.App.logGesture("gifView gate allowDownGesture=%b zoomedOut=%b zoom=%.3f".format(context.config.allowDownGesture, zoomedOut, gifViewFrame.controller.state.zoom))
                 }
@@ -173,7 +181,7 @@ class PhotoFragment : ViewPagerFragment() {
                 // fires when both allowDownGesture and isZoomedOut() are true at that
                 // moment.
                 if (context.config.allowDownGesture) {
-                    handleEvent(event) { abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE }
+                    handleEvent(event) { !mHasGifInitialZoom || abs(gifViewFrame.controller.state.zoom - mGifInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
                 }
                 if (context.config.allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)

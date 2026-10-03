@@ -119,6 +119,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mOriginalPlaybackSpeed = 1f
     private var mIsLongPressActive = false
     private var mHasAudio = true
+    private var mBecameVisibleAt = 0L
 
     private val mTouchHoldRunnable = Runnable {
         mView.parent.requestDisallowInterceptTouchEvent(true)
@@ -403,7 +404,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         setVideoSize()
-        binding.videoSurfaceFrame.onGlobalLayout { binding.videoSurfaceFrame.controller.resetState() }
+        binding.videoSurfaceFrame.onGlobalLayout {
+            mHasVideoInitialZoom = false
+            binding.videoSurfaceFrame.controller.resetState()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -507,6 +511,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             }
             override fun onTracksChanged(tracks: Tracks) {
                 mHasAudio = tracks.containsType(C.TRACK_TYPE_AUDIO); updatePlayerMuteState()
+            }
+            override fun onRenderedFirstFrame() {
+                com.goodwy.gallery.App.logGesture("VIDDIAG primeiro quadro " + (android.os.SystemClock.uptimeMillis() - mBecameVisibleAt) + "ms apos ficar visivel")
             }
         })
     }
@@ -803,6 +810,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         view.requestLayout()
         // Aplica o novo FitMethod apos o layout medir o filho no novo tamanho
         binding.videoSurfaceFrame.onGlobalLayout {
+            // resetState() muda o zoom de encaixe; sem isto a referencia ficava presa no valor antigo
+            // e o puxao para fechar era sempre recusado depois de trocar o modo de tela do video.
+            mHasVideoInitialZoom = false
             binding.videoSurfaceFrame.controller.resetState()
             if (mConfig.videoFillScreen) {
                 // INSIDE fit encaixa o vídeo dentro do frame (letterbox/pillarbox).
@@ -826,6 +836,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     
 fun onBecameVisible() {
     mIsFragmentVisible = true
+    mBecameVisibleAt = android.os.SystemClock.uptimeMillis()
     if (!::mConfig.isInitialized) return
     // O item pode virar primário antes do callback da TextureView. Se a superfície
     // já estiver disponível, prepare o player agora para que o primeiro toque não

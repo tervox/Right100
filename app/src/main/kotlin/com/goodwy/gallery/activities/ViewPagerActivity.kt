@@ -1233,6 +1233,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 }
             }
             ViewPager.SCROLL_STATE_IDLE -> {
+                mTapNavSettling = false
                 mRandomTransformerAppliedForGesture = false
                 // Cura views que ficaram com alpha/escala presos apos transicoes
                 // rapidas com efeito (esmaecer etc.): garante que a pagina atual
@@ -1307,7 +1308,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
         // A troca normal usa o smooth scroll do ViewPager.
         // Fake-drag fica reservado para o slideshow.
-        com.goodwy.gallery.App.logGesture("NAVDIAG toque offset=$offset ${current}->${target} anim=$relevantAnimation")
+        com.goodwy.gallery.App.logGesture("NAVDIAG toque offset=$offset ${current}->${target} anim=$relevantAnimation video=${involvesVideo(current, target)} cfgFoto=${config.photoViewerAnimation} cfgVideo=${config.videoViewerAnimation}")
+        mTapNavSettling = true
         binding.viewPager.setCurrentItem(target, true)
     }
 
@@ -1317,6 +1319,23 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     override fun goToNextItem() {
         navigateToItem(1)
+    }
+
+    // O ViewPager deixa o usuario "pegar" a pagina no meio da animacao; num toque rapido isso
+    // devolvia a pagina anterior (onPageSelected(41) e logo onPageSelected(42) no NAVDIAG). Se um
+    // novo toque comeca enquanto a troca por toque ainda anima, conclui a troca na hora para o
+    // pager nao ser pego no meio.
+    private var mTapNavSettling = false
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN
+            && mTapNavSettling
+            && pagerScrollState == ViewPager.SCROLL_STATE_SETTLING
+        ) {
+            mTapNavSettling = false
+            binding.viewPager.setCurrentItem(binding.viewPager.currentItem, false)
+        }
+        return super.dispatchTouchEvent(ev)
     }
     override fun launchViewVideoIntent(path: String) {}
 
