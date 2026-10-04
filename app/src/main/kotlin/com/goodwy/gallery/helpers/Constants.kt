@@ -166,8 +166,11 @@ const val HIDE_SYSTEM_UI_DELAY = 500L
 const val MAX_PRINT_SIDE_SIZE = 4096
 const val FAST_FORWARD_VIDEO_MS = 10000
 
-const val EXOPLAYER_MIN_BUFFER_MS = 2000
-const val EXOPLAYER_MAX_BUFFER_MS = 8000
+// Buffers menores: o primeiro frame do video aparece antes. Com 2000ms de
+// buffer minimo o player esperava 2s antes de comecar a exibir, e como cada
+// troca cria um ExoPlayer novo, isso aparecia como "video demora".
+const val EXOPLAYER_MIN_BUFFER_MS = 500
+const val EXOPLAYER_MAX_BUFFER_MS = 6000
 
 const val DIRECTORY = "directory"
 const val DIR_SIZE = "dir_size"

@@ -475,7 +475,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             .setPrioritizeTimeOverSizeThresholds(true).build()
         mExoPlayer = ExoPlayer.Builder(requireContext())
             .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
-            .setSeekParameters(SeekParameters.CLOSEST_SYNC).setLoadControl(loadControl).build().apply {
+            // CLOSEST_SYNC obriga o player a decodificar ATE o ponto exato do seek
+            // anterior. Como o player e recriado a cada troca nao ha historico
+            // aproveitavel, entao essa precisao so atrasa o primeiro frame.
+            .setSeekParameters(SeekParameters.PREVIOUS_SYNC).setLoadControl(loadControl).build().apply {
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) repeatMode = Player.REPEAT_MODE_ONE
                 setPlaybackSpeed(mConfig.playbackSpeed)
                 setMediaItem(MediaItem.fromUri(uri))

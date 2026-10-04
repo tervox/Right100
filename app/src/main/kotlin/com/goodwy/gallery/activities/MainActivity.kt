@@ -1734,6 +1734,24 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
     }
 
+    // Antes so recontava as pastas quando o id OU a data do arquivo MAIS RECENTE
+    // do dispositivo mudavam. Editar uma foto, ou trocar a capa de uma pasta, nao
+    // muda nenhum dos dois - entao a pasta nunca era recontada e o numero na lista
+    // ficava congelado. O total de itens no MediaStore e barato e muda sempre que
+    // qualquer arquivo e adicionado ou removido.
+    @Volatile private var mLastTotalMediaItems = -1L
+
+    private fun curTotalMediaItems(): Long {
+        return try {
+            context?.contentResolver?.query(
+                android.provider.MediaStore.Files.getContentUri("external"),
+                arrayOf("_id"), null, null, null
+            )?.use { c -> if (c.moveToFirst()) c.count.toLong() else 0L } ?: -1L
+        } catch (e: Exception) {
+            -1L
+        }
+    }
+
     private fun checkLastMediaChanged(first: Boolean = false) {
         if (isDestroyed) {
             return
@@ -1743,9 +1761,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             ensureBackgroundThread {
                 val mediaId = getLatestMediaId()
                 val mediaDateId = getLatestMediaByDateId()
-                if (mLatestMediaId != mediaId || mLatestMediaDateId != mediaDateId) {
+                val totalNow = curTotalMediaItems()
+                if (mLatestMediaId != mediaId || mLatestMediaDateId != mediaDateId
+                    || (totalNow >= 0 && totalNow != mLastTotalMediaItems)
+                ) {
                     mLatestMediaId = mediaId
                     mLatestMediaDateId = mediaDateId
+                    mLastTotalMediaItems = totalNow
                     //We do not update the adapter on first launch to avoid double loading of the adapter
                     if (!first) runOnUiThread {
                         getDirectories()

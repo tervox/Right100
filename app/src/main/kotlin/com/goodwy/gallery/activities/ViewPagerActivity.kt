@@ -1351,7 +1351,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     // Duracao da troca por toque nas laterais. O ViewPager usa ~200ms por pagina via
     // setCurrentItem(); o deslize com o dedo mantem a duracao propria. O campo do
     // Scroller e achado pelo TIPO (nao pelo nome) para sobreviver ao R8.
-    private val TAP_NAV_DURATION_MS = 110
+    private val TAP_NAV_DURATION_MS = 50
 
     private fun installFastTapScroller() {
         try {

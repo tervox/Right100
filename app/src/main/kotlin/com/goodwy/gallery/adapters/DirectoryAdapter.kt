@@ -777,6 +777,9 @@ class DirectoryAdapter(
             return
 
         val path = getFirstSelectedItemPath() ?: return
+        // Guarda a pasta alvo, para o storeCovers saber qual item invalidar em
+        // vez de varrer o dispositivo inteiro.
+        pendingCoverFolder = path
 
         if (useDefault) {
             val albumCovers = getAlbumCoversWithout(path)
@@ -791,7 +794,10 @@ class DirectoryAdapter(
             if (File(it).isDirectory) {
                 pickMediumFrom(targetFolder, it)
             } else {
-                val albumCovers = getAlbumCoversWithout(path)
+                // Usava getAlbumCoversWithout(path), sendo path a SUBCAPA escolhida.
+                // Escolhendo a capa dentro de uma subpasta, a capa antiga da
+                // pasta-pai nao era removida e ficavam duas capas na mesma pasta.
+                val albumCovers = getAlbumCoversWithout(targetFolder)
                 val cover = AlbumCover(targetFolder, it)
                 albumCovers.add(cover)
                 storeCovers(albumCovers)
@@ -803,8 +809,25 @@ class DirectoryAdapter(
 
     private fun storeCovers(albumCovers: ArrayList<AlbumCover>) {
         config.albumCovers = Gson().toJson(albumCovers)
+        val folder = pendingCoverFolder
+        pendingCoverFolder = null
         finishActMode()
-        listener?.refreshItems()
+        // refreshItems() roda getDirectories() INTEIRO: revarre todas as pastas do
+        // dispositivo so para atualizar contadores - numa galeria grande leva
+        // segundos. Trocar a capa de UMA pasta nao precisa disso.
+        val pos = getItemKeyPositionByPath(folder)
+        if (pos >= 0) {
+            notifyItemChanged(pos)
+        } else {
+            listener?.refreshItems()
+        }
+    }
+
+    private var pendingCoverFolder: String? = null
+
+    private fun getItemKeyPositionByPath(path: String?): Int {
+        if (path == null) return -1
+        return dirs.indexOfFirst { (it as? Directory)?.path == path }
     }
 
     private fun getSelectedItems() = selectedKeys.mapNotNull { getItemWithKey(it) } as ArrayList<Directory>
