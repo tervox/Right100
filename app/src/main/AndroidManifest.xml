@@ -75,6 +75,7 @@
     <application
         android:name="com.goodwy.gallery.App"
         android:allowBackup="false"
+        tools:replace="android:allowBackup"
         android:appCategory="image"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_launcher_name"
