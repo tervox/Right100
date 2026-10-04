@@ -147,7 +147,9 @@ class MediaFetcher(val context: Context) {
             val cursor = context.contentResolver.query(uri, projection, selection, selectionArgs, null)
             if (cursor == null) {
                 android.util.Log.w("MediaFetcher", "MediaStore devolveu cursor nulo")
-                return folders
+                // Converte para ArrayList: a funcao promete ArrayList<String> e o
+                // chamador usa add(0, ...) - aqui folders e LinkedHashSet.
+                return ArrayList(folders)
             }
             folders.addAll(parseCursor(cursor))
 
