@@ -63,6 +63,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // removeMediaImmediately() so the item disappears from the grid too,
         // without a full folder reload.
         val pendingRemovedPaths = ArrayList<String>()
+
+        private const val SAVED_PATH = "saved_path"
+        private const val SAVED_POS = "saved_pos"
     }
 
     private var mMediums = ArrayList<Medium>()
@@ -102,7 +105,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             mMediums.add(Medium(null, path.getFilenameFromPath(), path, path.getParentPath(), 0, 0, 0, type, 0, false, 0L, 0L))
         }
 
-        mPos = intent.getIntExtra("pos", 0).coerceIn(0, (mMediums.size - 1).coerceAtLeast(0))
+        mPos = savedInstanceState?.getInt(SAVED_POS, -1)?.takeIf { it in mMediums.indices }
+            ?: intent.getIntExtra("pos", 0).coerceIn(0, (mMediums.size - 1).coerceAtLeast(0))
+
+        if (savedInstanceState != null) {
+            val savedPath = savedInstanceState.getString(SAVED_PATH)
+            val idx = savedPath?.let { q -> mMediums.indexOfFirst { it.path == q } } ?: -1
+            if (idx >= 0) mPos = idx
+        }
 
         binding.mediumViewerToolbar.title = mMediums.getOrNull(mPos)?.name ?: path.getFilenameFromPath()
 
@@ -126,7 +136,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putString("saved_path", getCurrentPath())
+        outState.putString(SAVED_PATH, getCurrentPath())
+        outState.putInt(SAVED_POS, mPos)
     }
 
     override fun onResume() {

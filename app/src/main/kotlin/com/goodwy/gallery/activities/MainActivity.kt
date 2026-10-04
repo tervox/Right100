@@ -76,9 +76,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mIsSetWallpaperIntent = false
     private var mAllowPickingMultiple = false
     private var mIsThirdPartyIntent = false
-    private var mIsGettingDirs = false
+    @Volatile private var mIsGettingDirs = false
     private var mLoadedInitialPhotos = false
-    private var mShouldStopFetching = false
+    @Volatile private var mShouldStopFetching = false
     private var mWasDefaultFolderChecked = false
     private var mWasMediaManagementPromptShown = false
     private var mLatestMediaId = 0L
@@ -1369,8 +1369,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
                 dirs.removeAll(dirsToRemove)
             }
-            // Atualização única após o loop — evita N re-renders por pasta
-            setupAdapter(dirs)
+            runOnUiThread { setupAdapter(dirs) }
         } catch (_: Exception) {
         }
 
@@ -1465,7 +1464,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         // Atualização em batch após descobrir todas as novas pastas — evita jank por N chamadas dentro do loop
         if (dirs.isNotEmpty()) {
-            setupAdapter(dirs)
+            runOnUiThread { setupAdapter(dirs) }
         }
 
         mLoadedInitialPhotos = true
@@ -1714,7 +1713,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         if (invalidDirs.isNotEmpty()) {
             dirs.removeAll(invalidDirs)
-            setupAdapter(dirs)
+            runOnUiThread { setupAdapter(dirs) }
             invalidDirs.forEach {
                 try {
                     directoryDB.deleteDirPath(it.path)

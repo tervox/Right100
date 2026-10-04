@@ -35,8 +35,22 @@ class App : RightApp() {
         // este app já pede MANAGE_EXTERNAL_STORAGE (precisa pra gerenciar arquivos de outras
         // pastas), dá pra gravar direto na pasta Download pública, que o Termux enxerga
         // normalmente em ~/storage/downloads/.
+        // Em RELEASE os logs iam para /storage/emulated/0/Download/Right100Logs, pasta
+        // publica: qualquer app com READ_MEDIA_IMAGES lia o caminho absoluto e o nome de
+        // cada foto. Debug continua na pasta antiga (o Termux so enxerga ela).
+        @Volatile
+        private var privateLogsDir: File? = null
+
+        fun initPrivateLogsDir(filesDir: File) {
+            if (privateLogsDir == null) privateLogsDir = File(filesDir, "logs")
+        }
+
         private fun logsDir(): File {
-            val dir = File("/storage/emulated/0/Download/Right100Logs")
+            val dir = if (BuildConfig.DEBUG) {
+                File("/storage/emulated/0/Download/Right100Logs")
+            } else {
+                privateLogsDir ?: File(System.getProperty("java.io.tmpdir"), "Right100Logs")
+            }
             if (!dir.exists()) dir.mkdirs()
             return dir
         }
@@ -103,6 +117,7 @@ class App : RightApp() {
 
     override fun onCreate() {
         super.onCreate()
+        initPrivateLogsDir(filesDir)
         setupCrashLogger()
         clearStaleGifThumbnailCacheOnce()
         logMemoryState(this, "app_start")

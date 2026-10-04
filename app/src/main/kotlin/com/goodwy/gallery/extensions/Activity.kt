@@ -355,6 +355,9 @@ private fun BaseSimpleActivity.canDirectCopyMove(fileDirItems: ArrayList<FileDir
     if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) return false
     val primary = android.os.Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
     if (!destination.startsWith("$primary/") || !File(destination).isDirectory) return false
+    // Destino == origem: o while (dst.exists()) ja seria true, entao virava "nome(1).ext"
+    // e o original era apagado. Precisa cair no caminho do commons.
+    if (fileDirItems.any { it.path.trimEnd('/').substringBeforeLast('/') == destination.trimEnd('/') }) return false
     return fileDirItems.all { it.path.startsWith("$primary/") && File(it.path).isFile }
 }
 
@@ -522,7 +525,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                     }
                 } catch (e: Exception) {
                     showErrorToast(e)
-                    return@ensureBackgroundThread
+                    continue
                 } finally {
                     inputStream?.close()
                     out?.close()
@@ -542,7 +545,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                     }
                 } catch (e: Exception) {
                     showErrorToast(e)
-                    return@ensureBackgroundThread
+                    continue
                 }
             }
         }

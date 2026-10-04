@@ -137,7 +137,7 @@ android {
         checkReleaseBuilds = false
         abortOnError = true
         warningsAsErrors = false
-        baseline = file("lint-baseline.xml")
+        baseline = file("lint-baseline.xml").takeIf { it.exists() }
         lintConfig = rootProject.file("lint.xml")
     }
 
@@ -155,8 +155,11 @@ android {
 }
 
 detekt {
-    baseline = file("detekt-baseline.xml")
-    config.setFrom("$rootDir/detekt.yml")
+    baseline = file("detekt-baseline.xml").takeIf { it.exists() }
+    val detektConfig = rootProject.file("detekt.yml")
+    if (detektConfig.exists()) {
+        config.setFrom(detektConfig)
+    }
     buildUponDefaultConfig = true
     allRules = false
 }

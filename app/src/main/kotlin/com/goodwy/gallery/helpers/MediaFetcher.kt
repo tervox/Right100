@@ -145,7 +145,11 @@ class MediaFetcher(val context: Context) {
             val selection = getSelectionQuery(filterMedia)
             val selectionArgs = getSelectionArgsQuery(filterMedia).toTypedArray()
             val cursor = context.contentResolver.query(uri, projection, selection, selectionArgs, null)
-            folders.addAll(parseCursor(cursor!!))
+            if (cursor == null) {
+                android.util.Log.w("MediaFetcher", "MediaStore devolveu cursor nulo")
+                return folders
+            }
+            folders.addAll(parseCursor(cursor))
 
             val config = context.config
             val shouldShowHidden = config.shouldShowHidden

@@ -1513,6 +1513,10 @@ fun Context.updateFavorite(path: String, isFavorite: Boolean) {
         } else {
             favoritesDB.deleteFavoritePath(path)
         }
+
+        // MainActivity so adiciona Favoritos se mediaDB.getFavoritesCount() > 0, e esse
+        // COUNT le media.is_favorite, testado ANTES do rescan.
+        mediaDB.updateFavorite(path, isFavorite)
     } catch (e: Exception) {
         toast(com.goodwy.commons.R.string.unknown_error_occurred)
     }

@@ -63,8 +63,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mIsGetVideoIntent = false
     private var mIsGetAnyIntent = false
     private var mIsGettingMedia = false
-    private var mMediaInvalidated = true
-    private var mLastSuccessfulMediaLoadAt = 0L
+    @Volatile private var mMediaInvalidated = true
+    @Volatile private var mLastSuccessfulMediaLoadAt = 0L
     private var mAllowPickingMultiple = false
     private var mShowAll = false
     private var mLoadedInitialPhotos = false
@@ -429,7 +429,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
         if (requestCode == REQUEST_EDIT_IMAGE) {
             if (resultCode == RESULT_OK && resultData != null) {
-                mMedia.clear()
+                GetMediaAsynctask.invalidateDurationsCache()
+                synchronized(mediaLock) { mMedia.clear() }
                 // Mesmo motivo do delete (ver deleteFilteredFiles): sem invalidar o cache da
                 // pasta aqui também, voltar/recarregar essa pasta depois de editar uma imagem
                 // podia mostrar a versão antiga (de antes da edição) vinda do cache, até uma
@@ -1762,6 +1763,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // Aqui a operação física já confirmou sucesso.
             // Centraliza cache e DiffUtil em uma única atualização.
             removeMediaImmediately(filteredPaths.toList())
+
+            GetMediaAsynctask.invalidateDurationsCache()
 
             ensureBackgroundThread {
                 val useRecycleBin = config.useRecycleBin

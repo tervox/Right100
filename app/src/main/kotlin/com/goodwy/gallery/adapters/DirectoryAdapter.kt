@@ -286,6 +286,7 @@ class DirectoryAdapter(
             dirs.add(0, tempItem)
         }
 
+        rebuildPositionCache()
         notifyDataSetChanged()
     }
 
@@ -297,6 +298,7 @@ class DirectoryAdapter(
             dirs.add(dirs.size, tempItem)
         }
 
+        rebuildPositionCache()
         notifyDataSetChanged()
     }
 
@@ -839,8 +841,12 @@ class DirectoryAdapter(
             }).dispatchUpdatesTo(this)
             finishActMode()
         }
+        rebuildPositionCache()
+    }
+
+    private fun rebuildPositionCache() {
         keyToPositionCache.clear()
-        newDirs.forEachIndexed { index, item ->
+        dirs.forEachIndexed { index, item ->
             keyToPositionCache[item.path.hashCode()] = index
         }
     }
@@ -1034,6 +1040,7 @@ class DirectoryAdapter(
             }
         }
 
+        rebuildPositionCache()
         notifyItemMoved(fromPosition, toPosition)
     }
 

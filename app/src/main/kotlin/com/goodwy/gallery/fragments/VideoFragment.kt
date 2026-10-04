@@ -103,8 +103,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mVideoSize = Point(1, 1)
     // Thread dedicada para o timer do seekbar: evita 60 callbacks/s no main thread
     // enquanto o decoder de vídeo está rodando na mesma prioridade.
-    private val mTimerThread = android.os.HandlerThread("VideoTimerThread").also { it.start() }
-    private var mTimerHandler = android.os.Handler(mTimerThread.looper)
+    private var mTimerHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val mMainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var mTimerRunnable: Runnable? = null  // referencia para poder cancelar o loop
     private var mPendingInstantTap: Runnable? = null
@@ -388,6 +387,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         super.onDestroy()
         if (activity?.isChangingConfigurations == false) cleanup()
         if (::mVolumeSideScroll.isInitialized) mVolumeSideScroll.cleanup()
+        mVolumeController?.destroy()
+        mVolumeController = null
     }
 
     override fun setMenuVisibility(menuVisible: Boolean) {
@@ -549,7 +550,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 })
             }
             // Garante que um fill residual de versao anterior seja resetado
-            if (mConfig.videoFillScreen) { mConfig.videoFillScreen = false }
+            // Antes rodava a CADA onResume, zerando a preferencia do usuario.
+            if (mConfig.videoFillScreen && mConfig.videoFillMode != 2) { mConfig.videoFillScreen = false }
             updateIcon()
             setOnClickListener {
                 if (mConfig.videoFillMode != 2) {
@@ -873,7 +875,6 @@ fun releasePlayerForFileOp() = cleanup()
         mTimerRunnable = null
         mExoPlayer?.release(); mExoPlayer = null
         mTimerHandler.removeCallbacksAndMessages(null)
-        try { mTimerThread.quit() } catch (_: Exception) {}
     }
 
     protected fun handleTouchHoldEvent(event: MotionEvent) {

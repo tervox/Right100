@@ -262,6 +262,8 @@ class PhotoFragment : ViewPagerFragment() {
                     mMedium.path = file.absolutePath
                 } catch (_: Exception) {
                     requireActivity().toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                    mWasInit = true
+                    updateInstantSwitchWidths()
                     return mView
                 } finally {
                     out?.close()
@@ -609,7 +611,7 @@ class PhotoFragment : ViewPagerFragment() {
             if (mCurrentRotationDegrees != 0) {
                 picasso.rotate(mCurrentRotationDegrees.toFloat())
             } else {
-                degreesForRotation(mImageOrientation).toFloat()
+                picasso.rotate(degreesForRotation(mImageOrientation).toFloat())
             }
 
             picasso.into(binding.gesturesView, object : Callback {
@@ -732,18 +734,10 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun getCoverImageIndex(paths: ArrayList<String>): Int {
         var coverIndex = -1
-        paths.forEachIndexed { index, path ->
-            if (path.contains("cover", true)) {
-                coverIndex = index
-            }
-        }
-
+        // Sem break, coverIndex ficava no ULTIMO arquivo.
+        paths.indexOfFirst { it.contains("cover", true) }.takeIf { it != -1 }?.let { coverIndex = it }
         if (coverIndex == -1) {
-            paths.forEachIndexed { index, path ->
-                if (path.isNotEmpty()) {
-                    coverIndex = index
-                }
-            }
+            coverIndex = paths.indexOfFirst { it.isNotEmpty() }
         }
         return coverIndex
     }

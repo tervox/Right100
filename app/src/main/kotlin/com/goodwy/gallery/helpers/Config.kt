@@ -68,8 +68,10 @@ class Config(context: Context) : BaseConfig(context) {
 
     fun getFolderGrouping(path: String): Int {
         var groupBy = prefs.getInt(GROUP_FOLDER_PREFIX + path.lowercase(Locale.getDefault()), groupBy)
-        if (path != SHOW_ALL && groupBy and GROUP_BY_FOLDER != 0) {
-            groupBy -= GROUP_BY_FOLDER + 1
+        // Limpa SO o bit GROUP_BY_FOLDER (antes subtraia 33 em vez de limpar o bit 32,
+        // o que borrava o vizinho e ligava GROUP_BY_NONE: nenhuma pasta era agrupada).
+        if (path != SHOW_ALL) {
+            groupBy = groupBy and GROUP_BY_FOLDER.inv()
         }
         return groupBy
     }
