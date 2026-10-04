@@ -21,3 +21,5 @@ Thumbs.db
 # Kotlin/Java generated files
 .kotlin/
 *.log
+release.jks
+keystore.properties
