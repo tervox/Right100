@@ -75,7 +75,6 @@
     <application
         android:name="com.goodwy.gallery.App"
         android:allowBackup="false"
-        tools:replace="android:allowBackup"
         android:appCategory="image"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_launcher_name"
@@ -83,7 +82,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        tools:replace="android:label">
+        tools:replace="android:label,android:allowBackup">
 
         <activity
             android:name=".activities.SplashActivity"
