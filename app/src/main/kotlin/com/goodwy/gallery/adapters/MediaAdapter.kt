@@ -796,7 +796,14 @@ class MediaAdapter(
         val position = media.indexOfFirst { it is Medium && it.path == path }
         if (position < 0) return
         val item = media[position] as? Medium ?: return
-        if (item.videoDuration == duration) return
+        // Sem este early return: fillMissingVideoDurations ja grava medium.videoDuration
+        // no MESMO objeto (a lista do adapter e um clone raso de mMedia) antes de
+        // chamar aqui, entao a comparacao dava sempre igual e a celula visivel nunca
+        // era atualizada - a duracao so aparecia ao recriar a celula.
+        if (item.videoDuration == duration) {
+            item.videoDuration = duration
+            return
+        }
         item.videoDuration = duration
 
         // Atualize somente o texto visível. notifyItemChanged() rebinda a célula

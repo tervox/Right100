@@ -161,6 +161,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // carregava até cinco TextureViews/ExoPlayers simultaneamente, deixando o toque
         // lateral e o arraste disputarem CPU e memória.
         binding.viewPager.offscreenPageLimit = 1
+ installFastTapScroller()
         applyViewerTransformer()
     }
 
@@ -625,6 +626,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 view.pivotX = view.width / 2f
                 view.pivotY = view.height / 2f
                 delegate?.transformPage(view, position)
+                // Os efeitos fazem translationX = -position * largura para TODAS as
+                // paginas, inclusive as vizinhas (|position| >= 1). Em repouso a da
+                // direita ia para x = 0, por cima da atual, com alpha 0: invisivel, mas
+                // ainda recebia toques. Daí os controles do video nao responderem e o
+                // puxão para fechar funcionar "as vezes" (tratava a foto vizinha).
+                // Precisa vir DEPOIS do delegate, senao ele sobrescreve.
+                if (position >= 1f || position <= -1f) {
+                    view.translationX = 0f
+                }
             }
         }
     }
@@ -1337,6 +1347,40 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     // novo toque comeca enquanto a troca por toque ainda anima, conclui a troca na hora para o
     // pager nao ser pego no meio.
     private var mTapNavSettling = false
+
+    // Duracao da troca por toque nas laterais. O ViewPager usa ~200ms por pagina via
+    // setCurrentItem(); o deslize com o dedo mantem a duracao propria. O campo do
+    // Scroller e achado pelo TIPO (nao pelo nome) para sobreviver ao R8.
+    private val TAP_NAV_DURATION_MS = 110
+
+    private fun installFastTapScroller() {
+        try {
+            val pager = binding.viewPager
+            val field = ViewPager::class.java.declaredFields
+                .firstOrNull { it.type == android.widget.Scroller::class.java }
+            if (field == null) {
+                App.logGesture("TAPNAV scroller nao encontrado; duracao mantida")
+                return
+            }
+            field.isAccessible = true
+            val interpolator = android.view.animation.Interpolator { t ->
+                val x = t - 1.0f
+                x * x * x * x * x + 1.0f
+            }
+            field.set(pager, object : android.widget.Scroller(pager.context, interpolator) {
+                override fun startScroll(sx: Int, sy: Int, dx: Int, dy: Int, dur: Int) {
+                    // Sem log: se o campo nao for o Scroller do pager, a animacao fica
+                    // lenta para sempre. Melhor falhar alto e descobrir.
+                    App.logGesture("TAPNAV startScroll dur=$dur tap=$mTapNavSettling")
+                    super.startScroll(sx, sy, dx, dy,
+                        if (mTapNavSettling) minOf(dur, TAP_NAV_DURATION_MS) else dur)
+                }
+            })
+            App.logGesture("TAPNAV scroller instalado")
+        } catch (e: Throwable) {
+            App.logGesture("TAPNAV falhou: ${e.message}")
+        }
+    }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
         if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN

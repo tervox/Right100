@@ -358,7 +358,14 @@ private fun BaseSimpleActivity.canDirectCopyMove(fileDirItems: ArrayList<FileDir
     // Destino == origem: o while (dst.exists()) ja seria true, entao virava "nome(1).ext"
     // e o original era apagado. Precisa cair no caminho do commons.
     if (fileDirItems.any { it.path.trimEnd('/').substringBeforeLast('/') == destination.trimEnd('/') }) return false
-    return fileDirItems.all { it.path.startsWith("$primary/") && File(it.path).isFile }
+    // Se algum arquivo ja existe no destino, quem trata e o fluxo do commons, que pergunta
+    // pular / substituir / manter os dois. O caminho direto so cobre casos limpos.
+    val destDir = File(destination)
+    return fileDirItems.all {
+        it.path.startsWith("$primary/") &&
+            File(it.path).isFile &&
+            !File(destDir, File(it.path).name).exists()
+    }
 }
 
 private fun BaseSimpleActivity.directCopyMoveFiles(
