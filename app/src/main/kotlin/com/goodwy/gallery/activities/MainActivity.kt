@@ -1743,7 +1743,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun curTotalMediaItems(): Long {
         return try {
-            context?.contentResolver?.query(
+            // Usa applicationContext: neste arquivo `context` e a funcao Context.get()
+            // da lib commons, nao um Context - por isso dava "Unresolved reference
+            // contentResolver". A Activity pode ser destruida; o applicationContext nao.
+            applicationContext.contentResolver.query(
                 android.provider.MediaStore.Files.getContentUri("external"),
                 arrayOf("_id"), null, null, null
             )?.use { c -> if (c.moveToFirst()) c.count.toLong() else 0L } ?: -1L
