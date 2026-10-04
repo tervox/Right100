@@ -632,8 +632,15 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 // ainda recebia toques. Daí os controles do video nao responderem e o
                 // puxão para fechar funcionar "as vezes" (tratava a foto vizinha).
                 // Precisa vir DEPOIS do delegate, senao ele sobrescreve.
+                // As paginas vizinhas NAO podem ficar em x = 0: isso as empilha
+                // por cima da foto atual. Com alpha 0 ficam invisiveis mas ainda
+                // recebem toque - foi o que aconteceu ao tocar rapido (varias fotos
+                // invisiveis empilhadas) e o que faz demorar a proxima a aparecer,
+                // porque o Glide carrega todas.
+                // Manda para FORA da tela: nao aparece, nao rouba toque, e o Glide
+                // so precisa carregar o que esta visivel.
                 if (position >= 1f || position <= -1f) {
-                    view.translationX = 0f
+                    view.translationX = view.width * -position
                 }
             }
         }

@@ -815,8 +815,14 @@ class DirectoryAdapter(
         // refreshItems() roda getDirectories() INTEIRO: revarre todas as pastas do
         // dispositivo so para atualizar contadores - numa galeria grande leva
         // segundos. Trocar a capa de UMA pasta nao precisa disso.
-        val pos = getItemKeyPositionByPath(folder)
-        if (pos >= 0) {
+        // getItemKeyPositionByPath() usa indexOfFirst na lista: se a pasta nao
+        // estiver na lista exibida (filtro de busca, subpastas agrupadas), cai
+        // no refresh completo e a troca volta a demorar segundos.
+        var pos = getItemKeyPositionByPath(folder)
+        if (pos < 0 && folder != null) {
+            pos = getItemKeyPosition(folder.hashCode())
+        }
+        if (pos in 0 until dirs.size) {
             notifyItemChanged(pos)
         } else {
             listener?.refreshItems()

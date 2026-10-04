@@ -1319,7 +1319,15 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
 
                 // we are looping through the already displayed folders looking for changes, do not do anything if nothing changed
+                // Antes so reescrevia a pasta no banco se o Directory INTEIRO
+                // diferisse. Se so o contador estivesse errado (e continuasse errado),
+                // nada mudava e o continue pulava a gravacao - o numero errado
+                // ficava congelado no banco para sempre.
                 if (directory.copy(subfoldersCount = 0, subfoldersMediaCount = 0) == newDir) {
+                    if (directory.mediaCnt != newDir.mediaCnt) {
+                        directory.mediaCnt = newDir.mediaCnt
+                        directoryDB.updateDirectoryMediaCount(directory.path, newDir.mediaCnt)
+                    }
                     continue
                 }
 
