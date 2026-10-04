@@ -161,7 +161,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // carregava até cinco TextureViews/ExoPlayers simultaneamente, deixando o toque
         // lateral e o arraste disputarem CPU e memória.
         binding.viewPager.offscreenPageLimit = 1
- installFastTapScroller()
+        installFastTapScroller()
         applyViewerTransformer()
     }
 
@@ -1359,7 +1359,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             val field = ViewPager::class.java.declaredFields
                 .firstOrNull { it.type == android.widget.Scroller::class.java }
             if (field == null) {
-                App.logGesture("TAPNAV scroller nao encontrado; duracao mantida")
+                com.goodwy.gallery.App.logGesture("TAPNAV scroller nao encontrado; duracao mantida")
                 return
             }
             field.isAccessible = true
@@ -1371,14 +1371,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 override fun startScroll(sx: Int, sy: Int, dx: Int, dy: Int, dur: Int) {
                     // Sem log: se o campo nao for o Scroller do pager, a animacao fica
                     // lenta para sempre. Melhor falhar alto e descobrir.
-                    App.logGesture("TAPNAV startScroll dur=$dur tap=$mTapNavSettling")
+                    com.goodwy.gallery.App.logGesture("TAPNAV startScroll dur=$dur tap=$mTapNavSettling")
                     super.startScroll(sx, sy, dx, dy,
                         if (mTapNavSettling) minOf(dur, TAP_NAV_DURATION_MS) else dur)
                 }
             })
-            App.logGesture("TAPNAV scroller instalado")
+            com.goodwy.gallery.App.logGesture("TAPNAV scroller instalado")
         } catch (e: Throwable) {
-            App.logGesture("TAPNAV falhou: ${e.message}")
+            com.goodwy.gallery.App.logGesture("TAPNAV falhou: ${e.message}")
         }
     }
 
