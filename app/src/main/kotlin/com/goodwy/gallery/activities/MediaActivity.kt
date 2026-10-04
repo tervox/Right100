@@ -1833,11 +1833,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
         }
         synchronized(mFolderMediaCache) {
+            // "Mostrar tudo" usa a entrada global "" (vazia), entao este filtro ja
+            // cobre os dois casos. O que faltava era atualizar o timestamp junto:
+            // sem isso a entrada continuava "fresca" com o conteudo antigo e valia
+            // pelos 5 min do MEDIA_CACHE_TTL_MS - mais que os 3 min do
+            // recentlyRemovedPaths - e a foto deletada voltava sozinha.
             mFolderMediaCache[mPath]?.let { cached ->
                 mFolderMediaCache[mPath] = ArrayList(cached.filter { item ->
                     !(item is Medium && pathSet.contains(item.path))
                 })
             }
+            mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
         }
         // Também limpa do snapshot em disco para não ressurgir ao reabrir o app
         applicationContext.saveMediaSnapshot(mPath, mMedia)
