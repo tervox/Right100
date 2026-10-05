@@ -23,3 +23,5 @@ Thumbs.db
 *.log
 release.jks
 keystore.properties
+
+.bak/

@@ -181,8 +181,7 @@ abstract class ViewPagerFragment : Fragment() {
                 // aparecer (dy > dx) para o ViewPager ser bloqueado.
                 if (context?.config?.allowDownGesture == true &&
                     !mIgnoreCloseDown &&
-                    dy > 0 &&
-                    dy > dx * 1.15f
+                    abs(dy) > dx * 1.15f
                 ) {
                     view.parent?.requestDisallowInterceptTouchEvent(true)
                 }

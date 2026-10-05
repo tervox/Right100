@@ -176,12 +176,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 try {
                     setVisibleGifAnimations(newState == RecyclerView.SCROLL_STATE_IDLE)
-                    // Só recarrega as pastas (por causa do ContentObserver acima) quando a
-                    // lista está parada — nunca no meio de um scroll ou toque.
-                    if (newState == RecyclerView.SCROLL_STATE_IDLE && mMediaStoreDirty && !mIsGettingDirs) {
-                        mMediaStoreDirty = false
-                        getDirectories()
-                    }
+                    // O refresh por mudanca de midia agora e feito pelo ContentObserver.
                 } catch (_: Exception) {}
             }
         })
@@ -352,11 +347,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     mMediaStoreDirty = true
                     mRefreshHandler.removeCallbacksAndMessages(null)
                     mRefreshHandler.postDelayed({
-                        if (!mIsGettingDirs && binding.directoriesGrid.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
-                            mMediaStoreDirty = false
-                            getDirectories()
-                        }
-                    }, 500)
+                        if (isFinishing || isDestroyed) return@postDelayed
+                        if (!hasWindowFocus() || mIsThirdPartyIntent) return@postDelayed
+                        mMediaStoreDirty = false
+                        if (!mIsGettingDirs) getDirectories()
+                    }, 300)
                 }
             }
             contentResolver.registerContentObserver(
@@ -694,13 +689,18 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             return
         }
 
-        mShouldStopFetching = true
         mIsGettingDirs = true
+        mShouldStopFetching = false
         val getImages = mIsPickImageIntent || mIsGetImageContentIntent
         val getVideos = mIsPickVideoIntent || mIsGetVideoContentIntent
 
-        getCachedDirectories(getVideos && !getImages, getImages && !getVideos) {
-            gotDirectories(addTempFolderIfNeeded(it))
+        try {
+            getCachedDirectories(getVideos && !getImages, getImages && !getVideos) {
+                gotDirectories(addTempFolderIfNeeded(it))
+            }
+        } catch (e: Exception) {
+            mIsGettingDirs = false
+            throw e
         }
     }
 
