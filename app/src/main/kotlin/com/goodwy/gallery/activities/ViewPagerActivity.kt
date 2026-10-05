@@ -161,7 +161,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // carregava até cinco TextureViews/ExoPlayers simultaneamente, deixando o toque
         // lateral e o arraste disputarem CPU e memória.
         binding.viewPager.offscreenPageLimit = 1
-        installFastTapScroller()
+        // Nao instala mais nada por reflexao: a troca rapida e feita em
+        // swapToWithFastAnimation(), sem tocar no estado interno do ViewPager.
+        // Foi a troca do mScroller por reflexao que quebrou os controles do video.
+        mTapAnimator?.cancel()
+        mTapAnimator = null
         applyViewerTransformer()
     }
 
@@ -1317,6 +1321,53 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     override fun isSlideShowActive() = mIsSlideshowActive
     override fun isFullScreen() = mIsFullScreen
 
+    // Troca instantanea seguida de animacao propria de 50ms.
+    //
+    // O ViewPager so expoe setCurrentItem(int) e setCurrentItem(int, boolean); o mScroller
+    // e' privado e nao tem sobrecarga publica com duracao. Substitui-lo por reflexao
+    // quebra o estado interno do pager (o toque para de chegar e os controles do video
+    // morrem). Entao trocamos sem animacao e animamos o translationX aqui.
+    private fun swapToWithFastAnimation(from: Int, target: Int) {
+        val pager = binding.viewPager
+        val width = pager.width
+        if (width <= 0) {
+            pager.setCurrentItem(target, true)
+            return
+        }
+
+        val adapter = pager.adapter as? MyPagerAdapter
+        val oldView = adapter?.getCurrentFragment(from)?.view
+        val newView = adapter?.getCurrentFragment(target)?.view
+
+        mTapAnimator?.cancel()
+        pager.setCurrentItem(target, false)
+
+        // Sem as duas views nao ha o que animar (podem nao ter sido infladas ainda).
+        if (oldView == null || newView == null) return
+
+        val dir = if (target > from) -1f else 1f
+        newView.translationX = dir * width
+        oldView.translationX = -dir * width
+
+        mTapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = TAP_NAV_DURATION_MS
+            interpolator = android.view.animation.DecelerateInterpolator()
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                newView.translationX = dir * width * (1f - p)
+                oldView.translationX = -dir * width * (1f - p)
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    newView.translationX = 0f
+                    oldView.translationX = 0f
+                    mTapAnimator = null
+                }
+            })
+            start()
+        }
+    }
+
     private fun navigateToItem(offset: Int) {
         if (offset == 0) return
 
@@ -1338,7 +1389,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // Fake-drag fica reservado para o slideshow.
         com.goodwy.gallery.App.logGesture("NAVDIAG toque offset=$offset ${current}->${target} anim=$relevantAnimation video=${involvesVideo(current, target)} cfgFoto=${config.photoViewerAnimation} cfgVideo=${config.videoViewerAnimation}")
         mTapNavSettling = true
-        binding.viewPager.setCurrentItem(target, true)
+        swapToWithFastAnimation(current, target)
     }
 
     override fun goToPrevItem() {
@@ -1359,6 +1410,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     // setCurrentItem(); o deslize com o dedo mantem a duracao propria. O campo do
     // Scroller e achado pelo TIPO (nao pelo nome) para sobreviver ao R8.
     private val TAP_NAV_DURATION_MS = 50
+
+    // Animator da troca por toque. Guardado para cancelar quando o usuario toca
+    // varias vezes seguidas — o ultimo toque manda.
+    private var mTapAnimator: android.animation.ValueAnimator? = null
 
     // Desativado de proposito. Substituir o campo mScroller do ViewPager por reflexao
     // QUEBRA os controles do video: esse objeto e' usado internamente pelo pager para
