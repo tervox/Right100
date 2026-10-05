@@ -188,7 +188,7 @@ class PhotoFragment : ViewPagerFragment() {
                 if (context.config.allowDownGesture) {
                     handleEvent(event) { !mHasGifInitialZoom || abs(gifViewFrame.controller.state.zoom - mGifInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
                 }
-                if (context.config.allowDownGesture && zoomedOut) {
+                if (context.config.allowDownGesture) {
                     updateVerticalGestureInterception(v, event)
                 }
                 false
@@ -218,7 +218,7 @@ class PhotoFragment : ViewPagerFragment() {
                 if (allowDownGesture) {
                     handleEvent(event) { mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
                 }
-                if (allowDownGesture && zoomedOut) {
+                if (allowDownGesture) {
                     updateVerticalGestureInterception(v, event)
                 }
                 false
@@ -233,7 +233,7 @@ class PhotoFragment : ViewPagerFragment() {
                 if (allowDownGesture) {
                     handleEvent(event) { subsamplingView.isZoomedOut() }
                 }
-                if (zoomedOut && allowDownGesture) {
+                if (allowDownGesture) {
                     updateVerticalGestureInterception(v, event)
                 }
                 false

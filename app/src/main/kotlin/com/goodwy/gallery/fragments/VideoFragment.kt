@@ -107,6 +107,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private val mMainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var mTimerRunnable: Runnable? = null  // referencia para poder cancelar o loop
     private var mPendingInstantTap: Runnable? = null
+    private val mPendingPlayRunnable = Runnable { if (mIsFragmentVisible && !mIsPlaying && isAdded) playVideo() }
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
 
@@ -858,9 +859,8 @@ fun onBecameVisible() {
         }
         // Se o player já existe mas parou, retoma a reprodução se autoplay estiver ativo
         if (mExoPlayer != null && !mIsPlaying && mConfig.autoplayVideos) {
-            mMainHandler.postDelayed({ 
-                if (mIsFragmentVisible && !mIsPlaying && isAdded) playVideo() 
-            }, 150L)
+            mMainHandler.removeCallbacks(mPendingPlayRunnable)
+            mMainHandler.postDelayed(mPendingPlayRunnable, 150L)
         }
     }
 }
@@ -870,6 +870,7 @@ fun onBecameHidden() {
     mIsFragmentVisible = false
     mPlayOnPrepared = false
     mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
+    mMainHandler.removeCallbacks(mPendingPlayRunnable)
     mPendingInstantTap = null
     pauseVideo(updateActivityControls = false)
 }
@@ -879,6 +880,7 @@ fun releasePlayerForFileOp() = cleanup()
 
     private fun cleanup() {
         mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
+        mMainHandler.removeCallbacks(mPendingPlayRunnable)
         mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
         mPendingInstantTap = null
         mTimerRunnable = null

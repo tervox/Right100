@@ -1335,37 +1335,34 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
 
-        val adapter = pager.adapter as? MyPagerAdapter
-        val oldView = adapter?.getCurrentFragment(from)?.view
-        val newView = adapter?.getCurrentFragment(target)?.view
-
+        // A versao anterior animava translationX das duas paginas ENQUANTO o
+        // PageTransformer (ligado por applyViewerTransformer antes desta chamada)
+        // tambem escrevia translationX. Os dois brigavam pelo mesmo campo e a
+        // direcao visual saia invertida em parte dos frames, embora a pagina
+        // correta acabasse aparecendo.
+        //
+        // Agora animamos o PROPRIO PAGER: o transformer nunca escreve em
+        // pager.translationX, entao nao existe conflito possivel. Continua seco
+        // (setCurrentItem sem animacao) + 50ms de deslocamento, sem reflexao e
+        // sem desligar/religar transformer (o que desanexava a TextureView do video).
         mTapAnimator?.cancel()
+
+        val dir = if (target > from) 1f else -1f   // +1 = avancando (visual entra pela direita)
+
+        // Empurrao inicial: o pager ja aparece levemente deslocado para o lado
+        // oposto ao movimento, para o olho perceber a direcao correta.
+        pager.translationX = dir * width * 0.15f
         pager.setCurrentItem(target, false)
 
-        // Sem as duas views nao ha o que animar (podem nao ter sido infladas ainda).
-        if (oldView == null || newView == null) return
-
-        // dir = para onde a pagina NOVA nasce.
-        //   avancar  -> a nova entra pela DIREITA  -> translationX = -width (dir = -1)
-        //   recuar   -> a nova entra pela ESQUERDA -> translationX = +width (dir = +1)
-        // Estava invertido: tocar para avancar animava como se estivesse recuando.
-        val dir = if (target > from) -1f else 1f
-        newView.translationX = dir * width
-        oldView.translationX = -dir * width
-
-        mTapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            // ValueAnimator.duration e' Long; TAP_NAV_DURATION_MS e' Int.
+        mTapAnimator = android.animation.ValueAnimator.ofFloat(pager.translationX, 0f).apply {
             duration = TAP_NAV_DURATION_MS.toLong()
             interpolator = android.view.animation.DecelerateInterpolator()
             addUpdateListener { anim ->
-                val p = anim.animatedValue as Float
-                newView.translationX = dir * width * (1f - p)
-                oldView.translationX = -dir * width * (1f - p)
+                pager.translationX = anim.animatedValue as Float
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    newView.translationX = 0f
-                    oldView.translationX = 0f
+                    pager.translationX = 0f
                     mTapAnimator = null
                 }
             })
@@ -1394,7 +1391,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // Fake-drag fica reservado para o slideshow.
         com.goodwy.gallery.App.logGesture("NAVDIAG toque offset=$offset ${current}->${target} anim=$relevantAnimation video=${involvesVideo(current, target)} cfgFoto=${config.photoViewerAnimation} cfgVideo=${config.videoViewerAnimation}")
         mTapNavSettling = true
-        swapToWithFastAnimation(current, target)
+        binding.viewPager.setCurrentItem(target, true)
     }
 
     override fun goToPrevItem() {
