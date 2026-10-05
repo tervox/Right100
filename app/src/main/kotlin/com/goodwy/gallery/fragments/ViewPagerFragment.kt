@@ -238,17 +238,11 @@ abstract class ViewPagerFragment : Fragment() {
             }
 
             MotionEvent.ACTION_CANCEL -> {
-                // Alguns filhos (zoom, player) roubam o gesto e entregam CANCEL em vez
-                // de UP - sem avaliar aqui o puxao "falha as vezes".
-                val cDiffX = mTouchDownX - event.rawX
-                val cDiffY = mTouchDownY - event.rawY
-                val cDur = System.currentTimeMillis() - mTouchDownTime
-                if (!mIgnoreCloseDown && abs(cDiffY) > abs(cDiffX) && abs(cDiffY) > mCloseDownThreshold
-                    && cDur < MAX_CLOSE_DOWN_GESTURE_DURATION * 3 && context?.config?.allowDownGesture == true && isZoomedOut()
-                ) {
-                    activity?.finish()
-                    activity?.overridePendingTransition(0, com.goodwy.commons.R.anim.slide_down)
-                }
+                // O CANCEL nao deve fechar a tela sozinho: ele chega quando um filho
+                // (zoom, player) rouba o gesto, e nesse momento isZoomedOut() pode nao ter
+                // informacao - principalmente logo apos trocar de video, quando o player
+                // novo ainda nao reportou zoom. Avaliar aqui era o que travava o puxao.
+                // Este bloco so libera o estado; quem decide e o ACTION_UP.
                 mIgnoreCloseDown = false
             }
         }

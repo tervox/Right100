@@ -577,10 +577,15 @@ class MediaAdapter(
                 listOf(path)
             )
 
-            if (attempt < 2) {
+            // O MediaStore indexa arquivos novos de forma assincrona e pode levar
+            // alguns segundos. Com 2 tentativas de 450ms a reconta saia antes da
+            // indexacao e gravava no banco uma contagem incompleta (620 de 640),
+            // que so se corrigia com refresh ou mais tempo. Agora tenta 8 vezes com
+            // espera crescente; se ja indexou, a proxima tentativa traz certo.
+            if (attempt < 8) {
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     rescanFolderMediaWithRetries(path, attempt + 1)
-                }, 450L)
+                }, 400L + attempt * 500L)
             }
         }
     }

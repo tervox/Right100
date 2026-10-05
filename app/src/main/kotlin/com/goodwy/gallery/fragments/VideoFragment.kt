@@ -628,7 +628,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     override fun onStartTrackingTouch(seekBar: SeekBar) {
         if (mExoPlayer == null) return
-        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC); mExoPlayer!!.playWhenReady = false; mIsDragged = true
+        // PREVIOUS_SYNC e o parametro que o player ja usa desde a criacao (linha 481).
+        // Aqui voltava para CLOSEST_SYNC, que obriga a decodificar ATE o ponto exato e
+        // deixava o player travado depois de trocar de video. Erro meu: troquei o
+        // parametro na criacao sem ver que ele era redefinido aqui.
+        mExoPlayer!!.setSeekParameters(SeekParameters.PREVIOUS_SYNC); mExoPlayer!!.playWhenReady = false; mIsDragged = true
     }
 
     override fun onStopTrackingTouch(seekBar: SeekBar) {

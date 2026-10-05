@@ -823,6 +823,18 @@ class DirectoryAdapter(
             pos = getItemKeyPosition(folder.hashCode())
         }
         if (pos in 0 until dirs.size) {
+            // A thumbnail exibida vem de `dir.tmb`, que foi calculada na ultima
+            // VARREDURA COMPLETA. Trocar a capa so grava em config.albumCovers, entao o
+            // notifyItemChanged redesenhava o item lendo o tmb ANTIGO do banco — a capa
+            // nova so aparecia na proxima varredura (o mesmo delay do contador). Aqui
+            // escreve a capa direto no item da lista e no banco: aparece na hora.
+            val novoTmb = albumCovers.firstOrNull { it.path == folder }?.tmb
+            if (folder != null && novoTmb != null) {
+                (dirs.getOrNull(pos) as? Directory)?.let { dir ->
+                    dir.tmb = novoTmb
+                    activity.updateDBDirectory(dir)
+                }
+            }
             notifyItemChanged(pos)
         } else {
             listener?.refreshItems()
