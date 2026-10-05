@@ -407,7 +407,6 @@ fun Context.updateSubfolderCounts(
 ) {
     for (child in children) {
         var longestSharedPath = ""
-        val countedChildPaths = HashSet<String>()
         for (parentDir in parentDirs) {
             if (parentDir.path == child.path) {
                 longestSharedPath = child.path
@@ -434,10 +433,7 @@ fun Context.updateSubfolderCounts(
                 }
 
                 if (path != child.path) {
-                    // Soma repetida inflava o contador (620 de 640). Soma cada filho 1x.
-                    if (countedChildPaths.add(child.path)) {
-                        subfoldersMediaCount += child.mediaCnt
-                    }
+                    subfoldersMediaCount += child.mediaCnt
                 }
             }
         }

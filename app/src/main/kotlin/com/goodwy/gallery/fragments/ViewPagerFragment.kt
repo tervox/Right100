@@ -207,16 +207,11 @@ abstract class ViewPagerFragment : Fragment() {
 
             MotionEvent.ACTION_UP -> {
                 val diffX = mTouchDownX - event.rawX
-                // Sinal padronizado com updateVerticalGestureInterception (rawY - downY).
-                // Antes era mTouchDownY - rawY: arrastar para BAIXO dava diffY negativo e
-                // a animacao de fechar saia trocada (overridePendingTransition invertido).
-                val diffY = event.rawY - mTouchDownY
+                val diffY = mTouchDownY - event.rawY
                 val downGestureDuration = System.currentTimeMillis() - mTouchDownTime
 
                 val cond1 = !mIgnoreCloseDown
                 val cond2 = abs(diffY) > abs(diffX)
-                // Fecha so arrastando PARA BAIXO (diffY > 0 com o sinal corrigido).
-                // Fecha arrastando para BAIXO ou para CIMA (usuario pediu os dois).
                 val cond3 = abs(diffY) > mCloseDownThreshold
                 val cond4 = downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION * 3
                 val cond5 = context?.config?.allowDownGesture == true
@@ -229,14 +224,19 @@ abstract class ViewPagerFragment : Fragment() {
                 )
 
                 if (cond1 && cond2 && cond3 && cond4 && cond5 && cond6) {
-                    // Fechar e sempre sair com slide_down. O if invertido anterior
-                    // trocava a animacao de entrada/saida conforme o sinal do diffY
-                    // ja invertido, deixando o fechamento com aparencia errada.
                     activity?.finish()
-                    activity?.overridePendingTransition(
-                        0,
-                        com.goodwy.commons.R.anim.slide_down
-                    )
+
+                    if (diffY < 0) {
+                        activity?.overridePendingTransition(
+                            0,
+                            com.goodwy.commons.R.anim.slide_down
+                        )
+                    } else {
+                        activity?.overridePendingTransition(
+                            com.goodwy.commons.R.anim.slide_down,
+                            0
+                        )
+                    }
                 }
 
                 mIgnoreCloseDown = false

@@ -1347,22 +1347,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 // diferisse. Se so o contador estivesse errado (e continuasse errado),
                 // nada mudava e o continue pulava a gravacao - o numero errado
                 // ficava congelado no banco para sempre.
-                // A comparacao por igualdade (com os contadores zerados) engolia pastas
-                // legitimamente vazias e pasta cujo unico campo diferente fosse o proprio
-                // subfoldersMediaCount: o contador errado ficava congelado no banco.
                 if (directory.copy(subfoldersCount = 0, subfoldersMediaCount = 0) == newDir) {
-                    var countedChanged = false
                     if (directory.mediaCnt != newDir.mediaCnt) {
                         directory.mediaCnt = newDir.mediaCnt
-                        countedChanged = true
-                    }
-                    if (directory.subfoldersMediaCount != newDir.subfoldersMediaCount) {
-                        directory.subfoldersMediaCount = newDir.subfoldersMediaCount
-                        countedChanged = true
-                    }
-                    if (countedChanged) {
-                        directoryDB.updateDirectoryMediaCount(directory.path, directory.mediaCnt)
-                        updateDBDirectory(directory)
+                        directoryDB.updateDirectoryMediaCount(directory.path, newDir.mediaCnt)
                     }
                     continue
                 }

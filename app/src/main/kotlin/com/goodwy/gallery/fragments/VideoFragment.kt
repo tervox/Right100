@@ -871,10 +871,6 @@ fun onBecameHidden() {
     mPlayOnPrepared = false
     mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
     mPendingInstantTap = null
-    // Cancela o autoplay agendado: sem isso ele dispara playVideo() depois,
-    // com este fragment ja oculto.
-    mPendingPlayRunnable?.let { mMainHandler.removeCallbacks(it) }
-    mPendingPlayRunnable = null
     pauseVideo(updateActivityControls = false)
 }
 

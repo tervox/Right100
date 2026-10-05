@@ -187,10 +187,8 @@ class PhotoFragment : ViewPagerFragment() {
                 // moment.
                 if (context.config.allowDownGesture) {
                     handleEvent(event) { !mHasGifInitialZoom || abs(gifViewFrame.controller.state.zoom - mGifInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
-                    // Sem gate de zoom (igual ao VideoFragment): o gate dizia "ampliada"
-                    // por falso positivo e o pager roubava o toque, entao o ACTION_UP
-                    // nunca chegava e a foto nao fechava. A decisao de fechar continua
-                    // no handleEvent, que checa o zoom no ACTION_UP.
+                }
+                if (context.config.allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)
                 }
                 false
@@ -219,8 +217,8 @@ class PhotoFragment : ViewPagerFragment() {
                 }
                 if (allowDownGesture) {
                     handleEvent(event) { mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
-                    // Ver comentario do gifView: gate de zoom removido para o pager
-                    // nao engolir o toque de fechar.
+                }
+                if (allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)
                 }
                 false
@@ -234,7 +232,8 @@ class PhotoFragment : ViewPagerFragment() {
                 }
                 if (allowDownGesture) {
                     handleEvent(event) { subsamplingView.isZoomedOut() }
-                    // Ver comentario do gifView: gate de zoom removido.
+                }
+                if (zoomedOut && allowDownGesture) {
                     updateVerticalGestureInterception(v, event)
                 }
                 false
