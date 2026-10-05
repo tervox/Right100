@@ -188,6 +188,11 @@ class App : RightApp() {
             MediaActivity.clearMemoryCaches(aggressive = critical)
             if (critical) {
                 try {
+                    // Antes limpava o Glide ja em RUNNING_LOW. O Android dispara
+                    // esse nivel sempre que aperta memoria - numa galeria grande,
+                    // varias vezes por sessao - e cada limpeza fazia voltar para uma
+                    // pasta recarregar TODOS os thumbnails do zero. So no CRITICAL,
+                    // que e o caso em que o app realmente esta em risco.
                     Glide.get(this).clearMemory()
                 } catch (_: Exception) {
                 }
@@ -198,9 +203,14 @@ class App : RightApp() {
     override fun onLowMemory() {
         super.onLowMemory()
         logMemoryState(this, "low_memory")
-        MediaActivity.clearMemoryCaches(aggressive = true)
+        // Nao chama Glide.clearMemory() aqui: ele joga fora TODOS os thumbnails de
+        // uma vez. O proprio Glide mantem um LRU e ja descarta o que tem menos
+        // prioridade conforme a memoria aperta, entao o aviso do sistema e respeitado
+        // sem invalidar a galeria inteira. clearMemoryCaches tambem deixa de ser
+        // agressivo: ele esvaziava a midia em memoria a cada aviso.
+        MediaActivity.clearMemoryCaches(aggressive = false)
         try {
-            Glide.get(this).clearMemory()
+            Glide.get(this).trimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)
         } catch (_: Exception) {
         }
     }
