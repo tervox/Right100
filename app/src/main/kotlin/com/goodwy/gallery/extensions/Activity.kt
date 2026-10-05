@@ -472,7 +472,12 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
                 handleSAFDialogSdk30(destination) { destGranted ->
                     if (destGranted) {
                         copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden) { copiedTo ->
-                            com.goodwy.gallery.App.logGesture("COPYDIAG copiar/mover concluiu OK destino=$copiedTo")
+                            com.goodwy.gallery.App.logGesture("COPYDIAG copiar/mover venceu destino=$copiedTo")
+                            // Sem isto a operacao terminava em silencio e o usuario ficava
+                            // sem confirmacao de que deu certo.
+                            runOnUiThread {
+                                toast(if (isCopyOperation) "Copiado com sucesso" else "Movido com sucesso")
+                            }
                             callback(copiedTo)
                         }
                     }

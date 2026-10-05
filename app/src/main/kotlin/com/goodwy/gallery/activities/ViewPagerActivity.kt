@@ -1345,6 +1345,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // Sem as duas views nao ha o que animar (podem nao ter sido infladas ainda).
         if (oldView == null || newView == null) return
 
+        // dir = para onde a pagina NOVA nasce.
+        //   avancar  -> a nova entra pela DIREITA  -> translationX = -width (dir = -1)
+        //   recuar   -> a nova entra pela ESQUERDA -> translationX = +width (dir = +1)
+        // Estava invertido: tocar para avancar animava como se estivesse recuando.
         val dir = if (target > from) -1f else 1f
         newView.translationX = dir * width
         oldView.translationX = -dir * width

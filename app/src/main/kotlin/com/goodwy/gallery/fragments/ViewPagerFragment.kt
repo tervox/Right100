@@ -174,9 +174,14 @@ abstract class ViewPagerFragment : Fragment() {
                 val dx = abs(event.rawX - mTouchDownX)
                 val dy = abs(event.rawY - mTouchDownY)
 
+                // Antes so segurava depois de mCloseDownThreshold / 2. Ate esse
+                // ponto o gesto ja tinha subido para o ViewPager, que ENGOLE o toque
+                // para trocar de pagina — e o ACTION_UP nunca chegava em handleEvent,
+                // entao o puxao para fechar nunca funcionava. Basta a intencao vertical
+                // aparecer (dy > dx) para o ViewPager ser bloqueado.
                 if (context?.config?.allowDownGesture == true &&
                     !mIgnoreCloseDown &&
-                    dy > mCloseDownThreshold / 2f &&
+                    dy > 0 &&
                     dy > dx * 1.15f
                 ) {
                     view.parent?.requestDisallowInterceptTouchEvent(true)
