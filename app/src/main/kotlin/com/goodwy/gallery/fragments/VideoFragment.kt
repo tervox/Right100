@@ -285,6 +285,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 // perder ACTION_DOWN/UP/CANCEL enquanto o zoom assenta.
                 handleEvent(event) { zoomedOut }
                 handleTouchHoldEvent(event)
+                // O videoPreview (que tem o onSingleTapUp que abre os controles) fica
+                // GONE assim que o video comeca a tocar (linha 687). Sem repassar o
+                // gesto aqui, o toque no meio do video nao abria nada e o puxao para
+                // fechar nao era avaliado pelo detector.
+                gestureDetector.onTouchEvent(event)
                 if (mIsLongPressActive) return@setOnTouchListener true
                 // Bloquear ViewPager de interceptar quando detectar puxão vertical
                 updateVerticalGestureInterception(v, event)

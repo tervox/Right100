@@ -1303,6 +1303,17 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 // de copiar/mover, pasta em uso). Antes a pasta era apagada da lista e do banco na hora e
                 // voltava na varredura seguinte ("sumindo e voltando"), apagando tambem o cache de midias dela.
                 // Agora so remove depois de 2 varreduras vazias seguidas.
+                // Uma varredura interrompida (shouldStop) devolve a pasta contada pela
+                // metade — e esse numero parcial ia para o banco, por isso o contador
+                // demorava a sincronizar. Descarta o resultado incompleto: a proxima
+                // varredura conta de verdade.
+                if (mLastMediaFetcher?.shouldStop == true) {
+                    com.goodwy.gallery.App.logGesture(
+                        "DIRDIAG varredura interrompida, descartando path=" + directory.path
+                    )
+                    continue
+                }
+
                 if (curMedia.isEmpty() && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()) {
                     val emptyScans = (mEmptyScanCounts[directory.path] ?: 0) + 1
                     mEmptyScanCounts[directory.path] = emptyScans

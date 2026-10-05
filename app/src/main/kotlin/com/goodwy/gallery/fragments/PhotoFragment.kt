@@ -498,6 +498,11 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun loadGif() {
+        // GIF/SVG/APNG nao passam por loadBitmap(), entao mHasInitialZoom e mFitZoom
+        // ficavam com o valor da foto vista antes. Era por isso que o puxao para
+        // fechar falhava so depois de navegar entre tipos diferentes.
+        mHasInitialZoom = false
+        mFitZoom = 0f
         try {
             val pathToLoad = getPathToLoad(mMedium)
             val source = if (pathToLoad.startsWith("content://") || pathToLoad.startsWith("file://")) {
@@ -551,6 +556,10 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadBitmap(addZoomableView: Boolean = true) {
         mHasInitialZoom = false
+        // Precisa zerar junto: mFitZoom so e' preenchido dentro de `if (!mHasInitialZoom)`.
+        // Sem zerar aqui, ele guardava o valor da midia anterior e o gate do puxao
+        // comparava o zoom da foto nova com o encaixe da antiga -> "ampliado" falso.
+        mFitZoom = 0f
         if (context == null) return
         val path = getFilePathToShow()
         if (path.isWebP()) {
