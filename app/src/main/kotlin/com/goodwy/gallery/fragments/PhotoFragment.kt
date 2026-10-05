@@ -205,18 +205,18 @@ class PhotoFragment : ViewPagerFragment() {
                 // valores divergem e o gate diz "esta ampliado" mesmo com a foto na tela
                 // toda: o puxao para fechar era ignorado. Comparar com o ZOOM MINIMO
                 // (1f = encaixada) e o que a condicao realmente quer dizer.
-                // Compara com o zoom de ENCAIXE (fitZoom), nao com o zoom inicial: o
-                // inicial pode ser > 1 em foto grande, e logo apos trocar de foto os dois
-                // valores divergem — o gate dizia "ampliado" com a foto na tela toda e o
-                // puxao para fechar era ignorado. Se ainda nao sabemos o fitZoom, assume
-                // encaixada (a foto acabou de abrir).
-                val zoomedOut = mFitZoom <= 0f ||
-                    abs(mCurrentGestureViewZoom - mFitZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                // Compara com mInitialZoom (= state.zoom, o zoom REAL do viewer).
+                // Usar mFitZoom aqui quebrava: fitZoom e' um valor CALCULADO
+                // (viewportWidth/imageWidth) e o gestureviews pode aplicar zoom
+                // proprio, entao os dois divergem e o gate nunca passava — o puxao
+                // para fechar era ignorado mesmo com a foto na tela toda.
+                val zoomedOut = mInitialZoom == 0f ||
+                    abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
-                    com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f fitZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom, mFitZoom))
+                    com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom, mInitialZoom))
                 }
                 if (allowDownGesture) {
-                    handleEvent(event) { mFitZoom <= 0f || abs(mCurrentGestureViewZoom - mFitZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
+                    handleEvent(event) { mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
                 }
                 if (allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)
