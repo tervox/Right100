@@ -526,6 +526,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             medium.name = newPath.getFilenameFromPath()
             ensureBackgroundThread { updateDBMediaPath(oldPath, newPath) }
             updateTitle()
+            runOnUiThread { toast(com.goodwy.commons.R.string.rename) }
         }
     }
 
@@ -1391,7 +1392,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // Fake-drag fica reservado para o slideshow.
         com.goodwy.gallery.App.logGesture("NAVDIAG toque offset=$offset ${current}->${target} anim=$relevantAnimation video=${involvesVideo(current, target)} cfgFoto=${config.photoViewerAnimation} cfgVideo=${config.videoViewerAnimation}")
         mTapNavSettling = true
-        binding.viewPager.setCurrentItem(target, true)
+        swapToWithFastAnimation(current, target)
     }
 
     override fun goToPrevItem() {
