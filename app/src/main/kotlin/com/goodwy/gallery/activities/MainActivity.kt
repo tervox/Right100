@@ -1294,7 +1294,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     com.goodwy.gallery.App.logGesture(
                         "DIRDIAG getFilesFrom falhou path=" + directory.path + " erro=" + e.message
                     )
-                    null
+                    // Vazio, nao null: o resto do laco usa curMedia como ArrayList<Medium>
+                    // (isEmpty(), getDirMediaTypes(), etc) e nao aceita null.
+                    ArrayList()
                 }
 
                 // Uma varredura que devolve 0 midias pode ser momentanea (MediaStore ainda atualizando depois

@@ -101,6 +101,11 @@ class PhotoFragment : ViewPagerFragment() {
     private var mScreenWidth = 0
     private var mScreenHeight = 0
     private var mCurrentGestureViewZoom = 1f
+
+    // Zoom em que a foto esta encaixada na tela (fitZoom), calculado no
+    // setupGesturesViewStateListener. E o que o gate do puxao para fechar deve comparar:
+    // se o usuario esta com a foto ampliada, o puxao nao vale.
+    private var mFitZoom = 0f
     private var mInitialZoom = 1f
     private var mHasInitialZoom = false
     private var mGifInitialZoom = 1f
@@ -200,12 +205,18 @@ class PhotoFragment : ViewPagerFragment() {
                 // valores divergem e o gate diz "esta ampliado" mesmo com a foto na tela
                 // toda: o puxao para fechar era ignorado. Comparar com o ZOOM MINIMO
                 // (1f = encaixada) e o que a condicao realmente quer dizer.
-                val zoomedOut = abs(mCurrentGestureViewZoom - MIN_ZOOM_FULL_SIZE) < MAX_ZOOM_EQUALITY_TOLERANCE
+                // Compara com o zoom de ENCAIXE (fitZoom), nao com o zoom inicial: o
+                // inicial pode ser > 1 em foto grande, e logo apos trocar de foto os dois
+                // valores divergem — o gate dizia "ampliado" com a foto na tela toda e o
+                // puxao para fechar era ignorado. Se ainda nao sabemos o fitZoom, assume
+                // encaixada (a foto acabou de abrir).
+                val zoomedOut = mFitZoom <= 0f ||
+                    abs(mCurrentGestureViewZoom - mFitZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
-                    com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom))
+                    com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f fitZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom, mFitZoom))
                 }
                 if (allowDownGesture) {
-                    handleEvent(event) { abs(mCurrentGestureViewZoom - MIN_ZOOM_FULL_SIZE) < MAX_ZOOM_EQUALITY_TOLERANCE }
+                    handleEvent(event) { mFitZoom <= 0f || abs(mCurrentGestureViewZoom - mFitZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
                 }
                 if (allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)
@@ -657,6 +668,7 @@ class PhotoFragment : ViewPagerFragment() {
                     val zoomByWidth = settings.viewportWidth.toFloat() / settings.imageWidth
                     val zoomByHeight = settings.viewportHeight.toFloat() / settings.imageHeight
                     val fitZoom = maxOf(zoomByWidth, zoomByHeight)
+                    mFitZoom = fitZoom
                     mInitialZoom = state.zoom
                     var target = fitZoom
                     if (abs(target - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) {
