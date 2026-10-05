@@ -192,6 +192,12 @@ abstract class ViewPagerFragment : Fragment() {
         }
     }
 
+    // O fechamento por arrasto NAO e mais decidido aqui. Cada view filha (foto, GIF, video)
+    // tinha o seu proprio listener, e o ViewPager / GestureFrameLayout "roubavam" o toque
+    // (ACTION_CANCEL) antes do ACTION_UP chegar, entao o gesto falhava de forma intermitente.
+    // Agora quem decide e BaseViewerActivity.dispatchTouchEvent, que enxerga TODOS os toques.
+    // Este metodo so guarda o ponto inicial para updateVerticalGestureInterception().
+    @Suppress("UNUSED_PARAMETER")
     protected fun handleEvent(event: MotionEvent, isZoomedOut: () -> Boolean = { true }) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -201,54 +207,22 @@ abstract class ViewPagerFragment : Fragment() {
                 mIgnoreCloseDown = false
             }
 
-            MotionEvent.ACTION_POINTER_DOWN ->
-                mIgnoreCloseDown = true
+            MotionEvent.ACTION_POINTER_DOWN -> mIgnoreCloseDown = true
 
-            MotionEvent.ACTION_UP -> {
-                val diffX = mTouchDownX - event.rawX
-                val diffY = mTouchDownY - event.rawY
-                val downGestureDuration = System.currentTimeMillis() - mTouchDownTime
-
-                val cond1 = !mIgnoreCloseDown
-                val cond2 = abs(diffY) > abs(diffX)
-                val cond3 = abs(diffY) > mCloseDownThreshold
-                val cond4 = downGestureDuration < MAX_CLOSE_DOWN_GESTURE_DURATION * 3
-                val cond5 = context?.config?.allowDownGesture == true
-                val cond6 = isZoomedOut()
-                com.goodwy.gallery.App.logGesture(
-                    "handleEvent ACTION_UP diffX=%.1f diffY=%.1f duration=%d ignoreCloseDown=%b(need false) vertDominant=%b threshold=%b(diffY>%.1f) duration_ok=%b allowGesture=%b zoomedOutAtRelease=%b -> %b".format(
-                        diffX, diffY, downGestureDuration, mIgnoreCloseDown, cond2, cond3, mCloseDownThreshold, cond4, cond5, cond6,
-                        cond1 && cond2 && cond3 && cond4 && cond5 && cond6
-                    )
-                )
-
-                if (cond1 && cond2 && cond3 && cond4 && cond5 && cond6) {
-                    activity?.finish()
-
-                    if (diffY < 0) {
-                        activity?.overridePendingTransition(
-                            0,
-                            com.goodwy.commons.R.anim.slide_down
-                        )
-                    } else {
-                        activity?.overridePendingTransition(
-                            com.goodwy.commons.R.anim.slide_down,
-                            0
-                        )
-                    }
-                }
-
-                mIgnoreCloseDown = false
-            }
-
-            MotionEvent.ACTION_CANCEL -> {
-                // O CANCEL nao deve fechar a tela sozinho: ele chega quando um filho
-                // (zoom, player) rouba o gesto, e nesse momento isZoomedOut() pode nao ter
-                // informacao - principalmente logo apos trocar de video, quando o player
-                // novo ainda nao reportou zoom. Avaliar aqui era o que travava o puxao.
-                // Este bloco so libera o estado; quem decide e o ACTION_UP.
-                mIgnoreCloseDown = false
-            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> mIgnoreCloseDown = false
         }
+    }
+
+    // True quando a midia esta no encaixe normal (sem zoom). Sobrescrito por Photo/VideoFragment.
+    open fun isZoomedOutForDismiss(): Boolean = true
+
+    // Onde o toque comecou: livre, faixa de brilho/volume ou controles. Ver DISMISS_AREA_*.
+    open fun getDismissAreaMode(rawX: Float, rawY: Float): Int = DISMISS_AREA_FREE
+
+    protected fun isTouchInside(v: View?, rawX: Float, rawY: Float): Boolean {
+        if (v == null || !v.isShown) return false
+        val loc = IntArray(2)
+        v.getLocationOnScreen(loc)
+        return rawX >= loc[0] && rawX <= loc[0] + v.width && rawY >= loc[1] && rawY <= loc[1] + v.height
     }
 }

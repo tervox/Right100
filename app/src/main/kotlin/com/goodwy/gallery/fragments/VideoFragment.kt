@@ -570,7 +570,25 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         }
     }
 
-    private fun openPanorama() { TODO("Panorama is not yet implemented.") }
+    // Antes era TODO(...), que derrubava o app (NotImplementedError). Sem visualizador, apenas avisa.
+    private fun openPanorama() {
+        activity?.let { android.widget.Toast.makeText(it, "Visualizador de panorama indisponível", android.widget.Toast.LENGTH_SHORT).show() }
+    }
+
+    // Usado por BaseViewerActivity para decidir se o arrasto pode fechar o visualizador.
+    override fun isZoomedOutForDismiss(): Boolean =
+        !mHasVideoInitialZoom || abs(mCurrentVideoZoom - mVideoInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+
+    override fun getDismissAreaMode(rawX: Float, rawY: Float): Int {
+        if (!::mTimeHolder.isInitialized) return DISMISS_AREA_FREE
+        return when {
+            // Seekbar e botoes: arrastar ali nunca deve fechar.
+            isTouchInside(mTimeHolder, rawX, rawY) -> DISMISS_AREA_BLOCKED
+            ::mBrightnessSideScroll.isInitialized && isTouchInside(mBrightnessSideScroll, rawX, rawY) -> DISMISS_AREA_STRIP
+            ::mVolumeSideScroll.isInitialized && isTouchInside(mVolumeSideScroll, rawX, rawY) -> DISMISS_AREA_STRIP
+            else -> DISMISS_AREA_FREE
+        }
+    }
 
     override fun fullscreenToggled(isFullscreen: Boolean) {
         mIsFullscreen = isFullscreen

@@ -1378,10 +1378,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
 
                 if (!directory.isRecycleBin()) {
+                    // PERFORMANCE: curMedia.contains(it) em ArrayList e O(n) por item => O(n*m)
+                    // em pastas grandes. Um HashSet deixa cada checagem O(1) (mesma igualdade).
+                    val curMediaSet = HashSet<Any>(curMedia)
                     getCachedMedia(directory.path, getVideosOnly, getImagesOnly) {
                         val mediaToDelete = ArrayList<Medium>()
                         it.forEach {
-                            if (!curMedia.contains(it)) {
+                            if (!curMediaSet.contains(it)) {
                                 val medium = it as? Medium
                                 val path = medium?.path
                                 if (path != null) {
@@ -1778,10 +1781,17 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             // Usa applicationContext: neste arquivo `context` e a funcao Context.get()
             // da lib commons, nao um Context - por isso dava "Unresolved reference
             // contentResolver". A Activity pode ser destruida; o applicationContext nao.
+            //
+            // PERFORMANCE: antes contava TODAS as linhas de MediaStore.Files (todo arquivo do
+            // aparelho: documentos, caches, miniaturas...) a cada 3 segundos. Agora conta so
+            // imagens (media_type=1) e videos (media_type=3), que sao o que o app exibe.
             applicationContext.contentResolver.query(
                 android.provider.MediaStore.Files.getContentUri("external"),
-                arrayOf("_id"), null, null, null
-            )?.use { c -> if (c.moveToFirst()) c.count.toLong() else 0L } ?: -1L
+                arrayOf("_id"),
+                "media_type IN (1,3)",
+                null,
+                null
+            )?.use { c -> c.count.toLong() } ?: -1L
         } catch (e: Exception) {
             -1L
         }

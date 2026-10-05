@@ -159,6 +159,13 @@ const val CLICK_MAX_DURATION = 150
 const val CLICK_MAX_DISTANCE = 100
 const val MAX_CLOSE_DOWN_GESTURE_DURATION = 1200
 const val MAX_ZOOM_EQUALITY_TOLERANCE = 0.01
+
+// Fechar o visualizador arrastando: tipo de area onde o toque comecou.
+const val DISMISS_AREA_FREE = 0      // pode fechar normalmente
+const val DISMISS_AREA_STRIP = 1     // faixa de brilho/volume: so fecha com arrasto longo e rapido
+const val DISMISS_AREA_BLOCKED = 2   // controles (seekbar, botoes): nunca fecha
+const val DISMISS_MIN_DISTANCE_DP = 64f
+const val DISMISS_STRIP_HEIGHT_FRACTION = 0.20f
 const val DRAG_THRESHOLD = 8
 const val MONTH_MILLISECONDS = MONTH_SECONDS * 1000L
 const val MIN_SKIP_LENGTH = 2000

@@ -303,6 +303,22 @@ class PhotoFragment : ViewPagerFragment() {
         return mView
     }
 
+    // Usado por BaseViewerActivity para decidir se o arrasto pode fechar o visualizador.
+    override fun isZoomedOutForDismiss(): Boolean {
+        if (!::binding.isInitialized) return true
+        return when {
+            binding.subsamplingView.isVisible() -> binding.subsamplingView.isZoomedOut()
+            binding.gifViewFrame.isVisible() ->
+                !mHasGifInitialZoom || abs(binding.gifViewFrame.controller.state.zoom - mGifInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+            else -> mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+        }
+    }
+
+    override fun getDismissAreaMode(rawX: Float, rawY: Float): Int {
+        if (!::binding.isInitialized) return DISMISS_AREA_FREE
+        return if (isTouchInside(binding.photoBrightnessController, rawX, rawY)) DISMISS_AREA_STRIP else DISMISS_AREA_FREE
+    }
+
     override fun onPause() {
         super.onPause()
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -801,8 +817,10 @@ class PhotoFragment : ViewPagerFragment() {
         return if (mMedium.isPortrait()) mCurrentPortraitPhotoPath else getPathToLoad(mMedium)
     }
 
+    // Antes era TODO(...), que lanca NotImplementedError e derruba o app ao tocar no icone
+    // de panorama. Sem visualizador de panorama, apenas avisa.
     private fun openPanorama() {
-        TODO("Panorama is not yet implemented.")
+        activity?.let { android.widget.Toast.makeText(it, "Visualizador de panorama indisponível", android.widget.Toast.LENGTH_SHORT).show() }
     }
 
     private fun scheduleZoomableView() {

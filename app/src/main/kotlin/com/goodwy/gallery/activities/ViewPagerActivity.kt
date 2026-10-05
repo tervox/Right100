@@ -644,8 +644,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 // porque o Glide carrega todas.
                 // Manda para FORA da tela: nao aparece, nao rouba toque, e o Glide
                 // so precisa carregar o que esta visivel.
+                // CORRECAO: o ViewPager ja posiciona cada pagina em position*largura. Somar
+                // translationX = -position*largura CANCELA esse deslocamento e coloca a pagina
+                // vizinha em x = 0, por cima da atual (era a causa do video "sobrepondo" o outro
+                // e tocando por baixo). Para sair da tela basta NAO deslocar: translationX = 0.
                 if (position >= 1f || position <= -1f) {
-                    view.translationX = view.width * -position
+                    view.translationX = 0f
                 }
             }
         }
@@ -653,11 +657,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun buildTransformer(animation: Int): ViewPager.PageTransformer? = when (animation) {
         SLIDESHOW_ANIMATION_NONE -> null
-        SLIDESHOW_ANIMATION_SLIDE -> object : ViewPager.PageTransformer {
-            override fun transformPage(view: android.view.View, position: Float) {
-                view.translationX = -position * view.width
-            }
-        }
+        // "Slide" = deslizar normal do ViewPager (sem transformer). Antes cancelava o
+        // deslocamento de todas as paginas, empilhando-as em x = 0 (a nova aparecia por cima).
+        SLIDESHOW_ANIMATION_SLIDE -> null
         SLIDESHOW_ANIMATION_FADE -> FadePageTransformer()
         SLIDESHOW_ANIMATION_CUBE -> CubePageTransformer()
         SLIDESHOW_ANIMATION_DEPTH -> object : ViewPager.PageTransformer {
@@ -1197,6 +1199,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         }
         tryNow()
     }
+
+    override fun getDismissFragment(): ViewPagerFragment? = getCurrentFragment()
 
     private fun getCurrentFragment(): ViewPagerFragment? {
         val position = binding.viewPager.currentItem

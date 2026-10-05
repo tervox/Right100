@@ -30,6 +30,8 @@ open class PhotoVideoActivity : BaseViewerActivity(), ViewPagerFragment.Fragment
     private var mIsFullScreen = false
     private var mIsFromGallery = false
     private var mFragment: ViewPagerFragment? = null
+
+    override fun getDismissFragment(): ViewPagerFragment? = mFragment
     private var mUri: Uri? = null
     private var mOriginalBrightness: Float? = null
 
