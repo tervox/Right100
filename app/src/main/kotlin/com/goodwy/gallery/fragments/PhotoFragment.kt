@@ -192,12 +192,20 @@ class PhotoFragment : ViewPagerFragment() {
             setupGesturesViewStateListener()
             gesturesView.setOnTouchListener { v, event ->
                 val allowDownGesture = context.config.allowDownGesture
-                val zoomedOut = mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE
+                // O gate comparava o zoom ATUAL com o zoom INICIAL. Em foto grande o
+                // zoom inicial e' > 1 (o Subsampling/gestures ja abre ampliado), e se o
+                // usuario nao mexesse no zoom mCurrentGestureViewZoom ficava no valor
+                // inicial — a comparacao passava. Mas depois de trocar de foto, ou quando
+                // o gesto de zoom do fragmento anterior ainda nao assentou, os dois
+                // valores divergem e o gate diz "esta ampliado" mesmo com a foto na tela
+                // toda: o puxao para fechar era ignorado. Comparar com o ZOOM MINIMO
+                // (1f = encaixada) e o que a condicao realmente quer dizer.
+                val zoomedOut = abs(mCurrentGestureViewZoom - MIN_ZOOM_FULL_SIZE) < MAX_ZOOM_EQUALITY_TOLERANCE
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
-                    com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f initialZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom, mInitialZoom))
+                    com.goodwy.gallery.App.logGesture("gesturesView gate allowDownGesture=%b zoomedOut=%b currentZoom=%.3f".format(allowDownGesture, zoomedOut, mCurrentGestureViewZoom))
                 }
                 if (allowDownGesture) {
-                    handleEvent(event) { mInitialZoom == 0f || abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE }
+                    handleEvent(event) { abs(mCurrentGestureViewZoom - MIN_ZOOM_FULL_SIZE) < MAX_ZOOM_EQUALITY_TOLERANCE }
                 }
                 if (allowDownGesture && zoomedOut) {
                     updateVerticalGestureInterception(v, event)

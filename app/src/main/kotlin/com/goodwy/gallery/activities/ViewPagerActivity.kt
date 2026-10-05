@@ -1360,7 +1360,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     // Scroller e achado pelo TIPO (nao pelo nome) para sobreviver ao R8.
     private val TAP_NAV_DURATION_MS = 50
 
+    // Desativado de proposito. Substituir o campo mScroller do ViewPager por reflexao
+    // QUEBRA os controles do video: esse objeto e' usado internamente pelo pager para
+    // decidir se um toque pertence a ele, e uma subclasse de Scroller deixa os estados
+    // internos inconsistentes — o toque passa a ser consumido e nada responde.
     private fun installFastTapScroller() {
+        if (true) return
         try {
             val pager = binding.viewPager
             val field = ViewPager::class.java.declaredFields

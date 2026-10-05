@@ -981,7 +981,14 @@ class DirectoryAdapter(
                     cropThumbnails = cropThumbnails,
                     roundCorners = roundedCorners,
                     // Evita reutilizar capas antigas decodificadas com resolução baixa.
-                    signature = ObjectKey("directory-thumbnail-v11-${directory.getKey()}"),
+                    // getKey() e' "$path-$modified", e trocar a capa NAO muda o modified:
+                    // o Glide via a mesma chave e devolvia do cache a imagem antiga, por
+                    // isso a capa nova so aparecia na proxima varredura. Incluindo a capa na
+                    // assinatura, mudar a capa passa a ser chave nova e o Glide rele do disco.
+                    signature = ObjectKey(
+                        "directory-thumbnail-v11-${directory.getKey()}-"
+                            + (config.parseAlbumCovers().firstOrNull { it.path == directory.path }?.tmb ?: "")
+                    ),
                     columnCount = config.dirColumnCnt,
                     onError = {
                         if (dirThumbnail.tag == thumbnailKey) {

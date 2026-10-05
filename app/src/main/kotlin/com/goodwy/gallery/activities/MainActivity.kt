@@ -1272,7 +1272,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         || grouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0
                         || grouping and GROUP_BY_LAST_MODIFIED_YEARLY != 0
 
-                val curMedia = mLastMediaFetcher!!.getFilesFrom(
+                // Um getDirectories() novo mata a varredura anterior por mShouldStopFetching.
+                // Essa anterior saia por `return` antes de chegar em gotDirectories(), que e' o
+                // unico que restaura o flag — ele ficava true para sempre e TODA varredura
+                // seguinte abortava no primeiro passo (contador congelado ate reiniciar o app).
+                val curMedia = try {
+                    mLastMediaFetcher!!.getFilesFrom(
                     curPath = directory.path,
                     isPickImage = getImagesOnly,
                     isPickVideo = getVideosOnly,
@@ -1284,7 +1289,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     lastModifieds = lastModifieds,
                     dateTakens = dateTakens,
                     android11Files = android11Files
-                )
+                    )
+                } catch (e: Exception) {
+                    com.goodwy.gallery.App.logGesture(
+                        "DIRDIAG getFilesFrom falhou path=" + directory.path + " erro=" + e.message
+                    )
+                    null
+                }
 
                 // Uma varredura que devolve 0 midias pode ser momentanea (MediaStore ainda atualizando depois
                 // de copiar/mover, pasta em uso). Antes a pasta era apagada da lista e do banco na hora e
