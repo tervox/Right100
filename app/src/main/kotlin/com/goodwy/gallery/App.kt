@@ -45,6 +45,25 @@ class App : RightApp() {
             if (privateLogsDir == null) privateLogsDir = File(filesDir, "logs")
         }
 
+        // COPIA os logs para /sdcard. Sem isso nao da para diagnosticar nada de fora:
+        // o gesture_log.txt fica em filesDir/logs, que so o app le.
+        fun exportLogsForDebug(): Boolean {
+            return try {
+                val src = logsDir()
+                val dst = File("/storage/emulated/0/Download/Right100Logs")
+                if (!dst.exists()) dst.mkdirs()
+                val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+                src.listFiles()?.forEach { f ->
+                    if (f.isFile) {
+                        f.copyTo(File(dst, f.name + "-" + stamp), true)
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
+
         private fun logsDir(): File {
             val dir = if (BuildConfig.DEBUG) {
                 File("/storage/emulated/0/Download/Right100Logs")
@@ -118,6 +137,13 @@ class App : RightApp() {
     override fun onCreate() {
         super.onCreate()
         initPrivateLogsDir(filesDir)
+        // Copia o log de cada execucao para /sdcard, para dar para ler de fora.
+        try {
+            maintenanceExecutor.execute {
+                exportLogsForDebug()
+            }
+        } catch (_: Exception) {
+        }
         setupCrashLogger()
         clearStaleGifThumbnailCacheOnce()
         logMemoryState(this, "app_start")
