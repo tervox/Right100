@@ -1350,7 +1350,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         oldView.translationX = -dir * width
 
         mTapAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = TAP_NAV_DURATION_MS
+            // ValueAnimator.duration e' Long; TAP_NAV_DURATION_MS e' Int.
+            duration = TAP_NAV_DURATION_MS.toLong()
             interpolator = android.view.animation.DecelerateInterpolator()
             addUpdateListener { anim ->
                 val p = anim.animatedValue as Float
