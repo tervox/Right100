@@ -532,6 +532,9 @@ class MediaFetcher(val context: Context) {
                 val mediaStoreId = cursor.getLongValue(Images.Media._ID)
                 val filename = cursor.getStringValue(Images.Media.DISPLAY_NAME)
                 val path = cursor.getStringValue(Images.Media.DATA)
+                if (com.goodwy.gallery.extensions.RecentlyDeletedPaths.isGone(path)) {
+                    return@queryCursor
+                }
                 if (getFavoritePathsOnly && !favoritePaths.contains(path)) {
                     return@queryCursor
                 }

@@ -1431,7 +1431,10 @@ fun Context.getCachedMedia(
 
                 if (mediaToDelete.isNotEmpty()) {
                     try {
-                        mediaDB.deleteMedia(*mediaToDelete.toTypedArray())
+                        // @Delete do Room usa a chave primaria (id), que aqui e nula (a query do DAO
+                        // nao seleciona id) => nao apagava NADA e as linhas "fantasma" ficavam no
+                        // banco para sempre. Apaga pelo caminho.
+                        mediaToDelete.forEach { mediaDB.deleteMediumPath(it.path) }
                         saveMediaSnapshot(path, media.filter { !mediaToDelete.contains(it) })
 
                         mediaToDelete.filter { it.isFavorite }.forEach {
@@ -1536,7 +1539,31 @@ fun Context.getUpdatedDeletedMedia(): ArrayList<Medium> {
     return media
 }
 
+// Caminhos excluidos ha pouco. Uma varredura que comecou ANTES da exclusao terminava depois e
+// regravava o arquivo no banco (insertAll), fazendo-o "voltar". Enquanto o arquivo nao existir
+// mais no disco, ele e ignorado por varreduras e regravacoes por 2 minutos.
+object RecentlyDeletedPaths {
+    private const val TTL_MS = 120_000L
+    private val paths = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    fun add(path: String) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        paths[path] = now
+        if (paths.size > 500) paths.entries.removeAll { now - it.value > TTL_MS }
+    }
+
+    fun isGone(path: String): Boolean {
+        val addedAt = paths[path] ?: return false
+        if (android.os.SystemClock.elapsedRealtime() - addedAt > TTL_MS) {
+            paths.remove(path)
+            return false
+        }
+        return !java.io.File(path).exists()
+    }
+}
+
 fun Context.deleteDBPath(path: String) {
+    RecentlyDeletedPaths.add(path)
     deleteMediumWithPath(path.replaceFirst(recycleBinPath, RECYCLE_BIN))
 }
 

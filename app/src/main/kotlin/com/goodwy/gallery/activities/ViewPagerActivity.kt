@@ -1340,33 +1340,21 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             return
         }
 
-        // A versao anterior animava translationX das duas paginas ENQUANTO o
-        // PageTransformer (ligado por applyViewerTransformer antes desta chamada)
-        // tambem escrevia translationX. Os dois brigavam pelo mesmo campo e a
-        // direcao visual saia invertida em parte dos frames, embora a pagina
-        // correta acabasse aparecendo.
-        //
-        // Agora animamos o PROPRIO PAGER: o transformer nunca escreve em
-        // pager.translationX, entao nao existe conflito possivel. Continua seco
-        // (setCurrentItem sem animacao) + 50ms de deslocamento, sem reflexao e
-        // sem desligar/religar transformer (o que desanexava a TextureView do video).
+        // Antes: o PAGER inteiro era deslocado 15% para o lado e voltava em 50 ms. Isso
+        // expunha o fundo da janela na borda e dava o "efeito estranho". Agora a troca e
+        // seca (sem deslocar nada) com um fade curtissimo da pagina nova.
         mTapAnimator?.cancel()
-
-        val dir = if (target > from) 1f else -1f   // +1 = avancando (visual entra pela direita)
-
-        // Empurrao inicial: o pager ja aparece levemente deslocado para o lado
-        // oposto ao movimento, para o olho perceber a direcao correta.
-        pager.translationX = dir * width * 0.15f
+        pager.translationX = 0f
+        pager.alpha = 0.75f
         pager.setCurrentItem(target, false)
 
-        mTapAnimator = android.animation.ValueAnimator.ofFloat(pager.translationX, 0f).apply {
-            duration = TAP_NAV_DURATION_MS.toLong()
+        mTapAnimator = android.animation.ValueAnimator.ofFloat(0.75f, 1f).apply {
+            duration = 90L
             interpolator = android.view.animation.DecelerateInterpolator()
-            addUpdateListener { anim ->
-                pager.translationX = anim.animatedValue as Float
-            }
+            addUpdateListener { anim -> pager.alpha = anim.animatedValue as Float }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    pager.alpha = 1f
                     pager.translationX = 0f
                     mTapAnimator = null
                 }

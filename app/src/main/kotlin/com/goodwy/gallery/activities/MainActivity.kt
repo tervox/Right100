@@ -1371,7 +1371,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 if (!directory.isRecycleBin() && !directory.areFavorites()) {
                     Thread {
                         try {
-                            mediaDB.insertAll(curMedia)
+                            mediaDB.insertAll(curMedia.filterNot {
+                                com.goodwy.gallery.extensions.RecentlyDeletedPaths.isGone(it.path)
+                            })
                         } catch (_: Exception) {
                         }
                     }.start()
@@ -1392,7 +1394,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                                 }
                             }
                         }
-                        mediaDB.deleteMedia(*mediaToDelete.toTypedArray())
+                        // Apaga pelo caminho: o @Delete do Room usa o id, nulo nestes objetos
+                        // (a query do DAO nao seleciona id), entao nunca apagava nada.
+                        mediaToDelete.forEach { mediaDB.deleteMediumPath(it.path) }
                     }
                 }
             }
@@ -1427,6 +1431,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         // check the remaining folders which were not cached at all yet
+        var lastProgressUiAt = 0L
         for (folder in foldersToScan) {
             if (mShouldStopFetching || isDestroyed || isFinishing) {
                 return
@@ -1483,14 +1488,25 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 noMediaFolders = noMediaFolders
             )
             dirs.add(newDir)
-            // Não chama setupAdapter aqui — acumulamos e atualizamos em batch abaixo
+            // Antes a tela so era atualizada DEPOIS de varrer todas as pastas: sem cache (primeira
+            // abertura, apos atualizar o app, ou cache limpo) a tela ficava vazia por muito tempo e
+            // parecia travada. Agora mostra o que ja foi achado, no maximo a cada 700 ms
+            // (evita o jank de uma chamada por pasta).
+            val nowMs = android.os.SystemClock.uptimeMillis()
+            if (nowMs - lastProgressUiAt > 700L) {
+                lastProgressUiAt = nowMs
+                val snapshot = dirs.clone() as ArrayList<Directory>
+                runOnUiThread { if (!isDestroyed) setupAdapter(snapshot) }
+            }
 
             // make sure to create a new thread for these operations, dont just use the common bg thread
             Thread {
                 try {
                     directoryDB.insert(newDir)
                     if (folder != RECYCLE_BIN && folder != FAVORITES) {
-                        mediaDB.insertAll(newMedia)
+                        mediaDB.insertAll(newMedia.filterNot {
+                            com.goodwy.gallery.extensions.RecentlyDeletedPaths.isGone(it.path)
+                        })
                     }
                 } catch (_: Exception) {
                 }
