@@ -26,6 +26,11 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean("blur_background_video", true)
         set(value) = prefs.edit { putBoolean("blur_background_video", value) }
 
+    // Atalhos flutuantes (copiar / mover / lixeira) ao selecionar midias na grade.
+    var showSelectionFab: Boolean
+        get() = prefs.getBoolean("show_selection_fab", true)
+        set(value) = prefs.edit { putBoolean("show_selection_fab", value) }
+
     var showSelectAllFab: Boolean
         get() = prefs.getBoolean("show_select_all_fab", false)
         set(value) = prefs.edit { putBoolean("show_select_all_fab", value) }

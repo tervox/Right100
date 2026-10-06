@@ -156,6 +156,7 @@ class SettingsActivity : SimpleActivity() {
 
         setupBottomActions()
         setupSelectAllFab()
+        setupSelectionFab()
         setupManageBottomActions()
 
         setupHiddenItemPasswordProtection()
@@ -1044,6 +1045,14 @@ class SettingsActivity : SimpleActivity() {
             else -> R.string.slide
         }
     )
+
+    private fun setupSelectionFab() {
+        binding.settingsSelectionFab.isChecked = config.showSelectionFab
+        binding.settingsSelectionFabHolder.setOnClickListener {
+            binding.settingsSelectionFab.toggle()
+            config.showSelectionFab = binding.settingsSelectionFab.isChecked
+        }
+    }
 
     private fun setupSelectAllFab() {
         binding.settingsSelectAllFab.isChecked = config.showSelectAllFab

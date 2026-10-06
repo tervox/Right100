@@ -320,7 +320,15 @@ open class PhotoVideoActivity : BaseViewerActivity(), ViewPagerFragment.Fragment
     }
 
     private fun showProperties() {
-        PropertiesDialog(this, mUri!!.path!!)
+        // mUri!!.path!! lancava NullPointerException (java.lang) para URIs content:// sem caminho.
+        safeRun("Propriedades") {
+            val path = mUri?.path
+            if (path.isNullOrEmpty()) {
+                toast("Esta midia nao tem caminho de arquivo para mostrar propriedades")
+            } else {
+                PropertiesDialog(this, path)
+            }
+        }
     }
 
     private fun isFileTypeVisible(path: String): Boolean {

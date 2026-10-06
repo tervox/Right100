@@ -674,14 +674,74 @@ class PhotoFragment : ViewPagerFragment() {
                         mMedium.path = mOriginalPath
                         loadImage()
                     } else {
-                        binding.errorMessageHolder.errorMessage.apply {
-                            setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
-                            fadeIn()
+                        // Ultimo recurso antes de mostrar "Falha ao carregar a midia": o decodificador do
+                        // proprio Android (cobre WebP/GIF/JPEG que o Glide e o Picasso nao abriram).
+                        loadWithSystemDecoder { loaded ->
+                            if (!loaded && isAdded && this@PhotoFragment::binding.isInitialized) {
+                                binding.errorMessageHolder.errorMessage.apply {
+                                    setTextColor(if (context.config.blackBackground) Color.WHITE else context.getProperTextColor())
+                                    fadeIn()
+                                }
+                            }
                         }
                     }
                 }
             })
         } catch (_: Exception) {
+        }
+    }
+
+    private fun loadWithSystemDecoder(onResult: (Boolean) -> Unit) {
+        val path = getFilePathToShow()
+        val act = activity
+        if (act == null || path.startsWith("content://")) {
+            onResult(false)
+            return
+        }
+        val screenSide = maxOf(mScreenWidth, mScreenHeight, 1)
+        ensureBackgroundThread {
+            var result: Drawable? = null
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = android.graphics.ImageDecoder.createSource(java.io.File(path))
+                    result = android.graphics.ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
+                        val w = info.size.width
+                        val h = info.size.height
+                        val big = maxOf(w, h)
+                        // Limita a ~2x a tela para nao estourar a memoria com imagens enormes.
+                        if (big > screenSide * 2) {
+                            val scale = screenSide * 2f / big
+                            decoder.setTargetSize(
+                                (w * scale).toInt().coerceAtLeast(1),
+                                (h * scale).toInt().coerceAtLeast(1)
+                            )
+                        }
+                    }
+                } else {
+                    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeFile(path, bounds)
+                    var sample = 1
+                    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > screenSide * 2) sample *= 2
+                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+                    android.graphics.BitmapFactory.decodeFile(path, opts)?.let {
+                        result = android.graphics.drawable.BitmapDrawable(act.resources, it)
+                    }
+                }
+            } catch (_: Throwable) {
+                result = null
+            }
+            val decoded = result
+            act.runOnUiThread {
+                if (decoded != null && isAdded && ::binding.isInitialized) {
+                    binding.gesturesView.setImageDrawable(decoded)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && decoded is android.graphics.drawable.AnimatedImageDrawable) {
+                        decoded.start()
+                    }
+                    onResult(true)
+                } else {
+                    onResult(false)
+                }
+            }
         }
     }
 

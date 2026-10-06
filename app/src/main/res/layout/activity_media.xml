@@ -168,9 +168,9 @@
         app:srcCompat="@drawable/ic_check_vector"
         app:tint="@android:color/white" />
 
-    <!-- FAB flutuante de Copiar/Mover/Deletar — aparece quando arquivos estão selecionados -->
+    <!-- Atalhos flutuantes de selecao: Copiar / Mover / Lixeira (ligado em Configuracoes) -->
     <LinearLayout
-        android:id="@+id/media_selection_fab"
+        android:id="@+id/selection_fab_holder"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
@@ -180,7 +180,7 @@
         android:visibility="gone">
 
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/fab_copy"
+            android:id="@+id/selection_fab_copy"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
@@ -191,7 +191,7 @@
             style="@style/Widget.MaterialComponents.ExtendedFloatingActionButton.Icon" />
 
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/fab_move"
+            android:id="@+id/selection_fab_move"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
@@ -201,14 +201,16 @@
             app:iconTint="@android:color/white"
             style="@style/Widget.MaterialComponents.ExtendedFloatingActionButton.Icon" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_delete"
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/selection_fab_trash"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:contentDescription="@string/delete"
-            app:srcCompat="@drawable/ic_delete_outline"
-            app:tint="@android:color/white"
-            app:backgroundTint="#E53935" />
+            android:text="@string/selection_fab_trash"
+            android:textColor="@android:color/white"
+            app:icon="@drawable/ic_delete_outline"
+            app:iconTint="@android:color/white"
+            app:backgroundTint="#E53935"
+            style="@style/Widget.MaterialComponents.ExtendedFloatingActionButton.Icon" />
 
     </LinearLayout>
 

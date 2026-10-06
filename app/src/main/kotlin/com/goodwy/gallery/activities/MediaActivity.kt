@@ -1345,18 +1345,29 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
-    fun showSelectionFab(show: Boolean) {
-        binding.mediaSelectionFab.beVisibleIf(show)
-        if (show) {
-            binding.fabCopy.setOnClickListener {
-                getMediaAdapter()?.checkMediaManagementAndCopy(true)
-            }
-            binding.fabMove.setOnClickListener {
-                getMediaAdapter()?.moveFilesTo()
-            }
-            binding.fabDelete.setOnClickListener {
-                getMediaAdapter()?.askConfirmDelete()
-            }
+    // Atalhos flutuantes novos (substituem o FAB antigo). So aparecem com itens selecionados
+    // e se a opcao estiver ligada em Configuracoes. Cada clique roda dentro de safeRun: se
+    // algo falhar, aparece um dialogo com o erro real (e botao para copiar o texto).
+    fun showSelectionActions(show: Boolean) {
+        val visible = show && config.showSelectionFab
+        binding.selectionFabHolder.beVisibleIf(visible)
+        if (!visible) return
+
+        val inRecycleBin = mPath == RECYCLE_BIN
+        // Na lixeira nao existe "mover"; e o botao vira exclusao definitiva.
+        binding.selectionFabMove.beVisibleIf(!inRecycleBin)
+        binding.selectionFabTrash.text = getString(
+            if (config.useRecycleBin && !inRecycleBin) R.string.selection_fab_trash else R.string.delete
+        )
+
+        binding.selectionFabCopy.setOnClickListener {
+            safeRun("Copiar") { getMediaAdapter()?.fabCopy() }
+        }
+        binding.selectionFabMove.setOnClickListener {
+            safeRun("Mover") { getMediaAdapter()?.fabMove() }
+        }
+        binding.selectionFabTrash.setOnClickListener {
+            safeRun("Lixeira") { getMediaAdapter()?.fabTrash() }
         }
     }
 

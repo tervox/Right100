@@ -303,19 +303,23 @@ class DirectoryAdapter(
     }
 
     private fun showProperties() {
-        if (selectedKeys.size <= 1) {
-            val path = getFirstSelectedItemPath() ?: return
-            if (path != FAVORITES && path != RECYCLE_BIN) {
-                activity.handleLockedFolderOpening(path) { success ->
-                    if (success) {
-                        PropertiesDialog(activity, path, config.shouldShowHidden)
+        activity.safeRun("Propriedades") {
+            if (selectedKeys.size <= 1) {
+                val path = getFirstSelectedItemPath() ?: return@safeRun
+                if (path != FAVORITES && path != RECYCLE_BIN) {
+                    activity.handleLockedFolderOpening(path) { success ->
+                        if (success) {
+                            activity.safeRun("Propriedades") {
+                                PropertiesDialog(activity, path, config.shouldShowHidden)
+                            }
+                        }
                     }
                 }
+            } else {
+                PropertiesDialog(activity, getSelectedPaths().filter {
+                    it != FAVORITES && it != RECYCLE_BIN && !config.isFolderProtected(it)
+                }.toMutableList(), config.shouldShowHidden)
             }
-        } else {
-            PropertiesDialog(activity, getSelectedPaths().filter {
-                it != FAVORITES && it != RECYCLE_BIN && !config.isFolderProtected(it)
-            }.toMutableList(), config.shouldShowHidden)
         }
     }
 

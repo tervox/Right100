@@ -1150,6 +1150,18 @@
                             app:switchPadding="@dimen/bigger_margin" />
 
                     </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_selection_fab_holder"
+                        style="@style/SettingsHolderSwitchStyle">
+
+                        <com.goodwy.commons.views.MyMaterialSwitch
+                            android:id="@+id/settings_selection_fab"
+                            style="@style/SettingsSwitchStyle"
+                            android:text="@string/selection_fab_setting"
+                            app:switchPadding="@dimen/bigger_margin" />
+
+                    </RelativeLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

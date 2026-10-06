@@ -242,12 +242,12 @@ class MediaAdapter(
     override fun onActionModeCreated() {
         swipeRefreshLayout?.isRefreshing = false
         swipeRefreshLayout?.isEnabled = false
-        (activity as? MediaActivity)?.showSelectionFab(true)
+        (activity as? MediaActivity)?.showSelectionActions(true)
     }
 
     override fun onActionModeDestroyed() {
         swipeRefreshLayout?.isEnabled = activity.config.enablePullToRefresh
-        (activity as? MediaActivity)?.showSelectionFab(false)
+        (activity as? MediaActivity)?.showSelectionActions(false)
     }
 
     override fun onViewAttachedToWindow(holder: ViewHolder) {
@@ -303,12 +303,14 @@ class MediaAdapter(
     }
 
     private fun showProperties() {
-        if (selectedKeys.size <= 1) {
-            val path = getFirstSelectedItemPath() ?: return
-            PropertiesDialog(activity, path, config.shouldShowHidden)
-        } else {
-            val paths = getSelectedPaths()
-            PropertiesDialog(activity, paths, config.shouldShowHidden)
+        activity.safeRun("Propriedades") {
+            if (selectedKeys.size <= 1) {
+                val path = getFirstSelectedItemPath() ?: return@safeRun
+                PropertiesDialog(activity, path, config.shouldShowHidden)
+            } else {
+                val paths = getSelectedPaths()
+                PropertiesDialog(activity, paths, config.shouldShowHidden)
+            }
         }
     }
 
@@ -508,6 +510,23 @@ class MediaAdapter(
         } else {
             handleRotate(paths, degrees)
         }
+    }
+
+    // Pontos de entrada dos atalhos flutuantes novos (MediaActivity.showSelectionActions).
+    internal fun fabCopy() {
+        if (selectedKeys.isEmpty()) return
+        checkMediaManagementAndCopy(true)
+    }
+
+    internal fun fabMove() {
+        if (selectedKeys.isEmpty()) return
+        moveFilesTo()
+    }
+
+    // Lixeira: respeita as opcoes do app (mover para a lixeira ou excluir, confirmacao, senha).
+    internal fun fabTrash() {
+        if (selectedKeys.isEmpty()) return
+        checkDeleteConfirmation()
     }
 
     internal fun moveFilesTo() {

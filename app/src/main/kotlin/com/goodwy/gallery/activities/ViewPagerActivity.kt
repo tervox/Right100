@@ -243,7 +243,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             R.id.menu_rotate_right -> rotateCurrentImage(90)
             R.id.menu_rotate_left -> rotateCurrentImage(-90)
             R.id.menu_rotate_one_eighty -> rotateCurrentImage(180)
-            R.id.menu_properties -> PropertiesDialog(this, path, config.shouldShowHidden)
+            R.id.menu_properties -> safeRun("Propriedades") { PropertiesDialog(this, path, config.shouldShowHidden) }
             R.id.menu_set_as -> setAs(path)
             R.id.menu_copy_to -> copyMoveTo(true)
             R.id.menu_move_to -> copyMoveTo(false)
@@ -315,7 +315,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         binding.bottomActions.bottomEdit.setOnLongClickListener { toast(R.string.edit); true }
 
         binding.bottomActions.bottomProperties.beVisibleIf(visible and BOTTOM_ACTION_PROPERTIES != 0)
-        binding.bottomActions.bottomProperties.setOnClickListener { PropertiesDialog(this, getCurrentPath(), config.shouldShowHidden) }
+        binding.bottomActions.bottomProperties.setOnClickListener { safeRun("Propriedades") { PropertiesDialog(this, getCurrentPath(), config.shouldShowHidden) } }
         binding.bottomActions.bottomProperties.setOnLongClickListener { toast(com.goodwy.commons.R.string.properties); true }
 
         binding.bottomActions.bottomSetAs.beVisibleIf(visible and BOTTOM_ACTION_SET_AS != 0 && isImage)

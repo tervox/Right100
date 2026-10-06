@@ -347,25 +347,52 @@ fun BaseSimpleActivity.toggleFileVisibility(oldPath: String, hide: Boolean, call
     }
 }
 
-// Caminho direto (java.io) para copiar/mover arquivos simples dentro do armazenamento principal
-// quando o app tem acesso total a arquivos. O copyMoveFilesTo do commons estava falhando com
-// IllegalArgumentException mesmo com permissao, destino gravavel e escrita de teste OK (COPYDIAG no
-// gesture_log.txt). Casos fora disso (SD/OTG, pastas, sem acesso total) continuam no commons.
+// Mostra um dialogo com o erro REAL (classe, mensagem e linhas da pilha) e um botao para copiar o
+// texto. O toast do commons vinha cortado e o log fica numa pasta privada no build Release.
+fun Throwable.toReport(): String =
+    toString() + "\n" + stackTrace.take(8).joinToString("\n") {
+        "  " + it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber
+    }
+
+fun android.app.Activity.showFailureDialog(title: String, details: String) {
+    runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        try {
+            android.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(details)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNeutralButton("Copiar texto") { _, _ ->
+                    val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("erro", details))
+                }
+                .show()
+        } catch (_: Throwable) {
+        }
+    }
+}
+
+// Executa uma acao de UI; se lancar excecao, mostra o erro real em vez de fechar o app ou sumir.
+fun android.app.Activity.safeRun(where: String, block: () -> Unit) {
+    try {
+        block()
+    } catch (e: Throwable) {
+        com.goodwy.gallery.App.logGesture("SAFERUN falhou em " + where + ": " + e.toReport().replace("\n", " | "))
+        showFailureDialog("Erro em $where", e.toReport())
+    }
+}
+
+// Caminho direto (java.io) para copiar/mover dentro do armazenamento principal quando o app tem
+// acesso total a arquivos. O copyMoveFilesTo do commons falha com IllegalArgumentException (era o
+// erro "java.lang" ao copiar). Antes o caminho direto so cobria casos "limpos"; todo o resto
+// (nome ja existente no destino, mesma pasta de origem) caia no commons e quebrava. Agora esses
+// casos sao resolvidos aqui: nome repetido vira "nome(1).ext" (manter os dois) e mover para a
+// pasta onde o arquivo ja esta e ignorado. So SD/OTG e falta de acesso total usam o commons.
 private fun BaseSimpleActivity.canDirectCopyMove(fileDirItems: ArrayList<FileDirItem>, destination: String): Boolean {
     if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) return false
     val primary = android.os.Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
     if (!destination.startsWith("$primary/") || !File(destination).isDirectory) return false
-    // Destino == origem: o while (dst.exists()) ja seria true, entao virava "nome(1).ext"
-    // e o original era apagado. Precisa cair no caminho do commons.
-    if (fileDirItems.any { it.path.trimEnd('/').substringBeforeLast('/') == destination.trimEnd('/') }) return false
-    // Se algum arquivo ja existe no destino, quem trata e o fluxo do commons, que pergunta
-    // pular / substituir / manter os dois. O caminho direto so cobre casos limpos.
-    val destDir = File(destination)
-    return fileDirItems.all {
-        it.path.startsWith("$primary/") &&
-            File(it.path).isFile &&
-            !File(destDir, File(it.path).name).exists()
-    }
+    return fileDirItems.all { it.path.startsWith("$primary/") && File(it.path).isFile }
 }
 
 private fun BaseSimpleActivity.directCopyMoveFiles(
@@ -375,10 +402,20 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
     android.widget.Toast.makeText(this, if (isCopyOperation) "Copiando..." else "Movendo...", android.widget.Toast.LENGTH_SHORT).show()
     ensureBackgroundThread {
         val touched = ArrayList<String>()
-        try {
-            val destDir = File(destination)
-            for (item in fileDirItems) {
+        val failures = ArrayList<String>()
+        var okCount = 0
+        var renamedCount = 0
+        var skippedCount = 0
+        val destDir = File(destination)
+        val destPath = destDir.absolutePath.trimEnd('/')
+        for (item in fileDirItems) {
+            // Cada arquivo tem seu proprio try/catch: um erro nao derruba os outros.
+            try {
                 val src = File(item.path)
+                if (!isCopyOperation && src.parentFile?.absolutePath?.trimEnd('/') == destPath) {
+                    skippedCount++
+                    continue
+                }
                 var dst = File(destDir, src.name)
                 var n = 1
                 while (dst.exists()) {
@@ -386,6 +423,7 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                     dst = File(destDir, src.nameWithoutExtension + "(" + n + ")" + ext)
                     n++
                 }
+                if (n > 1) renamedCount++
                 val modified = src.lastModified()
                 var done = false
                 if (!isCopyOperation) {
@@ -400,20 +438,44 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                     if (modified > 0L) dst.setLastModified(modified)
                     if (!isCopyOperation) {
                         if (dst.length() != src.length()) {
+                            dst.delete()
                             throw java.io.IOException("tamanho diferente apos copiar: " + dst.length() + " != " + src.length())
                         }
                         src.delete()
                     }
                 }
+                okCount++
                 touched.add(src.absolutePath)
                 touched.add(dst.absolutePath)
-                com.goodwy.gallery.App.logGesture("COPYDIAG direto ok " + src.name + " -> " + dst.absolutePath + " copy=" + isCopyOperation)
+                com.goodwy.gallery.App.logGesture("COPYDIAG direto ok " + src.name + " -> " + dst.name + " copy=" + isCopyOperation)
+            } catch (e: Throwable) {
+                failures.add(File(item.path).name + ": " + e.toString())
+                com.goodwy.gallery.App.logGesture("COPYDIAG direto FALHOU: " + e.toReport().replace("\n", " | "))
             }
-            android.media.MediaScannerConnection.scanFile(applicationContext, touched.toTypedArray(), null, null)
-            runOnUiThread { callback(destination) }
-        } catch (e: Throwable) {
-            com.goodwy.gallery.App.logGesture("COPYDIAG direto FALHOU: " + e.toString() + " @ " + e.stackTrace.take(8).joinToString(" | ") { it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber })
-            runOnUiThread { showErrorToast("Falha ao copiar/mover: " + e.toString()) }
+        }
+        if (touched.isNotEmpty()) {
+            try {
+                android.media.MediaScannerConnection.scanFile(applicationContext, touched.toTypedArray(), null, null)
+            } catch (_: Throwable) {
+            }
+        }
+        runOnUiThread {
+            // Callback so quando algo realmente mudou (atualiza lista, favoritos e contadores).
+            if (okCount > 0) callback(destination)
+            val verb = if (isCopyOperation) "Copiado" else "Movido"
+            if (failures.isEmpty()) {
+                val extra = if (renamedCount > 0) " ($renamedCount com nome repetido salvo como nome(1))" else ""
+                when {
+                    okCount > 0 -> toast("$verb com sucesso$extra")
+                    skippedCount > 0 -> toast("Os arquivos ja estao nessa pasta")
+                    else -> Unit
+                }
+            } else {
+                showFailureDialog(
+                    "$okCount ok, ${failures.size} falharam",
+                    failures.take(5).joinToString("\n\n") + if (failures.size > 5) "\n\n(+${failures.size - 5} falhas)" else ""
+                )
+            }
         }
     }
 }
@@ -436,22 +498,6 @@ private fun BaseSimpleActivity.logCopyMoveDiagnostics(
         } catch (e: Throwable) {
             com.goodwy.gallery.App.logGesture("COPYDIAG preflight FALHOU: ${fmt(e)}")
         }
-        val probePath = "$destination/.r100_probe_${System.currentTimeMillis()}.tmp"
-        try {
-            val out = getFileOutputStreamSync(probePath, "application/octet-stream")
-            if (out == null) {
-                com.goodwy.gallery.App.logGesture("COPYDIAG probe: getFileOutputStreamSync devolveu null (sem permissao de escrita no destino)")
-            } else {
-                out.write(0)
-                out.flush()
-                out.close()
-                com.goodwy.gallery.App.logGesture("COPYDIAG probe: escrita no destino OK")
-            }
-        } catch (e: Throwable) {
-            com.goodwy.gallery.App.logGesture("COPYDIAG probe FALHOU (esta e a excecao do toast): ${fmt(e)}")
-        } finally {
-            try { File(probePath).delete() } catch (_: Throwable) { }
-        }
     }
 }
 
@@ -471,6 +517,7 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
             if (sourceGranted) {
                 handleSAFDialogSdk30(destination) { destGranted ->
                     if (destGranted) {
+                      safeRun("Copiar/Mover (commons)") {
                         copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden) { copiedTo ->
                             com.goodwy.gallery.App.logGesture("COPYDIAG copiar/mover venceu destino=$copiedTo")
                             // Sem isto a operacao terminava em silencio e o usuario ficava
@@ -480,6 +527,7 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
                             }
                             callback(copiedTo)
                         }
+                      }
                     }
                 }
             }
