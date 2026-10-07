@@ -64,6 +64,8 @@ class App : RightApp() {
         // heap quase cheio e sysLowMemory=true, é sinal forte de que o sistema matou o app por
         // falta de memória, não um bug de código específico.
         fun logMemoryState(context: android.content.Context, tag: String) {
+            // Privacidade: build Release nao grava nenhum log em disco.
+            if (!BuildConfig.DEBUG) return
             val line = try {
                 val rt = Runtime.getRuntime()
                 val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1024 / 1024
@@ -99,6 +101,8 @@ class App : RightApp() {
         // visualizador de fotos/vídeos. Grava cada decisão (por que disparou, por que não)
         // em ~/storage/downloads/Right100Logs/gesture_log.txt, sem precisar de adb/logcat.
         fun logGesture(line: String) {
+            // Privacidade: os logs citam nomes de arquivos e pastas. Em Release nao grava nada.
+            if (!BuildConfig.DEBUG) return
             maintenanceExecutor.execute {
                 try {
                     val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
@@ -119,6 +123,15 @@ class App : RightApp() {
     override fun onCreate() {
         super.onCreate()
         initPrivateLogsDir(filesDir)
+        if (!BuildConfig.DEBUG) {
+            // Apaga logs gravados por versoes anteriores (traziam nomes de arquivos e pastas).
+            maintenanceExecutor.execute {
+                try {
+                    File(filesDir, "logs").deleteRecursively()
+                } catch (_: Exception) {
+                }
+            }
+        }
         // Copia o log de cada execucao para /sdcard, para dar para ler de fora.
         setupCrashLogger()
         clearStaleGifThumbnailCacheOnce()
@@ -165,6 +178,8 @@ class App : RightApp() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
+                // Privacidade: em Release nao grava o crash_log (o Android ainda mostra o fechamento normal).
+                if (!BuildConfig.DEBUG) throw IllegalStateException("logs desligados em release")
                 val logFile = File(logsDir(), "crash_log.txt")
                 val stackTraceWriter = StringWriter()
                 throwable.printStackTrace(PrintWriter(stackTraceWriter))
