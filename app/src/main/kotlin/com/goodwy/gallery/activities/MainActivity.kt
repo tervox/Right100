@@ -108,6 +108,24 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mMediaStoreDirty = false
     private val mRefreshHandler = Handler(Looper.getMainLooper())
 
+    // Recarrega as pastas quando o MediaStore avisa de mudanca. Antes o aviso era DESCARTADO
+    // (flag limpo antes de checar) se uma varredura ja estava rodando ou se a janela estava sem
+    // foco; como a nova midia costuma gerar varios avisos seguidos, o ultimo caia no meio da
+    // varredura e a lista ficava desatualizada. Agora ele tenta de novo ate conseguir.
+    private val mDirtyRefreshRunnable = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed || !mMediaStoreDirty) return
+            // sem foco: retomado em onWindowFocusChanged
+            if (!hasWindowFocus() || mIsThirdPartyIntent) return
+            if (mIsGettingDirs) {
+                mRefreshHandler.postDelayed(this, 1000L)
+                return
+            }
+            mMediaStoreDirty = false
+            getDirectories()
+        }
+    }
+
     private var mStoredAnimateGifs = true
     private var mStoredCropThumbnails = true
     private var mStoredScrollHorizontally = true
@@ -241,6 +259,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && mMediaStoreDirty) {
+            mRefreshHandler.removeCallbacks(mDirtyRefreshRunnable)
+            mRefreshHandler.postDelayed(mDirtyRefreshRunnable, 300L)
+        }
         if (hasFocus && !mWhatsNewShownForSession) {
             // Permissões e o aviso de gerenciamento de arquivos podem ocupar a janela
             // logo após onCreate. Só exiba a novidade quando esses diálogos terminarem.
@@ -345,13 +367,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             val observer = object : ContentObserver(mMediaObserverHandler) {
                 override fun onChange(selfChange: Boolean) {
                     mMediaStoreDirty = true
-                    mRefreshHandler.removeCallbacksAndMessages(null)
-                    mRefreshHandler.postDelayed({
-                        if (isFinishing || isDestroyed) return@postDelayed
-                        if (!hasWindowFocus() || mIsThirdPartyIntent) return@postDelayed
-                        mMediaStoreDirty = false
-                        if (!mIsGettingDirs) getDirectories()
-                    }, 300)
+                    mRefreshHandler.removeCallbacks(mDirtyRefreshRunnable)
+                    mRefreshHandler.postDelayed(mDirtyRefreshRunnable, 300L)
                 }
             }
             contentResolver.registerContentObserver(
@@ -691,6 +708,19 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         mIsGettingDirs = true
         mShouldStopFetching = false
+        // Linha base da checagem periodica: tirada no INICIO da varredura. Antes ela era tirada
+        // so no onCreate (ids) e nunca (total), entao a primeira checagem sempre via "mudou" e
+        // a checagem parava de rodar; qualquer midia nova depois disso nao era percebida.
+        ensureBackgroundThread {
+            try {
+                if (hasPermission(PERMISSION_READ_STORAGE)) {
+                    mLatestMediaId = getLatestMediaId()
+                    mLatestMediaDateId = getLatestMediaByDateId()
+                    mLastTotalMediaItems = curTotalMediaItems()
+                }
+            } catch (_: Exception) {
+            }
+        }
         val getImages = mIsPickImageIntent || mIsGetImageContentIntent
         val getVideos = mIsPickVideoIntent || mIsGetVideoContentIntent
 
@@ -1823,17 +1853,23 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 val mediaId = getLatestMediaId()
                 val mediaDateId = getLatestMediaByDateId()
                 val totalNow = curTotalMediaItems()
-                if (mLatestMediaId != mediaId || mLatestMediaDateId != mediaDateId
-                    || (totalNow >= 0 && totalNow != mLastTotalMediaItems)
-                ) {
-                    mLatestMediaId = mediaId
-                    mLatestMediaDateId = mediaDateId
-                    mLastTotalMediaItems = totalNow
-                    //We do not update the adapter on first launch to avoid double loading of the adapter
-                    if (!first) runOnUiThread {
-                        getDirectories()
+                // So compara o total quando a linha base ja foi tirada (>= 0).
+                val totalChanged = totalNow >= 0 && mLastTotalMediaItems >= 0 && totalNow != mLastTotalMediaItems
+                if (mLatestMediaId != mediaId || mLatestMediaDateId != mediaDateId || totalChanged) {
+                    // Nao atualiza a linha base aqui: getDirectories() tira uma nova ao iniciar.
+                    // Se ja ha varredura em andamento, tenta de novo no proximo ciclo em vez de
+                    // perder a mudanca (antes a checagem parava de rodar nesse caso).
+                    runOnUiThread {
+                        if (isDestroyed) return@runOnUiThread
+                        if (mIsGettingDirs) {
+                            mLastMediaHandler.removeCallbacksAndMessages(null)
+                            checkLastMediaChanged()
+                        } else {
+                            getDirectories()
+                        }
                     }
                 } else {
+                    if (mLastTotalMediaItems < 0 && totalNow >= 0) mLastTotalMediaItems = totalNow
                     mLastMediaHandler.removeCallbacksAndMessages(null)
                     checkLastMediaChanged()
                 }
