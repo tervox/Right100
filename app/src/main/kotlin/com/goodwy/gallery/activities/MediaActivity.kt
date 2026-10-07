@@ -264,6 +264,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     override fun onResume() {
         super.onResume()
+        startLiveWatchers()
         updateMenuColors()
         setupTabsColor()
 
@@ -375,8 +376,125 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && mLivePending) {
+            mLiveHandler.removeCallbacks(mLiveRefreshRunnable)
+            mLiveHandler.postDelayed(mLiveRefreshRunnable, 120L)
+        }
+    }
+
+    // ---- Atualizacao instantanea da pasta aberta ----
+    // Outro app que mova, apague, edite ou crie midia dispara o MediaStore (ContentObserver) e o
+    // sistema de arquivos (FileObserver na pasta). Antes so havia checagem a cada 3 s e que so
+    // percebia arquivo NOVO (nao apagar/mover/editar).
+    private val mLiveHandler = Handler(android.os.Looper.getMainLooper())
+    private var mLiveObserver: android.database.ContentObserver? = null
+    private var mFolderWatcher: android.os.FileObserver? = null
+    private var mLivePending = false
+    private val mLiveRefreshRunnable = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed) return
+            // sem foco: retomado em onWindowFocusChanged
+            if (!hasWindowFocus()) return
+            if (mIsGettingMedia) {
+                // ja carregando: tenta de novo em vez de cancelar e recomecar a cada aviso
+                mLiveHandler.postDelayed(this, 400L)
+                return
+            }
+            mLivePending = false
+            getMedia(forceRefresh = true)
+        }
+    }
+
+    private fun scheduleLiveRefresh() {
+        if (mLivePending) return
+        mLivePending = true
+        mLiveHandler.postDelayed(mLiveRefreshRunnable, 120L)
+    }
+
+    private fun onMediaStoreChanged(uri: android.net.Uri?) {
+        if (isFinishing || isDestroyed) return
+        // Favoritos e lixeira vem do banco do app, nao do sistema de arquivos.
+        if (mPath == FAVORITES || mPath == RECYCLE_BIN) return
+        val id = uri?.lastPathSegment?.toLongOrNull()
+        if (uri == null || id == null || mShowAll) {
+            scheduleLiveRefresh()
+            return
+        }
+        ensureBackgroundThread {
+            val folder = try {
+                applicationContext.contentResolver.query(
+                    uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null
+                )?.use { c ->
+                    if (c.moveToFirst()) c.getString(0)?.let { java.io.File(it).parent } else null
+                }
+            } catch (_: Exception) {
+                null
+            }
+            runOnUiThread {
+                // So esta pasta importa (ou item ja apagado, sem pasta conhecida).
+                if (folder == null || folder.trimEnd('/') == mPath.trimEnd('/')) scheduleLiveRefresh()
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun startLiveWatchers() {
+        stopLiveWatchers()
+        val observer = object : android.database.ContentObserver(mLiveHandler) {
+            override fun onChange(selfChange: Boolean) {
+                onMediaStoreChanged(null)
+            }
+
+            override fun onChange(selfChange: Boolean, uri: android.net.Uri?) {
+                onMediaStoreChanged(uri)
+            }
+        }
+        try {
+            contentResolver.registerContentObserver(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)
+            contentResolver.registerContentObserver(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer)
+            mLiveObserver = observer
+        } catch (_: Exception) {
+        }
+
+        if (mPath.startsWith("/") && mPath != FAVORITES && mPath != RECYCLE_BIN && java.io.File(mPath).isDirectory) {
+            try {
+                val mask = android.os.FileObserver.CREATE or android.os.FileObserver.DELETE or
+                    android.os.FileObserver.MOVED_FROM or android.os.FileObserver.MOVED_TO or
+                    android.os.FileObserver.CLOSE_WRITE or android.os.FileObserver.DELETE_SELF or
+                    android.os.FileObserver.MOVE_SELF
+                val watcher = object : android.os.FileObserver(mPath, mask) {
+                    override fun onEvent(event: Int, name: String?) {
+                        mLiveHandler.post { scheduleLiveRefresh() }
+                    }
+                }
+                watcher.startWatching()
+                mFolderWatcher = watcher
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun stopLiveWatchers() {
+        mLiveObserver?.let {
+            try {
+                contentResolver.unregisterContentObserver(it)
+            } catch (_: Exception) {
+            }
+        }
+        mLiveObserver = null
+        try {
+            mFolderWatcher?.stopWatching()
+        } catch (_: Throwable) {
+        }
+        mFolderWatcher = null
+        mLiveHandler.removeCallbacks(mLiveRefreshRunnable)
+    }
+
     override fun onPause() {
         super.onPause()
+        stopLiveWatchers()
         mIsGettingMedia = false
         binding.mediaRefreshLayout.isRefreshing = false
         storeStateVariables()

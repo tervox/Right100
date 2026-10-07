@@ -263,6 +263,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             mRefreshHandler.removeCallbacks(mDirtyRefreshRunnable)
             mRefreshHandler.postDelayed(mDirtyRefreshRunnable, 300L)
         }
+        if (hasFocus && (mChangedFolders.isNotEmpty() || mNeedFullRefresh)) {
+            scheduleFolderFlush()
+        }
         if (hasFocus && !mWhatsNewShownForSession) {
             // Permissões e o aviso de gerenciamento de arquivos podem ocupar a janela
             // logo após onCreate. Só exiba a novidade quando esses diálogos terminarem.
@@ -366,9 +369,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (mMediaStoreObserver == null) {
             val observer = object : ContentObserver(mMediaObserverHandler) {
                 override fun onChange(selfChange: Boolean) {
-                    mMediaStoreDirty = true
-                    mRefreshHandler.removeCallbacks(mDirtyRefreshRunnable)
-                    mRefreshHandler.postDelayed(mDirtyRefreshRunnable, 300L)
+                    handleMediaStoreChange(null)
+                }
+
+                override fun onChange(selfChange: Boolean, uri: android.net.Uri?) {
+                    handleMediaStoreChange(uri)
                 }
             }
             contentResolver.registerContentObserver(
@@ -379,6 +384,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             )
             mMediaStoreObserver = observer
         }
+        updateFolderWatchers(mLatestDirs)
     }
 
     override fun onPause() {
@@ -391,6 +397,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         // Desregistrar observer ao sair
         mMediaStoreObserver?.let { contentResolver.unregisterContentObserver(it) }
         mMediaStoreObserver = null
+        stopFolderWatchers()
     }
 
     override fun onStop() {
@@ -1652,6 +1659,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         forceRecreate: Boolean = false
     ) {
         val currAdapter = binding.directoriesGrid.adapter
+        mLatestDirs = dirs.clone() as ArrayList<Directory>
         val distinctDirs = dirs
             .distinctBy { it.path.getDistinctPath() }
             .toMutableList() as ArrayList<Directory>
@@ -1714,6 +1722,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 (binding.directoriesGrid.adapter as? DirectoryAdapter)?.updateDirs(dirsToShow)
             }
         }
+
+        runOnUiThread { updateFolderWatchers(mLatestDirs) }
 
         // recyclerview sometimes becomes empty at init/update, triggering an invisible refresh like this seems to work fine
         binding.directoriesGrid.postDelayed({
@@ -1840,6 +1850,329 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             )?.use { c -> c.count.toLong() } ?: -1L
         } catch (e: Exception) {
             -1L
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // ATUALIZACAO INSTANTANEA DAS PASTAS
+    // Qualquer app que mova, apague, edite ou crie midia dispara dois avisos: o MediaStore
+    // (ContentObserver, traz o item alterado) e o sistema de arquivos (FileObserver, traz a
+    // pasta). Em vez de reescanear TODAS as pastas (segundos), so a pasta afetada e
+    // reescaneada (centesimos de segundo). A varredura completa fica como reserva para avisos
+    // sem item, muitas pastas ao mesmo tempo, ou sem acesso total a arquivos.
+    // ---------------------------------------------------------------------------------------
+    @Volatile private var mLatestDirs: ArrayList<Directory> = ArrayList()
+    private val mWatchHandler = Handler(Looper.getMainLooper())
+    private val mFolderObservers = HashMap<String, android.os.FileObserver>()
+    private val mChangedFolders = LinkedHashSet<String>()
+    private var mNeedFullRefresh = false
+    private var mFlushScheduled = false
+    private val mPartialExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var mPartialLastModifieds: HashMap<String, Long>? = null
+    private var mPartialDateTakens: HashMap<String, Long>? = null
+    private val mFlushChangesRunnable = Runnable { flushFolderChanges() }
+    private val mFolderEventsMask = android.os.FileObserver.CREATE or
+        android.os.FileObserver.DELETE or
+        android.os.FileObserver.MOVED_FROM or
+        android.os.FileObserver.MOVED_TO or
+        android.os.FileObserver.CLOSE_WRITE or
+        android.os.FileObserver.DELETE_SELF or
+        android.os.FileObserver.MOVE_SELF
+
+    private fun canRefreshPartially(): Boolean {
+        if (!mLoadedInitialPhotos || config.groupDirectSubfolders || mLatestDirs.isEmpty()) return false
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R &&
+            !android.os.Environment.isExternalStorageManager()
+        ) return false
+        return true
+    }
+
+    private fun requestFullRefresh(delayMs: Long) {
+        mMediaStoreDirty = true
+        mRefreshHandler.removeCallbacks(mDirtyRefreshRunnable)
+        mRefreshHandler.postDelayed(mDirtyRefreshRunnable, delayMs)
+    }
+
+    private fun scheduleFolderFlush() {
+        if (mFlushScheduled) return
+        mFlushScheduled = true
+        mWatchHandler.postDelayed(mFlushChangesRunnable, 120L)
+    }
+
+    private fun handleMediaStoreChange(uri: android.net.Uri?) {
+        if (isFinishing || isDestroyed) return
+        val id = uri?.lastPathSegment?.toLongOrNull()
+        if (uri == null || id == null || !canRefreshPartially()) {
+            // Aviso generico (sem item): so a varredura completa resolve.
+            requestFullRefresh(150L)
+            return
+        }
+        mPartialExecutor.execute {
+            val folder = try {
+                applicationContext.contentResolver.query(
+                    uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null
+                )?.use { c ->
+                    if (c.moveToFirst()) c.getString(0)?.let { java.io.File(it).parent } else null
+                }
+            } catch (_: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                // Item que nao existe mais no MediaStore (apagado): sem pasta, varredura completa
+                // (o FileObserver costuma avisar a pasta antes, de forma instantanea).
+                if (folder != null) mChangedFolders.add(folder) else mNeedFullRefresh = true
+                scheduleFolderFlush()
+            }
+        }
+    }
+
+    private fun onFolderEvent(path: String) {
+        mWatchHandler.post {
+            if (isFinishing || isDestroyed) return@post
+            mChangedFolders.add(path)
+            scheduleFolderFlush()
+        }
+    }
+
+    private fun flushFolderChanges() {
+        mFlushScheduled = false
+        if (isFinishing || isDestroyed || mIsThirdPartyIntent) {
+            mChangedFolders.clear()
+            mNeedFullRefresh = false
+            return
+        }
+        if (mChangedFolders.isEmpty() && !mNeedFullRefresh) return
+        // Sem foco: guarda e retoma em onWindowFocusChanged.
+        if (!hasWindowFocus()) return
+
+        val paths = ArrayList(mChangedFolders)
+        val needFull = mNeedFullRefresh
+        mChangedFolders.clear()
+        mNeedFullRefresh = false
+
+        if (needFull || paths.size > 8 || mIsGettingDirs || !canRefreshPartially()) {
+            requestFullRefresh(0L)
+            return
+        }
+
+        mPartialExecutor.execute {
+            var allOk = true
+            for (p in paths) {
+                if (!refreshDirectoryNow(p)) {
+                    allOk = false
+                    break
+                }
+            }
+            if (allOk) {
+                refreshMediaBaseline()
+            } else {
+                runOnUiThread { requestFullRefresh(0L) }
+            }
+        }
+    }
+
+    // Linha base da checagem periodica: sem isto, depois de uma atualizacao parcial a checagem
+    // periodica acharia "mudanca" e faria uma varredura completa desnecessaria.
+    private fun refreshMediaBaseline() {
+        try {
+            if (hasPermission(PERMISSION_READ_STORAGE)) {
+                mLatestMediaId = getLatestMediaId()
+                mLatestMediaDateId = getLatestMediaByDateId()
+                mLastTotalMediaItems = curTotalMediaItems()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun updateFolderWatchers(dirs: List<Directory>) {
+        if (isFinishing || isDestroyed) return
+        // Com subpastas agrupadas a atualizacao parcial nao vale (a contagem do pai depende dos
+        // filhos): so a varredura completa, sem vigias.
+        if (config.groupDirectSubfolders) {
+            stopFolderWatchers()
+            return
+        }
+        val temp = config.tempFolderPath
+        val wanted = dirs.asSequence()
+            .map { it.path }
+            .filter { it.startsWith("/") && it != FAVORITES && it != RECYCLE_BIN && it != temp }
+            .take(400)
+            .toSet()
+
+        val iterator = mFolderObservers.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.key !in wanted) {
+                try {
+                    entry.value.stopWatching()
+                } catch (_: Throwable) {
+                }
+                iterator.remove()
+            }
+        }
+        for (path in wanted) {
+            if (mFolderObservers.containsKey(path)) continue
+            if (!java.io.File(path).isDirectory) continue
+            try {
+                val observer = object : android.os.FileObserver(path, mFolderEventsMask) {
+                    override fun onEvent(event: Int, name: String?) {
+                        onFolderEvent(path)
+                    }
+                }
+                observer.startWatching()
+                mFolderObservers[path] = observer
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun stopFolderWatchers() {
+        mFolderObservers.values.forEach {
+            try {
+                it.stopWatching()
+            } catch (_: Throwable) {
+            }
+        }
+        mFolderObservers.clear()
+        mChangedFolders.clear()
+        mNeedFullRefresh = false
+        mFlushScheduled = false
+        mWatchHandler.removeCallbacks(mFlushChangesRunnable)
+    }
+
+    // Reescaneia UMA pasta e atualiza so ela na lista e no banco. Mesma logica da varredura
+    // completa (gotDirectories), restrita a esta pasta. Devolve false se nao deu para tratar
+    // aqui (o chamador faz a varredura completa).
+    private fun refreshDirectoryNow(path: String): Boolean {
+        try {
+            if (isDestroyed || isFinishing) return true
+            if (path == FAVORITES || path == RECYCLE_BIN || path == config.tempFolderPath) return false
+
+            val getImages = mIsPickImageIntent || mIsGetImageContentIntent
+            val getVideos = mIsPickVideoIntent || mIsGetVideoContentIntent
+            val getImagesOnly = getImages && !getVideos
+            val getVideosOnly = getVideos && !getImages
+            val sorting = config.getFolderSorting(path)
+            val grouping = config.getFolderGrouping(path)
+            val getProperDateTaken = config.directorySorting and SORT_BY_DATE_TAKEN != 0
+                || sorting and SORT_BY_DATE_TAKEN != 0
+                || grouping and GROUP_BY_DATE_TAKEN_DAILY != 0
+                || grouping and GROUP_BY_DATE_TAKEN_MONTHLY != 0
+                || grouping and GROUP_BY_DATE_TAKEN_YEARLY != 0
+            val getProperLastModified = config.directorySorting and SORT_BY_DATE_MODIFIED != 0
+                || sorting and SORT_BY_DATE_MODIFIED != 0
+                || grouping and GROUP_BY_LAST_MODIFIED_DAILY != 0
+                || grouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0
+                || grouping and GROUP_BY_LAST_MODIFIED_YEARLY != 0
+            val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0 || config.showFolderSize
+
+            val fetcher = MediaFetcher(applicationContext)
+            // Mapas do banco so quando o criterio de ordenacao precisa deles (carrega uma vez).
+            val lastModifieds: HashMap<String, Long> = if (getProperLastModified) {
+                mPartialLastModifieds ?: fetcher.getLastModifieds().also { mPartialLastModifieds = it }
+            } else HashMap()
+            val dateTakens: HashMap<String, Long> = if (getProperDateTaken) {
+                mPartialDateTakens ?: fetcher.getDateTakens().also { mPartialDateTakens = it }
+            } else HashMap()
+            val favoritePaths = getFavoritePaths()
+
+            fun listFolder(): ArrayList<Medium> = fetcher.getFilesFrom(
+                curPath = path,
+                isPickImage = getImagesOnly,
+                isPickVideo = getVideosOnly,
+                getProperDateTaken = getProperDateTaken,
+                getProperLastModified = getProperLastModified,
+                getProperFileSize = getProperFileSize,
+                favoritePaths = favoritePaths,
+                getVideoDurations = false,
+                lastModifieds = lastModifieds,
+                dateTakens = dateTakens,
+                android11Files = null
+            )
+
+            var curMedia = listFolder()
+            if (curMedia.isEmpty()) {
+                // Pasta vazia pode ser momentanea (outro app esta movendo/copiando): confere de novo.
+                Thread.sleep(400)
+                curMedia = listFolder()
+            }
+
+            val current = mLatestDirs
+            val existing = current.firstOrNull { it.path == path }
+            val updated = ArrayList(current)
+
+            if (curMedia.isEmpty()) {
+                if (existing == null) return true
+                directoryDB.deleteDirPath(path)
+                updated.remove(existing)
+            } else {
+                val newDir = createDirectoryFromMedia(
+                    path = path,
+                    curMedia = curMedia,
+                    albumCovers = config.parseAlbumCovers(),
+                    hiddenString = getString(R.string.hidden),
+                    includedFolders = config.includedFolders,
+                    getProperFileSize = getProperFileSize,
+                    noMediaFolders = getNoMediaFoldersSync()
+                )
+
+                if (existing == null) {
+                    updated.add(newDir)
+                    Thread {
+                        try {
+                            directoryDB.insert(newDir)
+                        } catch (_: Exception) {
+                        }
+                    }.start()
+                } else {
+                    existing.apply {
+                        tmb = newDir.tmb
+                        name = newDir.name
+                        mediaCnt = newDir.mediaCnt
+                        modified = newDir.modified
+                        taken = newDir.taken
+                        this@apply.size = newDir.size
+                        types = newDir.types
+                        sortValue = getDirectorySortingValue(curMedia, path, name, size, mediaCnt)
+                    }
+                    updateDBDirectory(existing)
+                }
+
+                val mediaForDb = curMedia
+                Thread {
+                    try {
+                        mediaDB.insertAll(mediaForDb.filterNot {
+                            com.goodwy.gallery.extensions.RecentlyDeletedPaths.isGone(it.path)
+                        })
+                    } catch (_: Exception) {
+                    }
+                }.start()
+
+                val curMediaSet = HashSet<Any>(curMedia)
+                getCachedMedia(path, getVideosOnly, getImagesOnly) {
+                    val mediaToDelete = ArrayList<Medium>()
+                    it.forEach { item ->
+                        if (!curMediaSet.contains(item)) {
+                            val medium = item as? Medium
+                            if (medium?.path != null) mediaToDelete.add(medium)
+                        }
+                    }
+                    mediaToDelete.forEach { mediaDB.deleteMediumPath(it.path) }
+                }
+            }
+
+            mLatestDirs = updated
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                checkPlaceholderVisibility(updated)
+                setupAdapter(updated)
+            }
+            return true
+        } catch (e: Throwable) {
+            com.goodwy.gallery.App.logGesture("DIRDIAG atualizacao parcial falhou path=" + path + " erro=" + e)
+            return false
         }
     }
 
