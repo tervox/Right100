@@ -112,13 +112,30 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // (flag limpo antes de checar) se uma varredura ja estava rodando ou se a janela estava sem
     // foco; como a nova midia costuma gerar varios avisos seguidos, o ultimo caia no meio da
     // varredura e a lista ficava desatualizada. Agora ele tenta de novo ate conseguir.
+    // Varredura completa em andamento (diferente de mIsGettingDirs, que so cobre a leitura do cache).
+    // Antes, QUALQUER aviso de mudanca chamava getDirectories() no meio de uma varredura, o que
+    // a interrompia e recomecava do zero: com avisos seguidos (apagar/mover varios arquivos) ela
+    // nunca terminava, as pastas vazias nao saiam e as novas nao entravam.
+    @Volatile private var mScanRunning = false
+    @Volatile private var mScanGeneration = 0
+    @Volatile private var mScanStartedAt = 0L
+    @Volatile private var mRescanPending = false
+    private var mScanSignature = ""
+    // Data de modificacao de cada pasta no fim da ultima varredura dela. Pasta com a mesma data
+    // nao ganhou nem perdeu arquivos, entao nao precisa ser reescaneada (cada arquivo custa uma
+    // consulta lenta ao armazenamento).
+    private val mFolderMtimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private fun isScanBusy() = mIsGettingDirs || mScanRunning
+
     private val mDirtyRefreshRunnable = object : Runnable {
         override fun run() {
             if (isFinishing || isDestroyed || !mMediaStoreDirty) return
             // sem foco: retomado em onWindowFocusChanged
             if (!hasWindowFocus() || mIsThirdPartyIntent) return
-            if (mIsGettingDirs) {
-                mRefreshHandler.postDelayed(this, 1000L)
+            if (isScanBusy()) {
+                // Varredura em andamento: nao interrompe; uma nova roda quando ela terminar.
+                mRescanPending = true
                 return
             }
             mMediaStoreDirty = false
@@ -199,7 +216,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
         })
 
-        binding.directoriesRefreshLayout.setOnRefreshListener { getDirectories() }
+        binding.directoriesRefreshLayout.setOnRefreshListener {
+            // Puxar para atualizar no meio de uma varredura a reiniciava (e ela ja era lenta). Se uma
+            // varredura recente esta rodando, deixa ela terminar: o indicador some quando acabar.
+            if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 20_000L) {
+                return@setOnRefreshListener
+            }
+            getDirectories()
+        }
         storeStateVariables()
 
         setupLatestMediaId()
@@ -715,6 +739,18 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         mIsGettingDirs = true
         mShouldStopFetching = false
+        mScanRunning = true
+        mScanStartedAt = android.os.SystemClock.elapsedRealtime()
+        mScanGeneration++
+        // Se algo que muda o resultado da varredura mudou (filtros, ocultos, excluidas...), as
+        // datas guardadas das pastas deixam de valer.
+        val signature = "${config.filterMedia}|${config.shouldShowHidden}|${config.temporarilyShowExcluded}|" +
+            "${config.excludedFolders.hashCode()}|${config.includedFolders.hashCode()}|" +
+            "${config.directorySorting}|${config.showFolderSize}|${config.groupDirectSubfolders}"
+        if (signature != mScanSignature) {
+            mScanSignature = signature
+            mFolderMtimes.clear()
+        }
         // Linha base da checagem periodica: tirada no INICIO da varredura. Antes ela era tirada
         // so no onCreate (ids) e nunca (total), entao a primeira checagem sempre via "mudou" e
         // a checagem parava de rodar; qualquer midia nova depois disso nao era percebida.
@@ -737,6 +773,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
         } catch (e: Exception) {
             mIsGettingDirs = false
+            mScanRunning = false
             throw e
         }
     }
@@ -1204,6 +1241,22 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun gotDirectories(newDirs: ArrayList<Directory>) {
+        val generation = mScanGeneration
+        try {
+            gotDirectoriesInternal(newDirs)
+        } finally {
+            // So a varredura mais recente libera o flag (uma interrompida nao pode liberar a nova).
+            if (generation == mScanGeneration) {
+                mScanRunning = false
+                if (mRescanPending && !isDestroyed && !isFinishing) {
+                    mRescanPending = false
+                    runOnUiThread { requestFullRefresh(300L) }
+                }
+            }
+        }
+    }
+
+    private fun gotDirectoriesInternal(newDirs: ArrayList<Directory>) {
         mIsGettingDirs = false
         mShouldStopFetching = false
 
@@ -1243,6 +1296,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val includedFolders = config.includedFolders
         val noMediaFolders = getNoMediaFoldersSync()
         val tempFolderPath = config.tempFolderPath
+        // Com acesso total a arquivos a listagem vem do proprio armazenamento (confiavel): pasta
+        // vazia esta mesmo vazia. A regra de "duas varreduras vazias" so serve quando a lista vem
+        // do MediaStore, que pode estar atrasado.
+        val reliableListing = if (android.os.Build.VERSION.SDK_INT >= 30) android.os.Environment.isExternalStorageManager() else true
         val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0 || config.showFolderSize
         val dirPathsToRemove = ArrayList<String>()
         val lastModifieds = mLastMediaFetcher!!.getLastModifieds()
@@ -1292,6 +1349,17 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             for (directory in dirs) {
                 if (mShouldStopFetching || isDestroyed || isFinishing) {
                     return
+                }
+
+                val folderMtime = try {
+                    java.io.File(directory.path).lastModified()
+                } catch (_: Exception) {
+                    0L
+                }
+                if (folderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[directory.path] == folderMtime
+                    && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()
+                ) {
+                    continue
                 }
 
                 val sorting = config.getFolderSorting(directory.path)
@@ -1355,7 +1423,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     val emptyScans = (mEmptyScanCounts[directory.path] ?: 0) + 1
                     mEmptyScanCounts[directory.path] = emptyScans
                     com.goodwy.gallery.App.logGesture("DIRDIAG pasta sem midia na varredura n=" + emptyScans + " path=" + directory.path)
-                    if (emptyScans < 2) {
+                    if (emptyScans < 2 && !reliableListing) {
                         continue
                     }
                 } else if (curMedia.isNotEmpty()) {
@@ -1389,6 +1457,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         directory.mediaCnt = newDir.mediaCnt
                         directoryDB.updateDirectoryMediaCount(directory.path, newDir.mediaCnt)
                     }
+                    if (folderMtime != 0L) mFolderMtimes[directory.path] = folderMtime
                     continue
                 }
 
@@ -1436,6 +1505,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         mediaToDelete.forEach { mediaDB.deleteMediumPath(it.path) }
                     }
                 }
+                if (folderMtime != 0L) mFolderMtimes[directory.path] = folderMtime
             }
 
             if (dirPathsToRemove.isNotEmpty()) {
@@ -1474,6 +1544,16 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 return
             }
 
+            val newFolderMtime = try {
+                java.io.File(folder).lastModified()
+            } catch (_: Exception) {
+                0L
+            }
+            // Pasta ja vista (vazia ou oculta) e que nao mudou desde entao: nao reescaneia.
+            if (newFolderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[folder] == newFolderMtime) {
+                continue
+            }
+
             val sorting = config.getFolderSorting(folder)
             val grouping = config.getFolderGrouping(folder)
             val getProperDateTaken = config.directorySorting and SORT_BY_DATE_TAKEN != 0
@@ -1503,6 +1583,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             )
 
             if (newMedia.isEmpty()) {
+                if (newFolderMtime != 0L) mFolderMtimes[folder] = newFolderMtime
                 continue
             }
 
@@ -1525,6 +1606,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 noMediaFolders = noMediaFolders
             )
             dirs.add(newDir)
+            if (newFolderMtime != 0L) mFolderMtimes[folder] = newFolderMtime
             // Antes a tela so era atualizada DEPOIS de varrer todas as pastas: sem cache (primeira
             // abertura, apos atualizar o app, ou cache limpo) a tela ficava vazia por muito tempo e
             // parecia travada. Agora mostra o que ja foi achado, no maximo a cada 700 ms
@@ -1951,7 +2033,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mChangedFolders.clear()
         mNeedFullRefresh = false
 
-        if (needFull || paths.size > 8 || mIsGettingDirs || !canRefreshPartially()) {
+        if (isScanBusy()) {
+            // Varredura completa em andamento: ela pode ter lido estas pastas antes da mudanca.
+            // Roda uma nova (rapida, pelas datas das pastas) quando terminar.
+            mRescanPending = true
+            return
+        }
+        if (needFull || paths.size > 8 || !canRefreshPartially()) {
             requestFullRefresh(0L)
             return
         }
@@ -1995,16 +2083,26 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             return
         }
         val temp = config.tempFolderPath
-        val wanted = dirs.asSequence()
+        val folders = dirs.asSequence()
             .map { it.path }
             .filter { it.startsWith("/") && it != FAVORITES && it != RECYCLE_BIN && it != temp }
             .take(400)
             .toSet()
+        // Pastas-pai: avisam quando uma pasta e criada, apagada ou movida dentro delas.
+        val parents = folders.asSequence()
+            .mapNotNull { java.io.File(it).parent }
+            .filter { it.length > 1 }
+            .take(60)
+            .toSet()
+
+        val wanted = HashMap<String, String>()
+        folders.forEach { wanted[it] = it }
+        parents.forEach { wanted["P:$it"] = it }
 
         val iterator = mFolderObservers.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            if (entry.key !in wanted) {
+            if (!wanted.containsKey(entry.key)) {
                 try {
                     entry.value.stopWatching()
                 } catch (_: Throwable) {
@@ -2012,17 +2110,25 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 iterator.remove()
             }
         }
-        for (path in wanted) {
-            if (mFolderObservers.containsKey(path)) continue
+
+        for ((key, path) in wanted) {
+            if (mFolderObservers.containsKey(key)) continue
             if (!java.io.File(path).isDirectory) continue
+            val isParent = key.startsWith("P:")
             try {
                 val observer = object : android.os.FileObserver(path, mFolderEventsMask) {
                     override fun onEvent(event: Int, name: String?) {
-                        onFolderEvent(path)
+                        if (isParent && name != null) {
+                            // Subpasta nova: reescaneia ela. Arquivo solto: reescaneia a propria pasta-pai.
+                            val child = "$path/$name"
+                            onFolderEvent(if (java.io.File(child).isDirectory) child else path)
+                        } else {
+                            onFolderEvent(path)
+                        }
                     }
                 }
                 observer.startWatching()
-                mFolderObservers[path] = observer
+                mFolderObservers[key] = observer
             } catch (_: Throwable) {
             }
         }
@@ -2049,6 +2155,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         try {
             if (isDestroyed || isFinishing) return true
             if (path == FAVORITES || path == RECYCLE_BIN || path == config.tempFolderPath) return false
+            val dirFile = java.io.File(path)
+            // Nao e pasta e nao esta na lista (arquivo solto, pasta que nunca existiu): nada a fazer.
+            if (!dirFile.isDirectory && mLatestDirs.none { it.path == path }) return true
 
             val getImages = mIsPickImageIntent || mIsGetImageContentIntent
             val getVideos = mIsPickVideoIntent || mIsGetVideoContentIntent
@@ -2092,8 +2201,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 android11Files = null
             )
 
+            val partialMtime = try {
+                java.io.File(path).lastModified()
+            } catch (_: Exception) {
+                0L
+            }
             var curMedia = listFolder()
-            if (curMedia.isEmpty()) {
+            if (curMedia.isEmpty() && dirFile.exists()) {
                 // Pasta vazia pode ser momentanea (outro app esta movendo/copiando): confere de novo.
                 Thread.sleep(400)
                 curMedia = listFolder()
@@ -2108,6 +2222,18 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 directoryDB.deleteDirPath(path)
                 updated.remove(existing)
             } else {
+                val noMediaFolders = getNoMediaFoldersSync()
+                if (existing == null) {
+                    // Pasta nova: mesmas regras de visibilidade da varredura completa (ocultas,
+                    // .nomedia, excluidas). So pastas ja visiveis chegam a este ponto atualizando.
+                    val excluded: MutableSet<String> = if (config.temporarilyShowExcluded) HashSet() else config.excludedFolders
+                    val noMediaStatuses = HashMap<String, Boolean>()
+                    noMediaFolders.forEach { noMediaStatuses["$it/$NOMEDIA"] = true }
+                    val visible = path.shouldFolderBeVisible(
+                        excluded, config.includedFolders, config.shouldShowHidden, noMediaStatuses
+                    ) { p, hasNoMedia -> noMediaStatuses[p] = hasNoMedia }
+                    if (!visible) return true
+                }
                 val newDir = createDirectoryFromMedia(
                     path = path,
                     curMedia = curMedia,
@@ -2115,7 +2241,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     hiddenString = getString(R.string.hidden),
                     includedFolders = config.includedFolders,
                     getProperFileSize = getProperFileSize,
-                    noMediaFolders = getNoMediaFoldersSync()
+                    noMediaFolders = noMediaFolders
                 )
 
                 if (existing == null) {
@@ -2163,6 +2289,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
             }
 
+            if (partialMtime != 0L) mFolderMtimes[path] = partialMtime
             mLatestDirs = updated
             runOnUiThread {
                 if (isDestroyed || isFinishing) return@runOnUiThread
@@ -2194,7 +2321,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     // perder a mudanca (antes a checagem parava de rodar nesse caso).
                     runOnUiThread {
                         if (isDestroyed) return@runOnUiThread
-                        if (mIsGettingDirs) {
+                        if (isScanBusy()) {
+                            mRescanPending = true
                             mLastMediaHandler.removeCallbacksAndMessages(null)
                             checkLastMediaChanged()
                         } else {
