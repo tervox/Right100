@@ -1162,6 +1162,18 @@
                             app:switchPadding="@dimen/bigger_margin" />
 
                     </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_media_store_listing_holder"
+                        style="@style/SettingsHolderSwitchStyle">
+
+                        <com.goodwy.commons.views.MyMaterialSwitch
+                            android:id="@+id/settings_media_store_listing"
+                            style="@style/SettingsSwitchStyle"
+                            android:text="@string/media_store_listing_setting"
+                            app:switchPadding="@dimen/bigger_margin" />
+
+                    </RelativeLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

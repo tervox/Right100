@@ -157,6 +157,7 @@ class SettingsActivity : SimpleActivity() {
         setupBottomActions()
         setupSelectAllFab()
         setupSelectionFab()
+        setupMediaStoreListing()
         setupManageBottomActions()
 
         setupHiddenItemPasswordProtection()
@@ -1045,6 +1046,14 @@ class SettingsActivity : SimpleActivity() {
             else -> R.string.slide
         }
     )
+
+    private fun setupMediaStoreListing() {
+        binding.settingsMediaStoreListing.isChecked = config.mediaStoreListing
+        binding.settingsMediaStoreListingHolder.setOnClickListener {
+            binding.settingsMediaStoreListing.toggle()
+            config.mediaStoreListing = binding.settingsMediaStoreListing.isChecked
+        }
+    }
 
     private fun setupSelectionFab() {
         binding.settingsSelectionFab.isChecked = config.showSelectionFab

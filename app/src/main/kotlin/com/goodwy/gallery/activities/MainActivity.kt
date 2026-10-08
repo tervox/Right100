@@ -746,7 +746,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         // datas guardadas das pastas deixam de valer.
         val signature = "${config.filterMedia}|${config.shouldShowHidden}|${config.temporarilyShowExcluded}|" +
             "${config.excludedFolders.hashCode()}|${config.includedFolders.hashCode()}|" +
-            "${config.directorySorting}|${config.showFolderSize}|${config.groupDirectSubfolders}"
+            "${config.directorySorting}|${config.showFolderSize}|${config.groupDirectSubfolders}|${config.mediaStoreListing}"
         if (signature != mScanSignature) {
             mScanSignature = signature
             mFolderMtimes.clear()
@@ -1356,7 +1356,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 } catch (_: Exception) {
                     0L
                 }
-                if (folderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[directory.path] == folderMtime
+                // Com a listagem pelo MediaStore reler tudo e barato; so pula no modo antigo.
+                if (folderMtime != 0L && !config.groupDirectSubfolders && !config.mediaStoreListing && mFolderMtimes[directory.path] == folderMtime
                     && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()
                 ) {
                     continue
@@ -1550,7 +1551,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 0L
             }
             // Pasta ja vista (vazia ou oculta) e que nao mudou desde entao: nao reescaneia.
-            if (newFolderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[folder] == newFolderMtime) {
+            if (newFolderMtime != 0L && !config.groupDirectSubfolders && !config.mediaStoreListing && mFolderMtimes[folder] == newFolderMtime) {
                 continue
             }
 
@@ -1845,7 +1846,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         dirs.filter { !it.areFavorites() && !it.isRecycleBin() }.forEach {
             if (!getDoesFilePathExist(it.path, OTGPath)) {
                 invalidDirs.add(it)
-            } else if (it.path != config.tempFolderPath && (!isRPlus() || isExternalStorageManager())) {
+            } else if (it.mediaCnt <= 0 && it.path != config.tempFolderPath && (!isRPlus() || isExternalStorageManager())) {
+                // Pasta com midia (mediaCnt > 0) nunca e invalida, entao nao precisa listar os arquivos
+                // dela: antes isto listava TODOS os nomes de TODAS as pastas a cada varredura (muito
+                // lento em pastas grandes). O resultado e o mesmo: so e invalida com mediaCnt <= 0.
                 // avoid calling file.list() or listfiles() on Android 11+, it became way too slow
                 val children = if (isPathOnOTG(it.path)) {
                     getOTGFolderChildrenNames(it.path)
@@ -1962,11 +1966,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         android.os.FileObserver.MOVE_SELF
 
     private fun canRefreshPartially(): Boolean {
-        if (!mLoadedInitialPhotos || config.groupDirectSubfolders || mLatestDirs.isEmpty()) return false
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R &&
-            !android.os.Environment.isExternalStorageManager()
-        ) return false
-        return true
+        // A atualizacao de uma pasta so lista essa pasta (MediaStore ou armazenamento), com ou sem
+        // acesso total a arquivos.
+        return mLoadedInitialPhotos && !config.groupDirectSubfolders && mLatestDirs.isNotEmpty()
     }
 
     private fun requestFullRefresh(delayMs: Long) {

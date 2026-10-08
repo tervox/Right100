@@ -90,7 +90,9 @@ class MediaFetcher(val context: Context) {
                 curMedia.addAll(newMedia)
             }
         } else {
-            if (curPath != FAVORITES && curPath != RECYCLE_BIN && isRPlus() && !isExternalStorageManager()) {
+            if (curPath != FAVORITES && curPath != RECYCLE_BIN && isRPlus() &&
+                (!isExternalStorageManager() || context.config.mediaStoreListing)
+            ) {
                 if (android11Files?.containsKey(curPath.lowercase(Locale.getDefault())) == true) {
                     curMedia.addAll(android11Files[curPath.lowercase(Locale.getDefault())]!!)
                 } else if (android11Files == null) {
@@ -494,7 +496,9 @@ class MediaFetcher(val context: Context) {
         folderPath: String? = null   // quando não-null, filtra só essa pasta na query
     ): HashMap<String, ArrayList<Medium>> {
         val media = HashMap<String, ArrayList<Medium>>()
-        if (!isRPlus() || Environment.isExternalStorageManager()) {
+        // Com acesso total a arquivos o app lia o armazenamento arquivo por arquivo (lento em pastas
+        // grandes). Com mediaStoreListing ligado usa o MediaStore tambem nesse caso.
+        if (!isRPlus() || (Environment.isExternalStorageManager() && !context.config.mediaStoreListing)) {
             return media
         }
 
@@ -514,13 +518,16 @@ class MediaFetcher(val context: Context) {
         val uri = Files.getContentUri("external")
 
         // Filtrar por pasta específica evita scan completo do MediaStore
+        // So imagens e videos: sem isto a consulta percorria TODOS os arquivos do aparelho
+        // (documentos, audio, caches...) e filtrava por extensao no codigo.
+        val mediaOnly = "(media_type IN (1,3) OR mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')"
         val (selection, selectionArgs) = if (folderPath != null) {
             Pair(
-                "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ?",
+                "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ? AND $mediaOnly",
                 arrayOf("$folderPath/%", "$folderPath/%/%")
             )
         } else {
-            Pair(null, null)
+            Pair(mediaOnly, null)
         }
 
         context.queryCursor(uri, projection, selection, selectionArgs) { cursor ->

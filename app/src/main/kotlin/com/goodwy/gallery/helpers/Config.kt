@@ -26,6 +26,12 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean("blur_background_video", true)
         set(value) = prefs.edit { putBoolean("blur_background_video", value) }
 
+    // Lista as midias pelo MediaStore (uma consulta, instantanea, como as outras galerias) em vez
+    // de ler arquivo por arquivo. Desligar volta a leitura direta do armazenamento.
+    var mediaStoreListing: Boolean
+        get() = prefs.getBoolean("media_store_listing", true)
+        set(value) = prefs.edit { putBoolean("media_store_listing", value) }
+
     // Atalhos flutuantes (copiar / mover / lixeira) ao selecionar midias na grade.
     var showSelectionFab: Boolean
         get() = prefs.getBoolean("show_selection_fab", true)
