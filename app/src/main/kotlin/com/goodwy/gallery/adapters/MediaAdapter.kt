@@ -534,7 +534,9 @@ class MediaAdapter(
             checkDeleteConfirmation()
             return
         }
-        when (config.fabTrashAction) {
+        // Escolha fixa (Configuracoes) > lembrada ate o app fechar > perguntar.
+        val action = if (config.fabTrashAction != FAB_TRASH_ASK) config.fabTrashAction else SessionChoices.fabTrash
+        when (action) {
             FAB_TRASH_BIN -> fabDelete(skipRecycleBin = false)
             FAB_TRASH_DELETE -> fabDelete(skipRecycleBin = true)
             else -> askFabTrash()
@@ -549,17 +551,17 @@ class MediaAdapter(
             resources.getQuantityString(com.goodwy.commons.R.plurals.delete_items, itemsCnt, itemsCnt)
         }
         activity.showChoiceDialog(
-            "O que fazer com $what?", "Lembrar minha escolha",
+            "O que fazer com $what?", null, "Lembrar escolha até fechar o app",
             "Mover para a lixeira", "Excluir de vez", "Cancelar"
-        ) { choice, remember ->
+        ) { choice, _, remember ->
             when (choice) {
                 1 -> {
-                    if (remember) config.fabTrashAction = FAB_TRASH_BIN
+                    if (remember) SessionChoices.fabTrash = FAB_TRASH_BIN
                     fabDelete(skipRecycleBin = false)
                 }
 
                 2 -> {
-                    if (remember) config.fabTrashAction = FAB_TRASH_DELETE
+                    if (remember) SessionChoices.fabTrash = FAB_TRASH_DELETE
                     fabDelete(skipRecycleBin = true)
                 }
 
@@ -743,7 +745,9 @@ class MediaAdapter(
         DeleteWithRememberDialog(activity, question, showSkipRecycleBinOption) { remember, skipRecycleBin ->
             if (remember) {
                 config.tempSkipRecycleBin = skipRecycleBin
-                config.skipDeleteConfirmation = true  // permanente - antes usava a flag temp, que reseta a cada abertura do app
+                // "Lembrar" vale so ate o app fechar (flag temporaria, limpa ao abrir/fechar o app).
+                // Antes gravava a opcao PERMANENTE das Configuracoes sem o usuario saber.
+                config.tempSkipDeleteConfirmation = true
             }
 
             deleteFiles(skipRecycleBin)

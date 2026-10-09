@@ -48,6 +48,7 @@ import com.goodwy.gallery.dialogs.ResizeWithPathDialog
 import com.goodwy.gallery.helpers.RECYCLE_BIN
 import com.goodwy.gallery.helpers.TEMP_FOLDER_NAME
 import com.goodwy.gallery.helpers.CONFLICT_ASK
+import com.goodwy.gallery.helpers.FAB_TRASH_ASK
 import com.goodwy.gallery.helpers.CONFLICT_KEEP_BOTH
 import com.goodwy.gallery.helpers.CONFLICT_REPLACE
 import com.goodwy.gallery.helpers.CONFLICT_SKIP
@@ -399,11 +400,20 @@ private fun BaseSimpleActivity.canDirectCopyMove(fileDirItems: ArrayList<FileDir
     return fileDirItems.all { it.path.startsWith("$primary/") && File(it.path).isFile }
 }
 
-// Dialogo com ate 3 botoes e a caixa "Lembrar minha escolha". Fechar sem escolher nao chama nada.
-// choice: 1 = botao positivo, 2 = negativo, 3 = neutro.
+// Escolhas "lembradas" SO ate o app fechar. Ficam na memoria do processo: com o app ativo ou em
+// segundo plano elas continuam valendo; se o app for fechado ou reiniciado, voltam a perguntar.
+// Escolha permanente so pelas opcoes em Configuracoes.
+object SessionChoices {
+    @Volatile var conflict: Int = CONFLICT_ASK
+    @Volatile var fabTrash: Int = FAB_TRASH_ASK
+}
+
+// Dialogo com ate 3 botoes e ate 2 caixas ("aplicar a todos" e "lembrar"). Fechar sem escolher nao
+// chama nada. choice: 1 = botao positivo, 2 = negativo, 3 = neutro.
 fun android.app.Activity.showChoiceDialog(
-    message: String, rememberText: String, positive: String, negative: String, neutral: String,
-    onChoice: (choice: Int, remember: Boolean) -> Unit
+    message: String, applyAllText: String?, rememberText: String?,
+    positive: String, negative: String?, neutral: String?,
+    onChoice: (choice: Int, applyAll: Boolean, remember: Boolean) -> Unit
 ) {
     runOnUiThread {
         if (isFinishing || isDestroyed) return@runOnUiThread
@@ -418,73 +428,201 @@ fun android.app.Activity.showChoiceDialog(
                 text = message
                 textSize = 16f
             })
-            val check = android.widget.CheckBox(this).apply { text = rememberText }
-            root.addView(check)
-            android.app.AlertDialog.Builder(this)
+            var applyAllCheck: android.widget.CheckBox? = null
+            var rememberCheck: android.widget.CheckBox? = null
+            if (applyAllText != null) {
+                applyAllCheck = android.widget.CheckBox(this).apply { text = applyAllText }
+                root.addView(applyAllCheck)
+            }
+            if (rememberText != null) {
+                rememberCheck = android.widget.CheckBox(this).apply { text = rememberText }
+                root.addView(rememberCheck)
+            }
+            val builder = android.app.AlertDialog.Builder(this)
                 .setView(root)
-                .setPositiveButton(positive) { _, _ -> onChoice(1, check.isChecked) }
-                .setNegativeButton(negative) { _, _ -> onChoice(2, check.isChecked) }
-                .setNeutralButton(neutral) { _, _ -> onChoice(3, check.isChecked) }
-                .show()
+                .setPositiveButton(positive) { _, _ ->
+                    onChoice(1, applyAllCheck?.isChecked == true, rememberCheck?.isChecked == true)
+                }
+            if (negative != null) {
+                builder.setNegativeButton(negative) { _, _ ->
+                    onChoice(2, applyAllCheck?.isChecked == true, rememberCheck?.isChecked == true)
+                }
+            }
+            if (neutral != null) {
+                builder.setNeutralButton(neutral) { _, _ ->
+                    onChoice(3, applyAllCheck?.isChecked == true, rememberCheck?.isChecked == true)
+                }
+            }
+            builder.show()
         } catch (_: Throwable) {
         }
     }
 }
 
-// Ja existe arquivo com o mesmo nome no destino? Pergunta o que fazer (ou usa a escolha lembrada
-// em Configuracoes). Copiar para a propria pasta de origem nunca pergunta: sempre gera "nome(1)".
-private fun BaseSimpleActivity.resolveCopyMoveConflicts(
-    fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean,
-    onPolicy: (policy: Int) -> Unit
+// Um conflito: o arquivo de origem e o que ja existe (ou o outro do mesmo lote com o mesmo nome).
+// sameFile = copiar para a propria pasta de origem (so da para manter os dois ou ignorar).
+private class CopyMoveConflict(val src: File, val other: File, val sameFile: Boolean)
+
+private fun adaptConflictPolicy(policy: Int, sameFile: Boolean) =
+    if (sameFile && policy == CONFLICT_REPLACE) CONFLICT_SKIP else policy
+
+// Compara o CONTEUDO byte a byte (para no primeiro byte diferente). Tamanho diferente = diferente.
+private fun filesIdentical(a: File, b: File): Boolean {
+    if (a.length() != b.length()) return false
+    if (a.canonicalPath == b.canonicalPath) return true
+    var same = true
+    java.io.FileInputStream(a).buffered(65536).use { ia ->
+        java.io.FileInputStream(b).buffered(65536).use { ib ->
+            val ba = ByteArray(65536)
+            val bb = ByteArray(65536)
+            loop@ while (true) {
+                val ra = readFullyInto(ia, ba)
+                val rb = readFullyInto(ib, bb)
+                if (ra != rb) {
+                    same = false
+                    break@loop
+                }
+                if (ra <= 0) break@loop
+                for (i in 0 until ra) {
+                    if (ba[i] != bb[i]) {
+                        same = false
+                        break@loop
+                    }
+                }
+            }
+        }
+    }
+    return same
+}
+
+private fun readFullyInto(input: java.io.InputStream, buf: ByteArray): Int {
+    var total = 0
+    while (total < buf.size) {
+        val n = input.read(buf, total, buf.size - total)
+        if (n < 0) break
+        total += n
+    }
+    return total
+}
+
+private fun BaseSimpleActivity.buildConflictMessage(c: CopyMoveConflict, identical: Boolean?, remaining: Int): String {
+    val df = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT)
+    val sb = StringBuilder()
+    if (c.sameFile) {
+        sb.append("\"").append(c.src.name).append("\" já está nesta pasta. Copiar aqui cria uma segunda cópia.")
+    } else {
+        sb.append("Já existe \"").append(c.src.name).append("\" nesta pasta.")
+        sb.append("\n\nOrigem: ").append(c.src.length().formatSize())
+            .append(" • ").append(df.format(java.util.Date(c.src.lastModified())))
+        sb.append("\nJá existente: ").append(c.other.length().formatSize())
+            .append(" • ").append(df.format(java.util.Date(c.other.lastModified())))
+        sb.append("\n\n")
+        sb.append(
+            when (identical) {
+                true -> "Os dois arquivos são IDÊNTICOS (mesmo conteúdo)."
+                false -> "Os arquivos são DIFERENTES."
+                null -> "Não foi possível comparar o conteúdo."
+            }
+        )
+    }
+    sb.append("\n\nO que fazer?")
+    if (remaining > 1) sb.append("\n(+").append(remaining - 1).append(" outro(s) com o mesmo problema)")
+    return sb.toString()
+}
+
+// Pergunta, arquivo por arquivo, o que fazer com cada conflito (com "aplicar a todos os restantes").
+private fun BaseSimpleActivity.askNextConflict(
+    conflicts: List<CopyMoveConflict>, index: Int, decisions: HashMap<String, Int>,
+    onDone: (decisions: HashMap<String, Int>) -> Unit
 ) {
+    if (index >= conflicts.size) {
+        runOnUiThread { onDone(decisions) }
+        return
+    }
+    val c = conflicts[index]
     ensureBackgroundThread {
-        val destDir = File(destination)
-        val destPath = destDir.absolutePath.trimEnd('/')
-        val conflicts = fileDirItems.filter { item ->
-            val src = File(item.path)
-            val sameFolder = src.parentFile?.absolutePath?.trimEnd('/') == destPath
-            !sameFolder && File(destDir, src.name).exists()
+        if (!c.sameFile && c.src.length() > 50L * 1024 * 1024) {
+            runOnUiThread { toast("Comparando arquivos...") }
         }
-
-        if (conflicts.isEmpty()) {
-            runOnUiThread { onPolicy(CONFLICT_KEEP_BOTH) }
-            return@ensureBackgroundThread
+        val identical = try {
+            if (c.sameFile) true else filesIdentical(c.src, c.other)
+        } catch (_: Throwable) {
+            null
         }
-
-        val remembered = config.conflictAction
-        if (remembered != CONFLICT_ASK) {
-            runOnUiThread { onPolicy(remembered) }
-            return@ensureBackgroundThread
-        }
-
-        val message = if (conflicts.size == 1) {
-            val src = File(conflicts[0].path)
-            val same = File(destDir, src.name).length() == src.length()
-            "Já existe \"" + src.name + "\" nesta pasta" +
-                (if (same) " (mesmo tamanho)." else " (tamanho diferente).") +
-                "\n\nO que fazer?"
-        } else {
-            val examples = conflicts.take(3).joinToString(", ") { File(it.path).name }
-            "Já existem " + conflicts.size + " arquivos com o mesmo nome nesta pasta (ex.: " + examples + ").\n\nO que fazer?"
-        }
-
+        val remaining = conflicts.size - index
         showChoiceDialog(
-            message, "Lembrar minha escolha", "Manter os dois", "Substituir", "Ignorar"
-        ) { choice, remember ->
+            buildConflictMessage(c, identical, remaining),
+            if (remaining > 1) "Aplicar a todos os restantes ($remaining)" else null,
+            "Lembrar escolha até fechar o app",
+            "Manter os dois",
+            if (c.sameFile) null else "Substituir",
+            "Ignorar"
+        ) { choice, applyAll, remember ->
             val policy = when (choice) {
                 2 -> CONFLICT_REPLACE
                 3 -> CONFLICT_SKIP
                 else -> CONFLICT_KEEP_BOTH
             }
-            if (remember) config.conflictAction = policy
-            onPolicy(policy)
+            if (remember) SessionChoices.conflict = policy
+            if (applyAll) {
+                for (i in index until conflicts.size) {
+                    decisions[conflicts[i].src.path] = adaptConflictPolicy(policy, conflicts[i].sameFile)
+                }
+                onDone(decisions)
+            } else {
+                decisions[c.src.path] = adaptConflictPolicy(policy, c.sameFile)
+                askNextConflict(conflicts, index + 1, decisions, onDone)
+            }
         }
     }
 }
 
+// Descobre os conflitos e decide: pela escolha fixa das Configuracoes, pela lembrada ate o app
+// fechar, ou perguntando. NUNCA cria "nome(1)" sozinho: so quando a escolha e "Manter os dois".
+private fun BaseSimpleActivity.resolveCopyMoveConflicts(
+    fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean,
+    onDone: (decisions: HashMap<String, Int>) -> Unit
+) {
+    ensureBackgroundThread {
+        val destDir = File(destination)
+        val destPath = destDir.absolutePath.trimEnd('/')
+        val conflicts = ArrayList<CopyMoveConflict>()
+        val firstSourceByName = HashMap<String, File>()
+        for (item in fileDirItems) {
+            val src = File(item.path)
+            val sameFolder = src.parentFile?.absolutePath?.trimEnd('/') == destPath
+            // Mover para a pasta onde ja esta nao faz nada.
+            if (!isCopyOperation && sameFolder) continue
+            val dst = File(destDir, src.name)
+            val earlier = firstSourceByName[src.name]
+            when {
+                sameFolder -> conflicts.add(CopyMoveConflict(src, dst, true))
+                dst.exists() -> conflicts.add(CopyMoveConflict(src, dst, false))
+                earlier != null -> conflicts.add(CopyMoveConflict(src, earlier, false))
+            }
+            if (!firstSourceByName.containsKey(src.name)) firstSourceByName[src.name] = src
+        }
+
+        val decisions = HashMap<String, Int>()
+        if (conflicts.isEmpty()) {
+            runOnUiThread { onDone(decisions) }
+            return@ensureBackgroundThread
+        }
+
+        val fixed = if (config.conflictAction != CONFLICT_ASK) config.conflictAction else SessionChoices.conflict
+        if (fixed != CONFLICT_ASK) {
+            conflicts.forEach { decisions[it.src.path] = adaptConflictPolicy(fixed, it.sameFile) }
+            runOnUiThread { onDone(decisions) }
+            return@ensureBackgroundThread
+        }
+
+        askNextConflict(conflicts, 0, decisions, onDone)
+    }
+}
+
 private fun BaseSimpleActivity.directCopyMoveFiles(
-    fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean, policy: Int,
-    callback: (destinationPath: String) -> Unit
+    fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean,
+    decisions: HashMap<String, Int>, callback: (destinationPath: String) -> Unit
 ) {
     android.widget.Toast.makeText(this, if (isCopyOperation) "Copiando..." else "Movendo...", android.widget.Toast.LENGTH_SHORT).show()
     ensureBackgroundThread {
@@ -496,9 +634,6 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
         var skippedCount = 0
         val destDir = File(destination)
         val destPath = destDir.absolutePath.trimEnd('/')
-        // Nomes ja gravados neste lote: dois arquivos de pastas diferentes com o mesmo nome nunca
-        // se substituem entre si (so os que ja existiam no destino antes seguem a sua escolha).
-        val namesWrittenNow = HashSet<String>()
         for (item in fileDirItems) {
             // Cada arquivo tem seu proprio try/catch: um erro nao derruba os outros.
             try {
@@ -510,24 +645,33 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                 }
                 var dst = File(destDir, src.name)
                 var replacing = false
-                if (dst.exists()) {
-                    val repeatedInBatch = namesWrittenNow.contains(dst.name)
-                    if (!sameFolder && !repeatedInBatch && policy == CONFLICT_SKIP) {
-                        skippedCount++
-                        continue
-                    }
-                    if (!sameFolder && !repeatedInBatch && policy == CONFLICT_REPLACE) {
-                        replacing = true
-                    } else {
-                        // Manter os dois (ou copiar para a propria pasta): nome(1), nome(2)...
-                        var n = 1
-                        while (dst.exists()) {
-                            val ext = if (src.extension.isEmpty()) "" else "." + src.extension
-                            dst = File(destDir, src.nameWithoutExtension + "(" + n + ")" + ext)
-                            n++
+                val decision = decisions[src.path]
+                if (decision != null) {
+                    when (decision) {
+                        CONFLICT_SKIP -> {
+                            skippedCount++
+                            continue
                         }
-                        renamedCount++
+
+                        CONFLICT_REPLACE -> replacing = true
+
+                        else -> {
+                            // Manter os dois (escolha do usuario): nome(1), nome(2)...
+                            if (dst.exists()) {
+                                var n = 1
+                                while (dst.exists()) {
+                                    val ext = if (src.extension.isEmpty()) "" else "." + src.extension
+                                    dst = File(destDir, src.nameWithoutExtension + "(" + n + ")" + ext)
+                                    n++
+                                }
+                                renamedCount++
+                            }
+                        }
                     }
+                } else if (dst.exists()) {
+                    // Apareceu depois da checagem e ninguem decidiu: nunca sobrescreve nem renomeia sozinho.
+                    skippedCount++
+                    continue
                 }
                 val modified = src.lastModified()
                 var done = false
@@ -570,7 +714,6 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                     }
                 }
                 if (replacing) replacedCount++
-                namesWrittenNow.add(dst.name)
                 okCount++
                 touched.add(src.absolutePath)
                 touched.add(dst.absolutePath)
@@ -643,8 +786,8 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
         val destination = it
         logCopyMoveDiagnostics(fileDirItems, source, destination, isCopyOperation)
         if (canDirectCopyMove(fileDirItems, destination)) {
-            resolveCopyMoveConflicts(fileDirItems, destination, isCopyOperation) { policy ->
-                directCopyMoveFiles(fileDirItems, destination, isCopyOperation, policy, callback)
+            resolveCopyMoveConflicts(fileDirItems, destination, isCopyOperation) { decisions ->
+                directCopyMoveFiles(fileDirItems, destination, isCopyOperation, decisions, callback)
             }
         } else handleSAFDialog(source) { sourceGranted ->
             if (sourceGranted) {

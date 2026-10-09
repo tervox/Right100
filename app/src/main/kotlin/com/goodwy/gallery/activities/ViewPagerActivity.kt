@@ -478,8 +478,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
         DeleteWithRememberDialog(this, question, showSkipOption) { remember, skipRecycleBin ->
             if (remember) {
+                // "Lembrar" vale so ate o app fechar; a opcao permanente fica em Configuracoes.
                 config.tempSkipRecycleBin = skipRecycleBin
-                config.skipDeleteConfirmation = true
+                config.tempSkipDeleteConfirmation = true
             }
             deleteCurrentFile(skipRecycleBin)
         }
