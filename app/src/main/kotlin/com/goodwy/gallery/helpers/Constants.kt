@@ -164,6 +164,17 @@ const val MAX_ZOOM_EQUALITY_TOLERANCE = 0.01
 const val DISMISS_AREA_FREE = 0      // pode fechar normalmente
 const val DISMISS_AREA_STRIP = 1     // faixa de brilho/volume: so fecha com arrasto longo e rapido
 const val DISMISS_AREA_BLOCKED = 2   // controles (seekbar, botoes): nunca fecha
+// Copiar/mover quando ja existe arquivo com o mesmo nome no destino
+const val CONFLICT_ASK = 0
+const val CONFLICT_SKIP = 1
+const val CONFLICT_REPLACE = 2
+const val CONFLICT_KEEP_BOTH = 3
+
+// Atalho flutuante "Lixeira" na grade
+const val FAB_TRASH_ASK = 0
+const val FAB_TRASH_BIN = 1
+const val FAB_TRASH_DELETE = 2
+
 const val DISMISS_MIN_DISTANCE_DP = 64f
 const val DISMISS_STRIP_HEIGHT_FRACTION = 0.20f
 const val DRAG_THRESHOLD = 8

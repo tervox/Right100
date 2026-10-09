@@ -26,6 +26,16 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean("blur_background_video", true)
         set(value) = prefs.edit { putBoolean("blur_background_video", value) }
 
+    // O que fazer ao copiar/mover quando o nome ja existe no destino (CONFLICT_*).
+    var conflictAction: Int
+        get() = prefs.getInt("copy_move_conflict_action", CONFLICT_ASK)
+        set(value) = prefs.edit { putInt("copy_move_conflict_action", value) }
+
+    // O que o atalho Lixeira faz ao tocar (FAB_TRASH_*).
+    var fabTrashAction: Int
+        get() = prefs.getInt("fab_trash_action", FAB_TRASH_ASK)
+        set(value) = prefs.edit { putInt("fab_trash_action", value) }
+
     // Lista as midias pelo MediaStore (uma consulta, instantanea, como as outras galerias) em vez
     // de ler arquivo por arquivo. Desligar volta a leitura direta do armazenamento.
     var mediaStoreListing: Boolean

@@ -1174,6 +1174,46 @@
                             app:switchPadding="@dimen/bigger_margin" />
 
                     </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_conflict_action_holder"
+                        style="@style/SettingsHolderStyle">
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_conflict_action_label"
+                            style="@style/SettingsTextLabelStyle"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@+id/settings_conflict_action"
+                            android:text="@string/conflict_action_setting" />
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_conflict_action"
+                            style="@style/SettingsTextValueStyle"
+                            android:layout_alignParentEnd="true"
+                            android:layout_marginEnd="@dimen/settings_margin"
+                            tools:text="@string/conflict_ask" />
+                    </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_fab_trash_action_holder"
+                        style="@style/SettingsHolderStyle">
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_fab_trash_action_label"
+                            style="@style/SettingsTextLabelStyle"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@+id/settings_fab_trash_action"
+                            android:text="@string/fab_trash_setting" />
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_fab_trash_action"
+                            style="@style/SettingsTextValueStyle"
+                            android:layout_alignParentEnd="true"
+                            android:layout_marginEnd="@dimen/settings_margin"
+                            tools:text="@string/fab_trash_ask" />
+                    </RelativeLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

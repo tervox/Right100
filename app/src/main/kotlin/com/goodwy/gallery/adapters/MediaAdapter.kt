@@ -523,10 +523,66 @@ class MediaAdapter(
         moveFilesTo()
     }
 
-    // Lixeira: respeita as opcoes do app (mover para a lixeira ou excluir, confirmacao, senha).
+    // Atalho Lixeira. Antes seguia as opcoes globais "lembradas" (que podiam ter ficado em
+    // "excluir sem perguntar"), entao excluia de vez sem avisar. Agora tem a propria escolha:
+    // perguntar (com "lembrar"), sempre lixeira ou sempre excluir de vez; mudavel em Configuracoes.
     internal fun fabTrash() {
         if (selectedKeys.isEmpty()) return
-        checkDeleteConfirmation()
+        val firstPath = getFirstSelectedItemPath() ?: return
+        if (firstPath.startsWith(activity.recycleBinPath)) {
+            // Dentro da lixeira so existe excluir de vez: fluxo padrao (confirmacao, senha).
+            checkDeleteConfirmation()
+            return
+        }
+        when (config.fabTrashAction) {
+            FAB_TRASH_BIN -> fabDelete(skipRecycleBin = false)
+            FAB_TRASH_DELETE -> fabDelete(skipRecycleBin = true)
+            else -> askFabTrash()
+        }
+    }
+
+    private fun askFabTrash() {
+        val itemsCnt = selectedKeys.size
+        val what = if (itemsCnt == 1) {
+            "\"" + (getFirstSelectedItemPath()?.getFilenameFromPath() ?: "") + "\""
+        } else {
+            resources.getQuantityString(com.goodwy.commons.R.plurals.delete_items, itemsCnt, itemsCnt)
+        }
+        activity.showChoiceDialog(
+            "O que fazer com $what?", "Lembrar minha escolha",
+            "Mover para a lixeira", "Excluir de vez", "Cancelar"
+        ) { choice, remember ->
+            when (choice) {
+                1 -> {
+                    if (remember) config.fabTrashAction = FAB_TRASH_BIN
+                    fabDelete(skipRecycleBin = false)
+                }
+
+                2 -> {
+                    if (remember) config.fabTrashAction = FAB_TRASH_DELETE
+                    fabDelete(skipRecycleBin = true)
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    private fun fabDelete(skipRecycleBin: Boolean) {
+        activity.handleMediaManagementPrompt {
+            val proceed = {
+                if (!skipRecycleBin && !config.useRecycleBin) {
+                    // A lixeira estava desligada nas configuracoes: ligar para o item nao sumir.
+                    config.useRecycleBin = true
+                }
+                deleteFiles(skipRecycleBin)
+            }
+            if (config.isDeletePasswordProtectionOn) {
+                activity.handleDeletePasswordProtection { proceed() }
+            } else {
+                proceed()
+            }
+        }
     }
 
     internal fun moveFilesTo() {

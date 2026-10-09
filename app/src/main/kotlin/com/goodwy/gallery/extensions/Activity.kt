@@ -47,6 +47,10 @@ import com.goodwy.gallery.dialogs.ResizeMultipleImagesDialog
 import com.goodwy.gallery.dialogs.ResizeWithPathDialog
 import com.goodwy.gallery.helpers.RECYCLE_BIN
 import com.goodwy.gallery.helpers.TEMP_FOLDER_NAME
+import com.goodwy.gallery.helpers.CONFLICT_ASK
+import com.goodwy.gallery.helpers.CONFLICT_KEEP_BOTH
+import com.goodwy.gallery.helpers.CONFLICT_REPLACE
+import com.goodwy.gallery.helpers.CONFLICT_SKIP
 import com.goodwy.gallery.models.DateTaken
 import com.squareup.picasso.Picasso
 import java.io.*
@@ -395,8 +399,91 @@ private fun BaseSimpleActivity.canDirectCopyMove(fileDirItems: ArrayList<FileDir
     return fileDirItems.all { it.path.startsWith("$primary/") && File(it.path).isFile }
 }
 
-private fun BaseSimpleActivity.directCopyMoveFiles(
+// Dialogo com ate 3 botoes e a caixa "Lembrar minha escolha". Fechar sem escolher nao chama nada.
+// choice: 1 = botao positivo, 2 = negativo, 3 = neutro.
+fun android.app.Activity.showChoiceDialog(
+    message: String, rememberText: String, positive: String, negative: String, neutral: String,
+    onChoice: (choice: Int, remember: Boolean) -> Unit
+) {
+    runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        try {
+            val density = resources.displayMetrics.density
+            val pad = (20 * density).toInt()
+            val root = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(pad, pad / 2, pad, 0)
+            }
+            root.addView(android.widget.TextView(this).apply {
+                text = message
+                textSize = 16f
+            })
+            val check = android.widget.CheckBox(this).apply { text = rememberText }
+            root.addView(check)
+            android.app.AlertDialog.Builder(this)
+                .setView(root)
+                .setPositiveButton(positive) { _, _ -> onChoice(1, check.isChecked) }
+                .setNegativeButton(negative) { _, _ -> onChoice(2, check.isChecked) }
+                .setNeutralButton(neutral) { _, _ -> onChoice(3, check.isChecked) }
+                .show()
+        } catch (_: Throwable) {
+        }
+    }
+}
+
+// Ja existe arquivo com o mesmo nome no destino? Pergunta o que fazer (ou usa a escolha lembrada
+// em Configuracoes). Copiar para a propria pasta de origem nunca pergunta: sempre gera "nome(1)".
+private fun BaseSimpleActivity.resolveCopyMoveConflicts(
     fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean,
+    onPolicy: (policy: Int) -> Unit
+) {
+    ensureBackgroundThread {
+        val destDir = File(destination)
+        val destPath = destDir.absolutePath.trimEnd('/')
+        val conflicts = fileDirItems.filter { item ->
+            val src = File(item.path)
+            val sameFolder = src.parentFile?.absolutePath?.trimEnd('/') == destPath
+            !sameFolder && File(destDir, src.name).exists()
+        }
+
+        if (conflicts.isEmpty()) {
+            runOnUiThread { onPolicy(CONFLICT_KEEP_BOTH) }
+            return@ensureBackgroundThread
+        }
+
+        val remembered = config.conflictAction
+        if (remembered != CONFLICT_ASK) {
+            runOnUiThread { onPolicy(remembered) }
+            return@ensureBackgroundThread
+        }
+
+        val message = if (conflicts.size == 1) {
+            val src = File(conflicts[0].path)
+            val same = File(destDir, src.name).length() == src.length()
+            "Já existe \"" + src.name + "\" nesta pasta" +
+                (if (same) " (mesmo tamanho)." else " (tamanho diferente).") +
+                "\n\nO que fazer?"
+        } else {
+            val examples = conflicts.take(3).joinToString(", ") { File(it.path).name }
+            "Já existem " + conflicts.size + " arquivos com o mesmo nome nesta pasta (ex.: " + examples + ").\n\nO que fazer?"
+        }
+
+        showChoiceDialog(
+            message, "Lembrar minha escolha", "Manter os dois", "Substituir", "Ignorar"
+        ) { choice, remember ->
+            val policy = when (choice) {
+                2 -> CONFLICT_REPLACE
+                3 -> CONFLICT_SKIP
+                else -> CONFLICT_KEEP_BOTH
+            }
+            if (remember) config.conflictAction = policy
+            onPolicy(policy)
+        }
+    }
+}
+
+private fun BaseSimpleActivity.directCopyMoveFiles(
+    fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean, policy: Int,
     callback: (destinationPath: String) -> Unit
 ) {
     android.widget.Toast.makeText(this, if (isCopyOperation) "Copiando..." else "Movendo...", android.widget.Toast.LENGTH_SHORT).show()
@@ -405,28 +492,47 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
         val failures = ArrayList<String>()
         var okCount = 0
         var renamedCount = 0
+        var replacedCount = 0
         var skippedCount = 0
         val destDir = File(destination)
         val destPath = destDir.absolutePath.trimEnd('/')
+        // Nomes ja gravados neste lote: dois arquivos de pastas diferentes com o mesmo nome nunca
+        // se substituem entre si (so os que ja existiam no destino antes seguem a sua escolha).
+        val namesWrittenNow = HashSet<String>()
         for (item in fileDirItems) {
             // Cada arquivo tem seu proprio try/catch: um erro nao derruba os outros.
             try {
                 val src = File(item.path)
-                if (!isCopyOperation && src.parentFile?.absolutePath?.trimEnd('/') == destPath) {
+                val sameFolder = src.parentFile?.absolutePath?.trimEnd('/') == destPath
+                if (!isCopyOperation && sameFolder) {
                     skippedCount++
                     continue
                 }
                 var dst = File(destDir, src.name)
-                var n = 1
-                while (dst.exists()) {
-                    val ext = if (src.extension.isEmpty()) "" else "." + src.extension
-                    dst = File(destDir, src.nameWithoutExtension + "(" + n + ")" + ext)
-                    n++
+                var replacing = false
+                if (dst.exists()) {
+                    val repeatedInBatch = namesWrittenNow.contains(dst.name)
+                    if (!sameFolder && !repeatedInBatch && policy == CONFLICT_SKIP) {
+                        skippedCount++
+                        continue
+                    }
+                    if (!sameFolder && !repeatedInBatch && policy == CONFLICT_REPLACE) {
+                        replacing = true
+                    } else {
+                        // Manter os dois (ou copiar para a propria pasta): nome(1), nome(2)...
+                        var n = 1
+                        while (dst.exists()) {
+                            val ext = if (src.extension.isEmpty()) "" else "." + src.extension
+                            dst = File(destDir, src.nameWithoutExtension + "(" + n + ")" + ext)
+                            n++
+                        }
+                        renamedCount++
+                    }
                 }
-                if (n > 1) renamedCount++
                 val modified = src.lastModified()
                 var done = false
                 if (!isCopyOperation) {
+                    // rename sobrescreve o destino de forma atomica quando ele existe (mesmo volume)
                     done = try {
                         src.renameTo(dst)
                     } catch (_: Exception) {
@@ -434,20 +540,41 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                     }
                 }
                 if (!done) {
-                    src.copyTo(dst, false)
-                    if (modified > 0L) dst.setLastModified(modified)
-                    if (!isCopyOperation) {
-                        if (dst.length() != src.length()) {
-                            dst.delete()
-                            throw java.io.IOException("tamanho diferente apos copiar: " + dst.length() + " != " + src.length())
+                    if (replacing) {
+                        // Copia para um arquivo temporario e so entao troca: se falhar, o original do
+                        // destino continua intacto.
+                        val tmp = File(destDir, ".r100tmp_" + System.nanoTime() + "_" + src.name)
+                        try {
+                            src.copyTo(tmp, false)
+                            if (tmp.length() != src.length()) {
+                                throw java.io.IOException("tamanho diferente apos copiar: " + tmp.length() + " != " + src.length())
+                            }
+                            if (modified > 0L) tmp.setLastModified(modified)
+                            if (!tmp.renameTo(dst)) {
+                                throw java.io.IOException("nao foi possivel substituir " + dst.name)
+                            }
+                        } finally {
+                            if (tmp.exists()) tmp.delete()
                         }
-                        src.delete()
+                        if (!isCopyOperation) src.delete()
+                    } else {
+                        src.copyTo(dst, false)
+                        if (modified > 0L) dst.setLastModified(modified)
+                        if (!isCopyOperation) {
+                            if (dst.length() != src.length()) {
+                                dst.delete()
+                                throw java.io.IOException("tamanho diferente apos copiar: " + dst.length() + " != " + src.length())
+                            }
+                            src.delete()
+                        }
                     }
                 }
+                if (replacing) replacedCount++
+                namesWrittenNow.add(dst.name)
                 okCount++
                 touched.add(src.absolutePath)
                 touched.add(dst.absolutePath)
-                com.goodwy.gallery.App.logGesture("COPYDIAG direto ok " + src.name + " -> " + dst.name + " copy=" + isCopyOperation)
+                com.goodwy.gallery.App.logGesture("COPYDIAG direto ok " + src.name + " -> " + dst.name + " copy=" + isCopyOperation + " replaced=" + replacing)
             } catch (e: Throwable) {
                 failures.add(File(item.path).name + ": " + e.toString())
                 com.goodwy.gallery.App.logGesture("COPYDIAG direto FALHOU: " + e.toReport().replace("\n", " | "))
@@ -464,10 +591,14 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
             if (okCount > 0) callback(destination)
             val verb = if (isCopyOperation) "Copiado" else "Movido"
             if (failures.isEmpty()) {
-                val extra = if (renamedCount > 0) " ($renamedCount com nome repetido salvo como nome(1))" else ""
+                val notes = ArrayList<String>()
+                if (renamedCount > 0) notes.add("$renamedCount mantidos com nome(1)")
+                if (replacedCount > 0) notes.add("$replacedCount substituídos")
+                if (skippedCount > 0) notes.add("$skippedCount ignorados")
+                val extra = if (notes.isEmpty()) "" else " (" + notes.joinToString(", ") + ")"
                 when {
                     okCount > 0 -> toast("$verb com sucesso$extra")
-                    skippedCount > 0 -> toast("Os arquivos ja estao nessa pasta")
+                    skippedCount > 0 -> toast("Nada a fazer: " + notes.joinToString(", "))
                     else -> Unit
                 }
             } else {
@@ -512,7 +643,9 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
         val destination = it
         logCopyMoveDiagnostics(fileDirItems, source, destination, isCopyOperation)
         if (canDirectCopyMove(fileDirItems, destination)) {
-            directCopyMoveFiles(fileDirItems, destination, isCopyOperation, callback)
+            resolveCopyMoveConflicts(fileDirItems, destination, isCopyOperation) { policy ->
+                directCopyMoveFiles(fileDirItems, destination, isCopyOperation, policy, callback)
+            }
         } else handleSAFDialog(source) { sourceGranted ->
             if (sourceGranted) {
                 handleSAFDialogSdk30(destination) { destGranted ->

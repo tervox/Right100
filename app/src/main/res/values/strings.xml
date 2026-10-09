@@ -337,6 +337,15 @@
     <string name="extracting_text">Extraindo texto...</string>
     <string name="no_text_found">Nenhum texto encontrado na imagem</string>
     <string name="extracted_text">Texto extraído</string>
+    <string name="conflict_action_setting">Se já existir arquivo com o mesmo nome (copiar/mover)</string>
+    <string name="conflict_ask">Perguntar sempre</string>
+    <string name="conflict_skip">Ignorar</string>
+    <string name="conflict_replace">Substituir</string>
+    <string name="conflict_keep_both">Manter os dois</string>
+    <string name="fab_trash_setting">Atalho Lixeira: ao tocar</string>
+    <string name="fab_trash_ask">Perguntar sempre</string>
+    <string name="fab_trash_bin">Mover para a lixeira</string>
+    <string name="fab_trash_delete">Excluir de vez</string>
     <string name="media_store_listing_setting">Listagem rápida pelo MediaStore (atualiza na hora)</string>
     <string name="selection_fab_setting">Atalhos flutuantes ao selecionar (copiar, mover, lixeira)</string>
     <string name="selection_fab_trash">Lixeira</string>

@@ -158,6 +158,8 @@ class SettingsActivity : SimpleActivity() {
         setupSelectAllFab()
         setupSelectionFab()
         setupMediaStoreListing()
+        setupConflictAction()
+        setupFabTrashAction()
         setupManageBottomActions()
 
         setupHiddenItemPasswordProtection()
@@ -1044,6 +1046,54 @@ class SettingsActivity : SimpleActivity() {
             SLIDESHOW_ANIMATION_DEPTH -> R.string.depth
             SLIDESHOW_ANIMATION_RANDOM -> R.string.random_animation
             else -> R.string.slide
+        }
+    )
+
+    private fun setupConflictAction() {
+        binding.settingsConflictAction.text = getConflictActionText()
+        binding.settingsConflictActionHolder.setOnClickListener {
+            val items = arrayListOf(
+                RadioItem(CONFLICT_ASK, getString(R.string.conflict_ask)),
+                RadioItem(CONFLICT_SKIP, getString(R.string.conflict_skip)),
+                RadioItem(CONFLICT_REPLACE, getString(R.string.conflict_replace)),
+                RadioItem(CONFLICT_KEEP_BOTH, getString(R.string.conflict_keep_both))
+            )
+            RadioGroupDialog(this@SettingsActivity, items, config.conflictAction, R.string.conflict_action_setting) {
+                config.conflictAction = it as Int
+                binding.settingsConflictAction.text = getConflictActionText()
+            }
+        }
+    }
+
+    private fun getConflictActionText() = getString(
+        when (config.conflictAction) {
+            CONFLICT_SKIP -> R.string.conflict_skip
+            CONFLICT_REPLACE -> R.string.conflict_replace
+            CONFLICT_KEEP_BOTH -> R.string.conflict_keep_both
+            else -> R.string.conflict_ask
+        }
+    )
+
+    private fun setupFabTrashAction() {
+        binding.settingsFabTrashAction.text = getFabTrashActionText()
+        binding.settingsFabTrashActionHolder.setOnClickListener {
+            val items = arrayListOf(
+                RadioItem(FAB_TRASH_ASK, getString(R.string.fab_trash_ask)),
+                RadioItem(FAB_TRASH_BIN, getString(R.string.fab_trash_bin)),
+                RadioItem(FAB_TRASH_DELETE, getString(R.string.fab_trash_delete))
+            )
+            RadioGroupDialog(this@SettingsActivity, items, config.fabTrashAction, R.string.fab_trash_setting) {
+                config.fabTrashAction = it as Int
+                binding.settingsFabTrashAction.text = getFabTrashActionText()
+            }
+        }
+    }
+
+    private fun getFabTrashActionText() = getString(
+        when (config.fabTrashAction) {
+            FAB_TRASH_BIN -> R.string.fab_trash_bin
+            FAB_TRASH_DELETE -> R.string.fab_trash_delete
+            else -> R.string.fab_trash_ask
         }
     )
 
