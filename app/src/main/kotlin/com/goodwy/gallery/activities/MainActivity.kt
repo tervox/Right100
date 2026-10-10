@@ -589,7 +589,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         binding.mainMenu.onSearchTextChangedListener = { text ->
-            setupAdapter(mDirsIgnoringSearch, text)
+            setupAdapter(mDirsIgnoringSearch, text, fromSearch = true)
             binding.directoriesRefreshLayout.isEnabled =
                 text.isEmpty() && config.enablePullToRefresh
             binding.directoriesSwitchSearching.beVisibleIf(text.isNotEmpty())
@@ -1739,10 +1739,17 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private fun setupAdapter(
         dirs: ArrayList<Directory>,
         textToSearch: String = binding.mainMenu.getCurrentQuery(),
-        forceRecreate: Boolean = false
+        forceRecreate: Boolean = false,
+        fromSearch: Boolean = false
     ) {
         val currAdapter = binding.directoriesGrid.adapter
-        mLatestDirs = dirs.clone() as ArrayList<Directory>
+        if (!fromSearch) {
+            // A pesquisa filtra ESTA lista, entao ela precisa ser sempre a mais recente. Antes ficava
+            // com a lista do primeiro carregamento: a pesquisa mostrava pastas antigas (e apagadas) e
+            // ainda sobrescrevia mLatestDirs com ela.
+            mDirsIgnoringSearch = dirs
+            mLatestDirs = dirs.clone() as ArrayList<Directory>
+        }
         val distinctDirs = dirs
             .distinctBy { it.path.getDistinctPath() }
             .toMutableList() as ArrayList<Directory>

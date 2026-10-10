@@ -100,6 +100,39 @@ class MediaFetcher(val context: Context) {
                     if (files.containsKey(curPath.lowercase(Locale.getDefault()))) {
                         curMedia.addAll(files[curPath.lowercase(Locale.getDefault())]!!)
                     }
+                    // Confere com o que existe de fato na pasta (so os NOMES: uma leitura, sem consultar
+                    // cada arquivo). 1) Tira linhas-fantasma do MediaStore (arquivo que ja saiu da pasta
+                    // mas o sistema ainda lista). 2) Acrescenta o que o sistema ainda nao indexou (ex.:
+                    // acabou de ser movido/copiado). Antes o video movido aparecia, sumia e nao voltava.
+                    if (isExternalStorageManager()) {
+                        val names = try {
+                            File(curPath).list()
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (names != null) {
+                            val base = curPath.trimEnd('/')
+                            val existing = HashSet<String>(names.size * 2 + 1)
+                            names.forEach { existing.add((base + "/" + it).lowercase(Locale.getDefault())) }
+                            val known = HashSet<String>(curMedia.size * 2 + 1)
+                            curMedia.forEach { known.add(it.path.lowercase(Locale.getDefault())) }
+                            // So remove se algum item bate com a pasta (evita apagar tudo se o formato
+                            // do caminho for diferente) ou se a pasta esta mesmo vazia.
+                            if (existing.isEmpty() || known.any { existing.contains(it) }) {
+                                curMedia.removeAll { !existing.contains(it.path.lowercase(Locale.getDefault())) }
+                                known.retainAll(existing)
+                            }
+                            if (existing.any { !known.contains(it) }) {
+                                curMedia.addAll(
+                                    getMediaInFolder(
+                                        curPath, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified, false,
+                                        favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>,
+                                        dateTakens.clone() as HashMap<String, Long>, cachedDurations, known
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -344,7 +377,8 @@ class MediaFetcher(val context: Context) {
         folder: String, isPickImage: Boolean, isPickVideo: Boolean, filterMedia: Int, getProperDateTaken: Boolean,
         getProperLastModified: Boolean, getProperFileSize: Boolean, favoritePaths: ArrayList<String>,
         getVideoDurations: Boolean, lastModifieds: HashMap<String, Long>, dateTakens: HashMap<String, Long>,
-        cachedDurations: HashMap<String, Int> = HashMap()
+        cachedDurations: HashMap<String, Int> = HashMap(),
+        skipPaths: Set<String>? = null   // caminhos (minusculos) ja conhecidos: nao reprocessa
     ): ArrayList<Medium> {
         val media = ArrayList<Medium>()
         val isRecycleBin = folder == RECYCLE_BIN
@@ -374,6 +408,9 @@ class MediaFetcher(val context: Context) {
             }
 
             var path = file.absolutePath
+            if (skipPaths != null && skipPaths.contains(path.lowercase(Locale.getDefault()))) {
+                continue
+            }
             var isPortrait = false
             val isImage = path.isImageFast()
             val isVideo = if (isImage) false else path.isVideoFast()
@@ -493,12 +530,13 @@ class MediaFetcher(val context: Context) {
         getFavoritePathsOnly: Boolean,
         getProperDateTaken: Boolean,
         dateTakens: HashMap<String, Long>,
-        folderPath: String? = null   // quando não-null, filtra só essa pasta na query
+        folderPath: String? = null,   // quando não-null, filtra só essa pasta na query
+        nameQuery: String? = null     // quando não-null, só nomes que contêm este texto (pesquisa)
     ): HashMap<String, ArrayList<Medium>> {
         val media = HashMap<String, ArrayList<Medium>>()
         // Com acesso total a arquivos o app lia o armazenamento arquivo por arquivo (lento em pastas
         // grandes). Com mediaStoreListing ligado usa o MediaStore tambem nesse caso.
-        if (!isRPlus() || (Environment.isExternalStorageManager() && !context.config.mediaStoreListing)) {
+        if (!isRPlus() || (Environment.isExternalStorageManager() && !context.config.mediaStoreListing && nameQuery == null)) {
             return media
         }
 
@@ -522,10 +560,16 @@ class MediaFetcher(val context: Context) {
         // (documentos, audio, caches...) e filtrava por extensao no codigo.
         val mediaOnly = "(media_type IN (1,3) OR mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')"
         val (selection, selectionArgs) = if (folderPath != null) {
+            // Por pasta nao restringe o tipo no SQL: um arquivo recem-movido pode ainda estar sem
+            // tipo no MediaStore e sumia da lista; o tipo e conferido pela extensao logo abaixo.
             Pair(
-                "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ? AND $mediaOnly",
+                "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ?",
                 arrayOf("$folderPath/%", "$folderPath/%/%")
             )
+        } else if (nameQuery != null && nameQuery.all { it.code < 128 }) {
+            // Pesquisa por nome direto no MediaStore. O LIKE do SQLite so ignora maiusculas em ASCII,
+            // por isso textos com acento vao sem esse filtro (o chamador confere o nome depois).
+            Pair("$mediaOnly AND ${Images.Media.DISPLAY_NAME} LIKE ?", arrayOf("%$nameQuery%"))
         } else {
             Pair(mediaOnly, null)
         }

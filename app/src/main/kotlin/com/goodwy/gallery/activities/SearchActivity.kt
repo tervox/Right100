@@ -178,9 +178,29 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
                     return@ensureBackgroundThread
                 }
 
-                val filtered = mAllMedia
+                // Fonte: consulta direta ao MediaStore pelo nome (instantanea e sempre atual). A lista
+                // em cache (mAllMedia) ficava velha: faltava o que acabou de ser movido ou criado, e era
+                // lenta de varrer a cada letra. Ela so e usada no Android 10 ou menos.
+                val source: List<Medium> = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    try {
+                        MediaFetcher(applicationContext).getAndroid11FolderMedia(
+                            isPickImage = false,
+                            isPickVideo = false,
+                            favoritePaths = getFavoritePaths(),
+                            getFavoritePathsOnly = false,
+                            getProperDateTaken = false,
+                            dateTakens = HashMap(),
+                            nameQuery = query
+                        ).values.flatten()
+                    } catch (_: Exception) {
+                        mAllMedia.filterIsInstance<Medium>()
+                    }
+                } else {
+                    mAllMedia.filterIsInstance<Medium>()
+                }
+
+                val filtered = source
                     .asSequence()
-                    .filterIsInstance<Medium>()
                     .filter { it.name.contains(query, true) }
                     .sortedWith(
                         compareBy<Medium> {

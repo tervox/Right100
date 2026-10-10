@@ -725,7 +725,14 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
         }
         if (touched.isNotEmpty()) {
             try {
-                android.media.MediaScannerConnection.scanFile(applicationContext, touched.toTypedArray(), null, null)
+                // Espera o sistema indexar os arquivos (ate 6 s) ANTES de atualizar as telas. Antes a
+                // lista era relida na hora, com o MediaStore ainda desatualizado: o arquivo aparecia e
+                // sumia, e as vezes nao aparecia mais.
+                val latch = java.util.concurrent.CountDownLatch(touched.size)
+                android.media.MediaScannerConnection.scanFile(applicationContext, touched.toTypedArray(), null) { _, _ ->
+                    latch.countDown()
+                }
+                latch.await(6, java.util.concurrent.TimeUnit.SECONDS)
             } catch (_: Throwable) {
             }
         }
