@@ -1053,10 +1053,10 @@ class SettingsActivity : SimpleActivity() {
         binding.settingsConflictAction.text = getConflictActionText()
         binding.settingsConflictActionHolder.setOnClickListener {
             val items = arrayListOf(
-                RadioItem(CONFLICT_ASK, getString(R.string.conflict_ask)),
-                RadioItem(CONFLICT_SKIP, getString(R.string.conflict_skip)),
-                RadioItem(CONFLICT_REPLACE, getString(R.string.conflict_replace)),
-                RadioItem(CONFLICT_KEEP_BOTH, getString(R.string.conflict_keep_both))
+                RadioItem(COPY_CONFLICT_ASK, getString(R.string.conflict_ask)),
+                RadioItem(COPY_CONFLICT_SKIP, getString(R.string.conflict_skip)),
+                RadioItem(COPY_CONFLICT_REPLACE, getString(R.string.conflict_replace)),
+                RadioItem(COPY_CONFLICT_KEEP_BOTH, getString(R.string.conflict_keep_both))
             )
             RadioGroupDialog(this@SettingsActivity, items, config.conflictAction, R.string.conflict_action_setting) {
                 config.conflictAction = it as Int
@@ -1067,9 +1067,9 @@ class SettingsActivity : SimpleActivity() {
 
     private fun getConflictActionText() = getString(
         when (config.conflictAction) {
-            CONFLICT_SKIP -> R.string.conflict_skip
-            CONFLICT_REPLACE -> R.string.conflict_replace
-            CONFLICT_KEEP_BOTH -> R.string.conflict_keep_both
+            COPY_CONFLICT_SKIP -> R.string.conflict_skip
+            COPY_CONFLICT_REPLACE -> R.string.conflict_replace
+            COPY_CONFLICT_KEEP_BOTH -> R.string.conflict_keep_both
             else -> R.string.conflict_ask
         }
     )

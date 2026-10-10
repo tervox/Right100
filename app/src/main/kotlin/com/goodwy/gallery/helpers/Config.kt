@@ -28,7 +28,7 @@ class Config(context: Context) : BaseConfig(context) {
 
     // O que fazer ao copiar/mover quando o nome ja existe no destino (CONFLICT_*).
     var conflictAction: Int
-        get() = prefs.getInt("copy_move_conflict_action", CONFLICT_ASK)
+        get() = prefs.getInt("copy_move_conflict_action", COPY_CONFLICT_ASK)
         set(value) = prefs.edit { putInt("copy_move_conflict_action", value) }
 
     // O que o atalho Lixeira faz ao tocar (FAB_TRASH_*).

@@ -47,11 +47,11 @@ import com.goodwy.gallery.dialogs.ResizeMultipleImagesDialog
 import com.goodwy.gallery.dialogs.ResizeWithPathDialog
 import com.goodwy.gallery.helpers.RECYCLE_BIN
 import com.goodwy.gallery.helpers.TEMP_FOLDER_NAME
-import com.goodwy.gallery.helpers.CONFLICT_ASK
+import com.goodwy.gallery.helpers.COPY_CONFLICT_ASK
 import com.goodwy.gallery.helpers.FAB_TRASH_ASK
-import com.goodwy.gallery.helpers.CONFLICT_KEEP_BOTH
-import com.goodwy.gallery.helpers.CONFLICT_REPLACE
-import com.goodwy.gallery.helpers.CONFLICT_SKIP
+import com.goodwy.gallery.helpers.COPY_CONFLICT_KEEP_BOTH
+import com.goodwy.gallery.helpers.COPY_CONFLICT_REPLACE
+import com.goodwy.gallery.helpers.COPY_CONFLICT_SKIP
 import com.goodwy.gallery.models.DateTaken
 import com.squareup.picasso.Picasso
 import java.io.*
@@ -404,7 +404,7 @@ private fun BaseSimpleActivity.canDirectCopyMove(fileDirItems: ArrayList<FileDir
 // segundo plano elas continuam valendo; se o app for fechado ou reiniciado, voltam a perguntar.
 // Escolha permanente so pelas opcoes em Configuracoes.
 object SessionChoices {
-    @Volatile var conflict: Int = CONFLICT_ASK
+    @Volatile var conflict: Int = COPY_CONFLICT_ASK
     @Volatile var fabTrash: Int = FAB_TRASH_ASK
 }
 
@@ -464,7 +464,7 @@ fun android.app.Activity.showChoiceDialog(
 private class CopyMoveConflict(val src: File, val other: File, val sameFile: Boolean)
 
 private fun adaptConflictPolicy(policy: Int, sameFile: Boolean) =
-    if (sameFile && policy == CONFLICT_REPLACE) CONFLICT_SKIP else policy
+    if (sameFile && policy == COPY_CONFLICT_REPLACE) COPY_CONFLICT_SKIP else policy
 
 // Compara o CONTEUDO byte a byte (para no primeiro byte diferente). Tamanho diferente = diferente.
 private fun filesIdentical(a: File, b: File): Boolean {
@@ -559,9 +559,9 @@ private fun BaseSimpleActivity.askNextConflict(
             "Ignorar"
         ) { choice, applyAll, remember ->
             val policy = when (choice) {
-                2 -> CONFLICT_REPLACE
-                3 -> CONFLICT_SKIP
-                else -> CONFLICT_KEEP_BOTH
+                2 -> COPY_CONFLICT_REPLACE
+                3 -> COPY_CONFLICT_SKIP
+                else -> COPY_CONFLICT_KEEP_BOTH
             }
             if (remember) SessionChoices.conflict = policy
             if (applyAll) {
@@ -609,8 +609,8 @@ private fun BaseSimpleActivity.resolveCopyMoveConflicts(
             return@ensureBackgroundThread
         }
 
-        val fixed = if (config.conflictAction != CONFLICT_ASK) config.conflictAction else SessionChoices.conflict
-        if (fixed != CONFLICT_ASK) {
+        val fixed = if (config.conflictAction != COPY_CONFLICT_ASK) config.conflictAction else SessionChoices.conflict
+        if (fixed != COPY_CONFLICT_ASK) {
             conflicts.forEach { decisions[it.src.path] = adaptConflictPolicy(fixed, it.sameFile) }
             runOnUiThread { onDone(decisions) }
             return@ensureBackgroundThread
@@ -648,12 +648,12 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                 val decision = decisions[src.path]
                 if (decision != null) {
                     when (decision) {
-                        CONFLICT_SKIP -> {
+                        COPY_CONFLICT_SKIP -> {
                             skippedCount++
                             continue
                         }
 
-                        CONFLICT_REPLACE -> replacing = true
+                        COPY_CONFLICT_REPLACE -> replacing = true
 
                         else -> {
                             // Manter os dois (escolha do usuario): nome(1), nome(2)...
