@@ -403,11 +403,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 return
             }
             mLivePending = false
+            com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": recarregando midias")
             getMedia(forceRefresh = true)
         }
     }
 
     private fun scheduleLiveRefresh() {
+        com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": pedido de atualizacao (ja agendado=" + mLivePending + ")")
         if (mLivePending) return
         mLivePending = true
         mLiveHandler.postDelayed(mLiveRefreshRunnable, 120L)

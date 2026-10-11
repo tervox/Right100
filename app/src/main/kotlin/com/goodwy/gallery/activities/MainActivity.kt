@@ -742,6 +742,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mScanRunning = true
         mScanStartedAt = android.os.SystemClock.elapsedRealtime()
         mScanGeneration++
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: varredura completa INICIO #" + mScanGeneration)
         // Se algo que muda o resultado da varredura mudou (filtros, ocultos, excluidas...), as
         // datas guardadas das pastas deixam de valer.
         val signature = "${config.filterMedia}|${config.shouldShowHidden}|${config.temporarilyShowExcluded}|" +
@@ -1246,6 +1247,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             gotDirectoriesInternal(newDirs)
         } finally {
             // So a varredura mais recente libera o flag (uma interrompida nao pode liberar a nova).
+            com.goodwy.gallery.extensions.Right100Diag.add("principal: varredura completa FIM #" + generation + (if (generation == mScanGeneration) "" else " (substituida por outra)") + " em " + (android.os.SystemClock.elapsedRealtime() - mScanStartedAt) + " ms")
             if (generation == mScanGeneration) {
                 mScanRunning = false
                 if (mRescanPending && !isDestroyed && !isFinishing) {
@@ -1510,6 +1512,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
 
             if (dirPathsToRemove.isNotEmpty()) {
+                com.goodwy.gallery.extensions.Right100Diag.add("principal: REMOVENDO pastas sem midia: " + dirPathsToRemove.joinToString(" | "))
                 val dirsToRemove = dirs.filter { dirPathsToRemove.contains(it.path) }
                 dirsToRemove.forEach {
                     directoryDB.deleteDirPath(it.path)
@@ -1743,6 +1746,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         fromSearch: Boolean = false
     ) {
         val currAdapter = binding.directoriesGrid.adapter
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: lista na tela pastas=" + dirs.size + " busca='" + textToSearch + "'" + (if (fromSearch) " (so pesquisa)" else ""))
         if (!fromSearch) {
             // A pesquisa filtra ESTA lista, entao ela precisa ser sempre a mais recente. Antes ficava
             // com a lista do primeiro carregamento: a pesquisa mostrava pastas antigas (e apagadas) e
@@ -1992,6 +1996,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun handleMediaStoreChange(uri: android.net.Uri?) {
         if (isFinishing || isDestroyed) return
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: aviso do MediaStore uri=" + uri + " parcial=" + canRefreshPartially())
         val id = uri?.lastPathSegment?.toLongOrNull()
         if (uri == null || id == null || !canRefreshPartially()) {
             // Aviso generico (sem item): so a varredura completa resolve.
@@ -2019,6 +2024,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun onFolderEvent(path: String) {
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: vigia de pasta avisou " + path)
         mWatchHandler.post {
             if (isFinishing || isDestroyed) return@post
             mChangedFolders.add(path)
@@ -2042,6 +2048,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mChangedFolders.clear()
         mNeedFullRefresh = false
 
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: processando mudancas pastas=" + paths.size + " completa=" + needFull + " ocupado=" + isScanBusy())
         if (isScanBusy()) {
             // Varredura completa em andamento: ela pode ter lido estas pastas antes da mudanca.
             // Roda uma nova (rapida, pelas datas das pastas) quando terminar.
@@ -2222,14 +2229,17 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 curMedia = listFolder()
             }
 
-            val current = mLatestDirs
-            val existing = current.firstOrNull { it.path == path }
-            val updated = ArrayList(current)
+            val existing = mLatestDirs.firstOrNull { it.path == path }
+            // A mudanca desta pasta e aplicada, na thread da tela, sobre a lista MAIS RECENTE. Antes
+            // partia de uma copia tirada aqui: se uma varredura completa terminasse enquanto isto
+            // rodava, esta copia velha sobrescrevia o resultado dela e pastas saiam e voltavam.
+            var removeIt = false
+            var changedDir: Directory? = null
 
             if (curMedia.isEmpty()) {
                 if (existing == null) return true
                 directoryDB.deleteDirPath(path)
-                updated.remove(existing)
+                removeIt = true
             } else {
                 val noMediaFolders = getNoMediaFoldersSync()
                 if (existing == null) {
@@ -2254,7 +2264,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 )
 
                 if (existing == null) {
-                    updated.add(newDir)
+                    changedDir = newDir
                     Thread {
                         try {
                             directoryDB.insert(newDir)
@@ -2273,6 +2283,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         sortValue = getDirectorySortingValue(curMedia, path, name, size, mediaCnt)
                     }
                     updateDBDirectory(existing)
+                    changedDir = existing
                 }
 
                 val mediaForDb = curMedia
@@ -2299,11 +2310,21 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
 
             if (partialMtime != 0L) mFolderMtimes[path] = partialMtime
-            mLatestDirs = updated
+            com.goodwy.gallery.extensions.Right100Diag.add("principal: atualizacao parcial " + path + " midias=" + curMedia.size + " acao=" +
+                (if (curMedia.isEmpty()) "remover" else if (existing == null) "adicionar" else "atualizar"))
+            val toApply = changedDir
+            val remove = removeIt
             runOnUiThread {
                 if (isDestroyed || isFinishing) return@runOnUiThread
-                checkPlaceholderVisibility(updated)
-                setupAdapter(updated)
+                val latest = ArrayList(mLatestDirs)
+                val idx = latest.indexOfFirst { it.path == path }
+                if (remove) {
+                    if (idx >= 0) latest.removeAt(idx)
+                } else if (toApply != null) {
+                    if (idx < 0) latest.add(toApply) else if (latest[idx] !== toApply) latest[idx] = toApply
+                }
+                checkPlaceholderVisibility(latest)
+                setupAdapter(latest)
             }
             return true
         } catch (e: Throwable) {
@@ -2325,6 +2346,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 // So compara o total quando a linha base ja foi tirada (>= 0).
                 val totalChanged = totalNow >= 0 && mLastTotalMediaItems >= 0 && totalNow != mLastTotalMediaItems
                 if (mLatestMediaId != mediaId || mLatestMediaDateId != mediaDateId || totalChanged) {
+                    com.goodwy.gallery.extensions.Right100Diag.add("principal: checagem periodica viu mudanca (id/data/total)")
                     // Nao atualiza a linha base aqui: getDirectories() tira uma nova ao iniciar.
                     // Se ja ha varredura em andamento, tenta de novo no proximo ciclo em vez de
                     // perder a mudanca (antes a checagem parava de rodar nesse caso).

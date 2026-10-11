@@ -337,6 +337,7 @@
     <string name="extracting_text">Extraindo texto...</string>
     <string name="no_text_found">Nenhum texto encontrado na imagem</string>
     <string name="extracted_text">Texto extraído</string>
+    <string name="diagnostics_setting">Diagnóstico de mídia (para suporte)</string>
     <string name="conflict_action_setting">Nome repetido ao copiar/mover: escolha fixa</string>
     <string name="conflict_ask">Perguntar sempre</string>
     <string name="conflict_skip">Ignorar</string>

@@ -718,6 +718,7 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                 touched.add(src.absolutePath)
                 touched.add(dst.absolutePath)
                 com.goodwy.gallery.App.logGesture("COPYDIAG direto ok " + src.name + " -> " + dst.name + " copy=" + isCopyOperation + " replaced=" + replacing)
+                Right100Diag.add((if (isCopyOperation) "copiar" else "mover") + " ok: " + src.path + " -> " + dst.path + (if (replacing) " (substituiu)" else ""))
             } catch (e: Throwable) {
                 failures.add(File(item.path).name + ": " + e.toString())
                 com.goodwy.gallery.App.logGesture("COPYDIAG direto FALHOU: " + e.toReport().replace("\n", " | "))
@@ -729,10 +730,13 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                 // lista era relida na hora, com o MediaStore ainda desatualizado: o arquivo aparecia e
                 // sumia, e as vezes nao aparecia mais.
                 val latch = java.util.concurrent.CountDownLatch(touched.size)
-                android.media.MediaScannerConnection.scanFile(applicationContext, touched.toTypedArray(), null) { _, _ ->
+                val scanStart = System.currentTimeMillis()
+                android.media.MediaScannerConnection.scanFile(applicationContext, touched.toTypedArray(), null) { p, u ->
+                    Right100Diag.add("indexacao: " + p + " -> " + (u?.toString() ?: "SEM LINHA no MediaStore"))
                     latch.countDown()
                 }
-                latch.await(6, java.util.concurrent.TimeUnit.SECONDS)
+                val finished = latch.await(6, java.util.concurrent.TimeUnit.SECONDS)
+                Right100Diag.add("indexacao " + (if (finished) "concluida" else "NAO concluiu em 6 s") + " em " + (System.currentTimeMillis() - scanStart) + " ms (" + touched.size + " caminhos)")
             } catch (_: Throwable) {
             }
         }
@@ -1585,3 +1589,194 @@ fun Activity.newAppRecommendation() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// DIAGNOSTICO. Tudo fica so na MEMORIA do app (nada e gravado em disco, nada sai do aparelho):
+// registro dos ultimos eventos de atualizacao + uma sonda que compara o MediaStore com o disco
+// para um nome de arquivo. Abre em Configuracoes > Diagnostico de midia.
+// ---------------------------------------------------------------------------------------------
+object Right100Diag {
+    private val lock = Any()
+    private val lines = java.util.ArrayDeque<Pair<Long, String>>()
+
+    fun add(msg: String) {
+        synchronized(lock) {
+            lines.addLast(Pair(System.currentTimeMillis(), msg))
+            while (lines.size > 400) lines.removeFirst()
+        }
+    }
+
+    fun snapshot(max: Int): List<String> {
+        val df = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
+        synchronized(lock) {
+            return lines.toList().takeLast(max).map { df.format(java.util.Date(it.first)) + " " + it.second }
+        }
+    }
+}
+
+fun android.app.Activity.showTextDialog(title: String, body: String, extraLabel: String?, onExtra: () -> Unit) {
+    runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        try {
+            val density = resources.displayMetrics.density
+            val pad = (12 * density).toInt()
+            val tv = android.widget.TextView(this).apply {
+                text = body
+                textSize = 11f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextIsSelectable(true)
+                setPadding(pad, pad, pad, pad)
+            }
+            val scroll = android.widget.ScrollView(this)
+            scroll.addView(tv)
+            val builder = android.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(scroll)
+                .setPositiveButton("Fechar", null)
+                .setNeutralButton("Copiar") { _, _ ->
+                    val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("diagnostico", body))
+                    android.widget.Toast.makeText(this, "Texto copiado", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            if (extraLabel != null) {
+                builder.setNegativeButton(extraLabel) { _, _ -> onExtra() }
+            }
+            builder.show()
+        } catch (_: Throwable) {
+        }
+    }
+}
+
+private fun android.app.Activity.buildDiagHeader(): String {
+    val sb = StringBuilder()
+    sb.append("Versao: ").append(com.goodwy.gallery.BuildConfig.VERSION_NAME).append("\n")
+    sb.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append("\n")
+    val manager = if (android.os.Build.VERSION.SDK_INT >= 30) android.os.Environment.isExternalStorageManager().toString() else "n/a"
+    sb.append("Acesso total a arquivos: ").append(manager).append("\n")
+    sb.append("Listagem MediaStore: ").append(applicationContext.config.mediaStoreListing).append("\n")
+    sb.append("Filtro de midia: ").append(applicationContext.config.filterMedia).append("\n")
+    sb.append("Mostrar ocultas: ").append(applicationContext.config.shouldShowHidden).append("\n")
+    sb.append("Subpastas agrupadas: ").append(applicationContext.config.groupDirectSubfolders)
+    return sb.toString()
+}
+
+fun android.app.Activity.showDiagnostics() {
+    val body = buildDiagHeader() + "\n\n--- eventos recentes (o mais novo fica embaixo) ---\n" +
+        Right100Diag.snapshot(150).joinToString("\n")
+    showTextDialog("Diagnostico de midia", body, "Procurar arquivo") { askDiagProbeName() }
+}
+
+private fun android.app.Activity.askDiagProbeName() {
+    runOnUiThread {
+        if (isFinishing || isDestroyed) return@runOnUiThread
+        val input = android.widget.EditText(this)
+        input.hint = "parte do nome do arquivo"
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Procurar arquivo")
+            .setView(input)
+            .setPositiveButton("Procurar") { _, _ -> runDiagProbe(input.text.toString().trim()) }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+}
+
+// Compara, para um nome, o que o MediaStore sabe com o que existe de fato no disco.
+private fun android.app.Activity.runDiagProbe(text: String) {
+    if (text.length < 2) return
+    ensureBackgroundThread {
+        val sb = StringBuilder()
+        sb.append("=== PROCURA: \"").append(text).append("\" ===\n")
+        val folders = LinkedHashSet<String>()
+        try {
+            sb.append("\n[MediaStore] linhas com esse nome (sem filtro de tipo):\n")
+            val projection = arrayListOf("_id", "_data", "media_type", "mime_type", "_size")
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                projection.add("is_pending")
+                projection.add("is_trashed")
+            }
+            var shown = 0
+            contentResolver.query(
+                android.provider.MediaStore.Files.getContentUri("external"),
+                projection.toTypedArray(), "_display_name LIKE ?", arrayOf("%$text%"), "date_modified DESC"
+            )?.use { c ->
+                while (c.moveToNext() && shown < 40) {
+                    val path = c.getString(1) ?: ""
+                    val f = File(path)
+                    val pend = if (c.columnCount > 5) c.getInt(5).toString() else "?"
+                    val trash = if (c.columnCount > 6) c.getInt(6).toString() else "?"
+                    sb.append("id=").append(c.getLong(0)).append(" tipo=").append(c.getInt(2))
+                        .append(" mime=").append(c.getString(3)).append(" tam=").append(c.getLong(4))
+                        .append(" pendente=").append(pend).append(" lixeira=").append(trash).append("\n")
+                        .append("  ").append(path).append("\n")
+                        .append("  existe no disco: ").append(f.exists()).append(" (").append(f.length()).append(" bytes)\n")
+                    f.parent?.let { folders.add(it) }
+                    shown++
+                }
+            }
+            if (shown == 0) sb.append("(nenhuma linha)\n")
+        } catch (e: Throwable) {
+            sb.append("erro na consulta: ").append(e).append("\n")
+        }
+
+        try {
+            sb.append("\n[Disco] arquivos com esse nome (ate 7 niveis, 15 s):\n")
+            val deadline = System.currentTimeMillis() + 15000L
+            var found = 0
+            var timedOut = false
+            val walk = android.os.Environment.getExternalStorageDirectory().walkTopDown().maxDepth(7)
+                .onEnter { dir -> !dir.name.equals("Android", true) }
+            for (f in walk) {
+                if (System.currentTimeMillis() > deadline) {
+                    timedOut = true
+                    break
+                }
+                if (f.isFile && f.name.contains(text, true)) {
+                    sb.append(f.path).append(" (").append(f.length()).append(" bytes)\n")
+                    f.parent?.let { folders.add(it) }
+                    found++
+                    if (found >= 40) break
+                }
+            }
+            if (found == 0) sb.append("(nenhum)\n")
+            if (timedOut) sb.append("(busca interrompida por tempo)\n")
+        } catch (e: Throwable) {
+            sb.append("erro na busca no disco: ").append(e).append("\n")
+        }
+
+        sb.append("\n[Pastas envolvidas]\n")
+        for (folder in folders.take(8)) {
+            var storeCount = -1
+            try {
+                contentResolver.query(
+                    android.provider.MediaStore.Files.getContentUri("external"), arrayOf("_id"),
+                    "_data LIKE ? AND _data NOT LIKE ? AND (media_type IN (1,3) OR mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')",
+                    arrayOf("$folder/%", "$folder/%/%"), null
+                )?.use { storeCount = it.count }
+            } catch (_: Throwable) {
+            }
+            val diskCount = try {
+                File(folder).list()?.size ?: -1
+            } catch (_: Throwable) {
+                -1
+            }
+            val noMedia = File(folder, ".nomedia").exists()
+            sb.append(folder).append("\n  MediaStore(imagens+videos)=").append(storeCount)
+                .append("  disco(itens)=").append(diskCount).append("  .nomedia=").append(noMedia).append("\n")
+        }
+
+        try {
+            val viaApp = com.goodwy.gallery.helpers.MediaFetcher(applicationContext).getAndroid11FolderMedia(
+                isPickImage = false, isPickVideo = false, favoritePaths = getFavoritePaths(),
+                getFavoritePathsOnly = false, getProperDateTaken = false, dateTakens = HashMap(), nameQuery = text
+            ).values.flatten().filter { it.name.contains(text, true) }
+            sb.append("\n[Pesquisa do app] resultados para esse nome: ").append(viaApp.size).append("\n")
+            viaApp.take(15).forEach { sb.append("  ").append(it.path).append("\n") }
+        } catch (e: Throwable) {
+            sb.append("\n[Pesquisa do app] erro: ").append(e).append("\n")
+        }
+
+        Right100Diag.add("sonda '" + text + "' concluida")
+        showTextDialog("Resultado da procura", sb.toString(), null) { }
+    }
+}
+

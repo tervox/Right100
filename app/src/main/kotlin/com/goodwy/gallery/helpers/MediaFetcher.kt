@@ -118,10 +118,12 @@ class MediaFetcher(val context: Context) {
                             curMedia.forEach { known.add(it.path.lowercase(Locale.getDefault())) }
                             // So remove se algum item bate com a pasta (evita apagar tudo se o formato
                             // do caminho for diferente) ou se a pasta esta mesmo vazia.
+                            val storeCount = curMedia.size
                             if (existing.isEmpty() || known.any { existing.contains(it) }) {
                                 curMedia.removeAll { !existing.contains(it.path.lowercase(Locale.getDefault())) }
                                 known.retainAll(existing)
                             }
+                            val ghosts = storeCount - curMedia.size
                             if (existing.any { !known.contains(it) }) {
                                 curMedia.addAll(
                                     getMediaInFolder(
@@ -131,6 +133,10 @@ class MediaFetcher(val context: Context) {
                                     )
                                 )
                             }
+                            com.goodwy.gallery.extensions.Right100Diag.add(
+                                "pasta " + curPath + ": MediaStore=" + storeCount + " fantasmas removidos=" + ghosts +
+                                    " final=" + curMedia.size
+                            )
                         }
                     }
                 }

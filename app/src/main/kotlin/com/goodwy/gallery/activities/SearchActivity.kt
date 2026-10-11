@@ -181,6 +181,7 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
                 // Fonte: consulta direta ao MediaStore pelo nome (instantanea e sempre atual). A lista
                 // em cache (mAllMedia) ficava velha: faltava o que acabou de ser movido ou criado, e era
                 // lenta de varrer a cada letra. Ela so e usada no Android 10 ou menos.
+                val searchStart = System.currentTimeMillis()
                 val source: List<Medium> = if (android.os.Build.VERSION.SDK_INT >= 30) {
                     try {
                         MediaFetcher(applicationContext).getAndroid11FolderMedia(
@@ -217,6 +218,7 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
                     return@ensureBackgroundThread
                 }
 
+                com.goodwy.gallery.extensions.Right100Diag.add("pesquisa '" + query + "': do MediaStore=" + source.size + " com o nome=" + filtered.size + " em " + (System.currentTimeMillis() - searchStart) + " ms")
                 val grouped = MediaFetcher(applicationContext).groupMedia(
                     filtered,
                     ""

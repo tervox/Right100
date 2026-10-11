@@ -158,6 +158,7 @@ class SettingsActivity : SimpleActivity() {
         setupSelectAllFab()
         setupSelectionFab()
         setupMediaStoreListing()
+        setupDiagnostics()
         setupConflictAction()
         setupFabTrashAction()
         setupManageBottomActions()
@@ -1048,6 +1049,10 @@ class SettingsActivity : SimpleActivity() {
             else -> R.string.slide
         }
     )
+
+    private fun setupDiagnostics() {
+        binding.settingsDiagnosticsHolder.setOnClickListener { showDiagnostics() }
+    }
 
     private fun setupConflictAction() {
         binding.settingsConflictAction.text = getConflictActionText()
