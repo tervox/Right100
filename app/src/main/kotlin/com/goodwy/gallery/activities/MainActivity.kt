@@ -119,6 +119,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     @Volatile private var mScanRunning = false
     @Volatile private var mScanGeneration = 0
     @Volatile private var mScanStartedAt = 0L
+    // Linha base da checagem periodica ja foi tirada? Enquanto nao, a checagem apenas a tira
+    // (antes comparava com zero e achava "mudou" a cada 3 s, recomecando a varredura sem parar).
+    @Volatile private var mBaselineReady = false
+    // Pastas (com midia) que o MediaStore tinha na ultima varredura completa: se nao mudaram, nao
+    // ha pasta nova para descobrir e a descoberta (cara) e pulada.
+    private var mLastFolderKeys: Set<String>? = null
     @Volatile private var mRescanPending = false
     private var mScanSignature = ""
     // Data de modificacao de cada pasta no fim da ultima varredura dela. Pasta com a mesma data
@@ -593,7 +599,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             binding.directoriesRefreshLayout.isEnabled =
                 text.isEmpty() && config.enablePullToRefresh
             binding.directoriesSwitchSearching.beVisibleIf(text.isNotEmpty())
-            binding.mainMenu.clearSearch()
+            // Removido binding.mainMenu.clearSearch(): chamado a cada letra, apagava o texto digitado
+            // (o campo voltava a vazio e a lista voltava a mostrar tudo). Isto vale tambem para as
+            // pesquisas dentro da pasta e de arquivos.
+            logSearchTyped(text)
         }
 
         binding.mainMenu.requireToolbar().setOnMenuItemClickListener { menuItem ->
@@ -724,6 +733,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
             if (config.showAll) {
                 showAllMedia()
+            } else if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 20_000L) {
+                // Ja ha uma varredura recente rodando: deixa terminar (uma nova roda depois).
+                mRescanPending = true
             } else {
                 getDirectories()
             }
@@ -751,20 +763,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (signature != mScanSignature) {
             mScanSignature = signature
             mFolderMtimes.clear()
+            mLastFolderKeys = null
         }
         // Linha base da checagem periodica: tirada no INICIO da varredura. Antes ela era tirada
         // so no onCreate (ids) e nunca (total), entao a primeira checagem sempre via "mudou" e
         // a checagem parava de rodar; qualquer midia nova depois disso nao era percebida.
-        ensureBackgroundThread {
-            try {
-                if (hasPermission(PERMISSION_READ_STORAGE)) {
-                    mLatestMediaId = getLatestMediaId()
-                    mLatestMediaDateId = getLatestMediaByDateId()
-                    mLastTotalMediaItems = curTotalMediaItems()
-                }
-            } catch (_: Exception) {
-            }
-        }
+        ensureBackgroundThread { captureBaseline() }
         val getImages = mIsPickImageIntent || mIsGetImageContentIntent
         val getVideos = mIsPickVideoIntent || mIsGetVideoContentIntent
 
@@ -1523,7 +1527,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         } catch (_: Exception) {
         }
 
-        val foldersToScan = mLastMediaFetcher!!.getFoldersToScan()
+        // getFoldersToScan() consulta o MediaStore e confere cada pasta no disco (.nomedia, ocultas):
+        // caro, e rodava a cada varredura. Se o conjunto de pastas com midia no MediaStore e o mesmo
+        // da ultima varredura completa, nao ha pasta nova e a descoberta e pulada.
+        val folderKeys: Set<String>? = if (config.mediaStoreListing) android11Files?.keys?.toHashSet() else null
+        val skipDiscovery = folderKeys != null && folderKeys.isNotEmpty() && folderKeys == mLastFolderKeys
+        val foldersToScan: ArrayList<String> = if (skipDiscovery) ArrayList() else mLastMediaFetcher!!.getFoldersToScan()
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: descoberta de pastas " + (if (skipDiscovery) "PULADA (mesmas " + folderKeys?.size + " pastas do MediaStore)" else "feita"))
         foldersToScan.remove(FAVORITES)
         foldersToScan.add(0, FAVORITES)
         if (config.showRecycleBinAtFolders) {
@@ -1636,6 +1646,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }.start()
         }
 
+        mLastFolderKeys = folderKeys
         // Atualização em batch após descobrir todas as novas pastas — evita jank por N chamadas dentro do loop
         if (dirs.isNotEmpty()) {
             runOnUiThread { setupAdapter(dirs) }
@@ -1914,12 +1925,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private fun getCurrentlyDisplayedDirs() = getRecyclerAdapter()?.dirs ?: ArrayList()
 
     private fun setupLatestMediaId() {
-        ensureBackgroundThread {
-            if (hasPermission(PERMISSION_READ_STORAGE)) {
-                mLatestMediaId = getLatestMediaId()
-                mLatestMediaDateId = getLatestMediaByDateId()
-            }
-        }
+        ensureBackgroundThread { captureBaseline() }
     }
 
     // Antes so recontava as pastas quando o id OU a data do arquivo MAIS RECENTE
@@ -2079,12 +2085,21 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // Linha base da checagem periodica: sem isto, depois de uma atualizacao parcial a checagem
     // periodica acharia "mudanca" e faria uma varredura completa desnecessaria.
     private fun refreshMediaBaseline() {
+        captureBaseline()
+    }
+
+    // Tira a linha base da checagem periodica. NAO depende de hasPermission(READ_EXTERNAL_STORAGE):
+    // no Android 13+ essa permissao antiga vem negada mesmo com acesso total, a linha base nunca
+    // era tirada e a checagem via "mudou" a cada 3 s, refazendo a varredura sem parar.
+    private fun captureBaseline() {
         try {
-            if (hasPermission(PERMISSION_READ_STORAGE)) {
-                mLatestMediaId = getLatestMediaId()
-                mLatestMediaDateId = getLatestMediaByDateId()
-                mLastTotalMediaItems = curTotalMediaItems()
-            }
+            val id = getLatestMediaId()
+            val dateId = getLatestMediaByDateId()
+            val total = curTotalMediaItems()
+            mLatestMediaId = id
+            mLatestMediaDateId = dateId
+            mLastTotalMediaItems = total
+            mBaselineReady = true
         } catch (_: Exception) {
         }
     }
@@ -2134,6 +2149,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             try {
                 val observer = object : android.os.FileObserver(path, mFolderEventsMask) {
                     override fun onEvent(event: Int, name: String?) {
+                        // Alem das mudancas pedidas, o sistema envia "vigia removida" (IN_IGNORED) e
+                        // "fila cheia" a cada stopWatching: antes cada uma contava como mudanca e
+                        // disparava uma varredura completa, que recriava as vigias, e assim por diante.
+                        if ((event and mFolderEventsMask) == 0) return
                         if (isParent && name != null) {
                             // Subpasta nova: reescaneia ela. Arquivo solto: reescaneia a propria pasta-pai.
                             val child = "$path/$name"
@@ -2333,6 +2352,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
     }
 
+    private fun logSearchTyped(text: String) {
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: digitou na pesquisa '" + text + "' (pastas na lista base=" + mDirsIgnoringSearch.size + ")")
+    }
+
     private fun checkLastMediaChanged(first: Boolean = false) {
         if (isDestroyed) {
             return
@@ -2340,6 +2363,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         mLastMediaHandler.postDelayed({
             ensureBackgroundThread {
+                if (!mBaselineReady) {
+                    captureBaseline()
+                    com.goodwy.gallery.extensions.Right100Diag.add("principal: checagem periodica tirou a linha base (pronta=" + mBaselineReady + ")")
+                    mLastMediaHandler.removeCallbacksAndMessages(null)
+                    checkLastMediaChanged()
+                    return@ensureBackgroundThread
+                }
                 val mediaId = getLatestMediaId()
                 val mediaDateId = getLatestMediaByDateId()
                 val totalNow = curTotalMediaItems()

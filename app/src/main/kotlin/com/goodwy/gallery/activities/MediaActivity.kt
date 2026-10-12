@@ -468,6 +468,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     android.os.FileObserver.MOVE_SELF
                 val watcher = object : android.os.FileObserver(mPath, mask) {
                     override fun onEvent(event: Int, name: String?) {
+                        // ignora "vigia removida"/"fila cheia": so mudancas de verdade
+                        if ((event and mask) == 0) return
                         mLiveHandler.post { scheduleLiveRefresh() }
                     }
                 }
@@ -658,7 +660,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
             binding.mediaRefreshLayout.isEnabled =
                 text.isEmpty() && config.enablePullToRefresh
-            binding.mediaMenu.clearSearch()
+            // clearSearch() removido: apagava o texto digitado a cada letra
         }
 
         binding.mediaMenu.requireToolbar().setOnMenuItemClickListener { menuItem ->

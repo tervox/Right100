@@ -125,13 +125,15 @@ class MediaFetcher(val context: Context) {
                             }
                             val ghosts = storeCount - curMedia.size
                             if (existing.any { !known.contains(it) }) {
-                                curMedia.addAll(
-                                    getMediaInFolder(
-                                        curPath, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified, false,
-                                        favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>,
-                                        dateTakens.clone() as HashMap<String, Long>, cachedDurations, known
-                                    )
+                                val extras = getMediaInFolder(
+                                    curPath, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified, false,
+                                    favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>,
+                                    dateTakens.clone() as HashMap<String, Long>, cachedDurations, known
                                 )
+                                // Sem checkProperFileSize o tamanho vinha 0; como sao poucos arquivos, le o
+                                // tamanho de cada um (a soma da pasta e o "peso" mostrado dependem disso).
+                                extras.forEach { if (it.size <= 0L) it.size = File(it.path).length() }
+                                curMedia.addAll(extras)
                             }
                             com.goodwy.gallery.extensions.Right100Diag.add(
                                 "pasta " + curPath + ": MediaStore=" + storeCount + " fantasmas removidos=" + ghosts +

@@ -126,8 +126,7 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
             mSearchHandler.postDelayed({
                 textChanged(text, generation)
             }, 180L)
-
-            binding.searchMenu.clearSearch()
+            // clearSearch() removido: apagava o texto digitado a cada letra
         }
 
         binding.searchMenu.requireToolbar().setOnMenuItemClickListener { menuItem ->
