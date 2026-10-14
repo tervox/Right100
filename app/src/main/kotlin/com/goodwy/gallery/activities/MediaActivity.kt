@@ -155,6 +155,21 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // detectadas pelo checkLastMediaChanged e ações explícitas usam forceRefresh.
         private const val MEDIA_CACHE_TTL_MS = 5 * 60_000L
         val mFolderMediaCacheUpdatedAt = HashMap<String, Long>()
+        // Data de modificacao da pasta no momento em que a lista foi guardada. Se mudou, entrou ou saiu
+        // arquivo (mover, restaurar da lixeira, outro app) e a lista guardada esta velha.
+        val mFolderMtime = HashMap<String, Long>()
+
+        fun folderMtimeNow(path: String): Long = try {
+            if (path.startsWith("/")) java.io.File(path).lastModified() else 0L
+        } catch (_: Exception) {
+            0L
+        }
+
+        fun folderChangedOnDisk(path: String): Boolean {
+            if (!path.startsWith("/")) return false
+            val saved = synchronized(mFolderMediaCache) { mFolderMtime[path] }
+            return saved == null || saved != folderMtimeNow(path)
+        }
         val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>?): Boolean {
                 val shouldRemove = size > FOLDER_CACHE_MAX_SIZE
@@ -214,6 +229,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLastSuccessfulMediaLoadAt = sharedCacheUpdatedAt
         mMediaInvalidated = sharedCacheUpdatedAt == 0L
             || System.currentTimeMillis() - sharedCacheUpdatedAt >= MEDIA_CACHE_TTL_MS
+            || folderChangedOnDisk(mPath)
 
         storeStateVariables()
         setupOptionsMenu()
@@ -560,6 +576,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 synchronized(mFolderMediaCache) {
                     mFolderMediaCache.remove(mPath)
                     mFolderMediaCacheUpdatedAt.remove(mPath)
+                    mFolderMtime.remove(mPath)
                 }
                 refreshItems()
             }
@@ -1124,7 +1141,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val folderCached = folderCacheState.first
         val folderCacheFresh = folderCacheState.second > 0L
             && System.currentTimeMillis() - folderCacheState.second < MEDIA_CACHE_TTL_MS
+            && !folderChangedOnDisk(mPath)
         if (!forceRefresh && folderCached != null) {
+            com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": mostrando cache em memoria n=" + folderCached.size + " fresco=" + folderCacheFresh)
             synchronized(mediaLock) {
                 mMedia = folderCached
                 mMediaPath = mPath
@@ -1167,6 +1186,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         synchronized(mFolderMediaCache) {
                             mFolderMediaCache[requestedPath] = ArrayList(persisted)
                             mFolderMediaCacheUpdatedAt[requestedPath] = System.currentTimeMillis()
+                            mFolderMtime[requestedPath] = folderMtimeNow(requestedPath)
                         }
                         mMediaInvalidated = true
                         mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
@@ -1796,9 +1816,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
         // Registre também uma pasta vazia: sem isso, cada reentrada em uma pasta sem
         // mídias repetia toda a consulta ao banco e o scan completo.
+        com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": lista final da varredura n=" + filteredMedia.size)
         synchronized(mFolderMediaCache) {
             mFolderMediaCache[mPath] = ArrayList(filteredMedia)
             mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
+            mFolderMtime[mPath] = folderMtimeNow(mPath)
         }
         applicationContext.saveMediaSnapshot(mPath, filteredMedia)
 
@@ -1977,6 +1999,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 })
             }
             mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
+            mFolderMtime[mPath] = folderMtimeNow(mPath)
         }
         // Também limpa do snapshot em disco para não ressurgir ao reabrir o app
         applicationContext.saveMediaSnapshot(mPath, mMedia)

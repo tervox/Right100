@@ -755,6 +755,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mScanStartedAt = android.os.SystemClock.elapsedRealtime()
         mScanGeneration++
         com.goodwy.gallery.extensions.Right100Diag.add("principal: varredura completa INICIO #" + mScanGeneration)
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: iniciada por " + Throwable().stackTrace.drop(1).take(5).joinToString(" < ") { it.methodName })
         // Se algo que muda o resultado da varredura mudou (filtros, ocultos, excluidas...), as
         // datas guardadas das pastas deixam de valer.
         val signature = "${config.filterMedia}|${config.shouldShowHidden}|${config.temporarilyShowExcluded}|" +

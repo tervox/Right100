@@ -61,7 +61,15 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
             padBottomImeAndSystem = listOf(view)
         )
         binding.searchEmptyTextPlaceholder.setTextColor(getProperTextColor())
-        getAllMedia()
+        // Antes carregava TODAS as midias (cache + varredura de todas as pastas, ~12 s) antes de criar
+        // o adaptador. Os resultados da pesquisa eram descartados enquanto ele nao existia e depois
+        // a tela era trocada pela lista inteira (midias sem relacao com o que foi digitado). Agora o
+        // adaptador existe desde o inicio e a lista so mostra o que combina com o texto.
+        if (android.os.Build.VERSION.SDK_INT < 30) {
+            getAllMedia()
+        } else {
+            setupAdapter()
+        }
         binding.searchFastscroller.updateColors(getProperPrimaryColor())
 
         if (scrollHorizontally) setupKeyboardListener()

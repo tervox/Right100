@@ -960,6 +960,7 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                     mediaDB.updateDeleted(destination.removePrefix(recycleBinPath), 0, "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}")
                 }
                 newPaths.add(destination)
+                Right100Diag.add("restaurar da lixeira: " + source + " -> " + destination)
 
                 if (config.keepLastModified && lastModified != 0L) {
                     File(destination).setLastModified(lastModified)
@@ -972,12 +973,23 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
             }
         }
 
-        runOnUiThread {
-            callback()
+        // So atualiza as telas depois que o sistema indexou os arquivos restaurados (antes atualizava
+        // na hora e a pasta de origem nao mostrava a midia). Com limite de 6 s para nunca travar.
+        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+        val refreshUi = {
+            if (finished.compareAndSet(false, true)) {
+                Right100Diag.add("restaurar da lixeira: atualizando telas (" + newPaths.size + " arquivos)")
+                runOnUiThread { callback() }
+            }
         }
-
-        rescanPaths(newPaths) {
-            fixDateTaken(newPaths, false)
+        if (newPaths.isEmpty()) {
+            refreshUi()
+        } else {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ refreshUi() }, 6000L)
+            rescanPaths(newPaths) {
+                fixDateTaken(newPaths, false)
+                refreshUi()
+            }
         }
     }
 }
@@ -1602,7 +1614,7 @@ object Right100Diag {
     fun add(msg: String) {
         synchronized(lock) {
             lines.addLast(Pair(System.currentTimeMillis(), msg))
-            while (lines.size > 400) lines.removeFirst()
+            while (lines.size > 800) lines.removeFirst()
         }
     }
 
@@ -1662,7 +1674,7 @@ private fun android.app.Activity.buildDiagHeader(): String {
 
 fun android.app.Activity.showDiagnostics() {
     val body = buildDiagHeader() + "\n\n--- eventos recentes (o mais novo fica embaixo) ---\n" +
-        Right100Diag.snapshot(150).joinToString("\n")
+        Right100Diag.snapshot(400).joinToString("\n")
     showTextDialog("Diagnostico de midia", body, "Procurar arquivo") { askDiagProbeName() }
 }
 
