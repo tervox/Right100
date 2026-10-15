@@ -25,6 +25,12 @@ import kotlin.math.roundToInt
 class MediaFetcher(val context: Context) {
     var shouldStop = false
 
+    // true quando um loop foi abandonado por shouldStop. O shouldStop sozinho nao basta:
+    // quem cancela uma varredura troca o objeto MediaFetcher, e o novo nasce false —
+    // entao checar o flag depois devolve false mesmo tendo saido no meio. Com este flag
+    // o resultado parcial e descartado antes de virar contador de pasta.
+    @Volatile var wasStopped = false
+
     // Cache de lastModifieds — reutilizado dentro da mesma instância.
     private var lastModifiedsCache: HashMap<String, Long>? = null
 
@@ -412,6 +418,7 @@ class MediaFetcher(val context: Context) {
         for (curFile in files) {
             var file = curFile
             if (shouldStop) {
+                wasStopped = true
                 break
             }
 
@@ -584,6 +591,7 @@ class MediaFetcher(val context: Context) {
 
         context.queryCursor(uri, projection, selection, selectionArgs) { cursor ->
             if (shouldStop) {
+                wasStopped = true
                 return@queryCursor
             }
 
@@ -682,6 +690,7 @@ class MediaFetcher(val context: Context) {
 
         for (file in files) {
             if (shouldStop) {
+                wasStopped = true
                 break
             }
 

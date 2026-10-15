@@ -1431,9 +1431,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 // metade — e esse numero parcial ia para o banco, por isso o contador
                 // demorava a sincronizar. Descarta o resultado incompleto: a proxima
                 // varredura conta de verdade.
-                if (mLastMediaFetcher?.shouldStop == true) {
+                // Uma varredura interrompida devolve a pasta contada pela METADE. Antes eu
+                // checava mLastMediaFetcher?.shouldStop aqui — mas quem cancela troca o
+                // objeto MediaFetcher, e o novo nasce com shouldStop=false. A checagem
+                // olhava o fetcher errado e nunca descartava nada: o numero parcial ia para
+                // o banco (era o 620 de 640). Agora o fetcher diz se foi interrompido.
+                if (mLastMediaFetcher?.wasStopped == true) {
                     com.goodwy.gallery.App.logGesture(
-                        "DIRDIAG varredura interrompida, descartando path=" + directory.path
+                        "DIRDIAG varredura INTERROMPIDA, descartando path=" + directory.path
                     )
                     continue
                 }
