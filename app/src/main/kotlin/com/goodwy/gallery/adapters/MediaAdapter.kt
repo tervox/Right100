@@ -635,6 +635,11 @@ class MediaAdapter(
                 activity.updateFavoritePaths(fileDirItems, destinationPath)
             }
 
+            // O destino nao pode continuar na lista de removidos: quem foi marcado la foi
+            // o path de ORIGEM. Se o arquivo voltar pra ela depois (restauro, mover de
+            // volta), o filtro esconderia ele — midia sumindo e aparecendo.
+            MediaActivity.unmarkRecentlyRemoved(newPaths)
+
             activity.rescanPaths(newPaths) {
                 activity.fixDateTaken(newPaths, false)
                 // Não recarregar tudo - removeMediaImmediately já atualizou a UI

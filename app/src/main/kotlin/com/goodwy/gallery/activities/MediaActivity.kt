@@ -118,6 +118,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         private val recentlyRemovedPaths = java.util.concurrent.ConcurrentHashMap<String, Long>()
         private const val RECENTLY_REMOVED_TTL_MS = 180_000L  // 3 minutos (era 30s)
 
+        // Restaurar/livre: o path sai da lista de removidos. Sem isso o filtro continuava
+        // escondendo a midia pelos 3 minutos do TTL - sintoma: fica saindo e aparecendo,
+        // ou nao aparece.
+        fun unmarkRecentlyRemoved(paths: List<String>) {
+            if (paths.isEmpty()) return
+            var freed = 0
+            paths.forEach { path ->
+                if (recentlyRemovedPaths.remove(path) != null) freed++
+            }
+            if (freed > 0) {
+                App.logGesture("unmarkRecentlyRemoved liberou $freed path(s)")
+            }
+        }
+
         fun markRecentlyRemoved(paths: List<String>) {
             val now = System.currentTimeMillis()
             paths.forEach { recentlyRemovedPaths[it] = now }

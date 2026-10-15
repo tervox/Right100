@@ -961,6 +961,12 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                 }
                 newPaths.add(destination)
                 Right100Diag.add("restaurar da lixeira: " + source + " -> " + destination)
+                // O arquivo voltou ao lugar dele por acao do usuario, nao foi o MediaStore
+                // reintroduzindo lixo. Tira da lista de removidos senao o filtro esconde
+                // ele por ate 3 minutos.
+                com.goodwy.gallery.activities.MediaActivity.unmarkRecentlyRemoved(
+                    listOf(destination, source)
+                )
 
                 if (config.keepLastModified && lastModified != 0L) {
                     File(destination).setLastModified(lastModified)
