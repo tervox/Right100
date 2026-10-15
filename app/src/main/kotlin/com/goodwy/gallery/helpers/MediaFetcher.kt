@@ -139,7 +139,17 @@ class MediaFetcher(val context: Context) {
                                 // Sem checkProperFileSize o tamanho vinha 0; como sao poucos arquivos, le o
                                 // tamanho de cada um (a soma da pasta e o "peso" mostrado dependem disso).
                                 extras.forEach { if (it.size <= 0L) it.size = File(it.path).length() }
-                                curMedia.addAll(extras)
+
+                                // `known` e' o skipPaths do getMediaInFolder: deveria devolver so o que
+                                // ainda nao estava em curMedia. Mas `known` e' montado com lowercase() e
+                                // pode nao cobrir tudo (formato de caminho diferente, arquivo recem-chegado).
+                                // Com addAll() esses itens entravam DUPLICADOS e a pasta mostrava mais
+                                // midias do que tem — o numero "acertava sozinho" depois que o
+                                // MediaStore indexava. Unindo por caminho, duplicata nunca passa.
+                                val jaTinha = HashSet<String>(curMedia.size * 2 + 1)
+                                curMedia.forEach { jaTinha.add(it.path.lowercase(Locale.getDefault())) }
+                                val novos = extras.filterNot { jaTinha.contains(it.path.lowercase(Locale.getDefault())) }
+                                curMedia.addAll(novos)
                             }
                             com.goodwy.gallery.extensions.Right100Diag.add(
                                 "pasta " + curPath + ": MediaStore=" + storeCount + " fantasmas removidos=" + ghosts +
