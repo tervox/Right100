@@ -146,6 +146,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
             mMediaStoreDirty = false
             getDirectories()
+            // Depois da varredura, confirma se o sistema ja indexou tudo. MediaStore demora
+            // alguns segundos para absorver arquivos criados por OUTRO app; uma unica
+            // varredura pode cair no meio da indexacao e mostrar a lista incompleta — sintoma
+            // de "abri e demorou pra atualizar" ou update sozinho depois. Reconsulta apos 1,5s.
+            mRefreshHandler.postDelayed({
+                if (!isFinishing && !isDestroyed && mMediaStoreDirty) getDirectories()
+            }, 1500L)
         }
     }
 
@@ -1307,7 +1314,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         // vazia esta mesmo vazia. A regra de "duas varreduras vazias" so serve quando a lista vem
         // do MediaStore, que pode estar atrasado.
         val reliableListing = if (android.os.Build.VERSION.SDK_INT >= 30) android.os.Environment.isExternalStorageManager() else true
-        val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0 || config.showFolderSize
+        // O tamanho da pasta e' gravado no banco e usado pela ordenacao por tamanho. Ficar
+        // dependendo de "ordenar por tamanho" estar ligado significava que, ao ligar a opcao
+        // depois da primeira varredura, todas as pastas mostravam 0 - a config nao valia nada.
+        // Agora calcula sempre; e um sumOf sobre a lista que ja esta em memoria.
+        val getProperFileSize = true
         val dirPathsToRemove = ArrayList<String>()
         val lastModifieds = mLastMediaFetcher!!.getLastModifieds()
         val dateTakens = mLastMediaFetcher!!.getDateTakens()
