@@ -119,6 +119,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     @Volatile private var mScanRunning = false
     @Volatile private var mScanGeneration = 0
     @Volatile private var mScanStartedAt = 0L
+
+    // true enquanto um puxao-para-atualizar espera a varredura terminar, para o
+    // indicador do SwipeRefreshLayout nao ficar girando sem resposta alguma.
+    @Volatile private var mPendingSwipeRefresh = false
     // Linha base da checagem periodica ja foi tirada? Enquanto nao, a checagem apenas a tira
     // (antes comparava com zero e achava "mudou" a cada 3 s, recomecando a varredura sem parar).
     @Volatile private var mBaselineReady = false
@@ -230,8 +234,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         })
 
         binding.directoriesRefreshLayout.setOnRefreshListener {
-            // Puxar para atualizar no meio de uma varredura a reiniciava (e ela ja era lenta). Se uma
-            // varredura recente esta rodando, deixa ela terminar: o indicador some quando acabar.
+            // O return sem mais nada era o bug: o puxao nao fazia nada visivel. O
+            // SwipeRefreshLayout continuava girando e nada o desligava enquanto a varredura
+            // em andamento nao chegasse ao fim — o usuario puxava, esperava, o indicador
+            // sumia e a lista nao tinha mudado.
+            binding.directoriesRefreshLayout.isRefreshing = true
+            mPendingSwipeRefresh = true
             if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 20_000L) {
                 return@setOnRefreshListener
             }
@@ -1265,6 +1273,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 if (mRescanPending && !isDestroyed && !isFinishing) {
                     mRescanPending = false
                     runOnUiThread { requestFullRefresh(300L) }
+                }
+
+                if (mPendingSwipeRefresh) {
+                    mPendingSwipeRefresh = false
+                    runOnUiThread { binding.directoriesRefreshLayout.isRefreshing = false }
                 }
             }
         }
