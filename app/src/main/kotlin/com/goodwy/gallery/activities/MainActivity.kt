@@ -1562,7 +1562,16 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         // da ultima varredura completa, nao ha pasta nova e a descoberta e pulada.
         val folderKeys: Set<String>? = if (config.mediaStoreListing) android11Files?.keys?.toHashSet() else null
         val skipDiscovery = folderKeys != null && folderKeys.isNotEmpty() && folderKeys == mLastFolderKeys
-        val foldersToScan: ArrayList<String> = if (skipDiscovery) ArrayList() else mLastMediaFetcher!!.getFoldersToScan()
+        // Pular a descoberta tambem PULAVA os contadores: com a lista vazia o laco abaixo
+        // nao ia em nenhuma pasta e mediaCnt ficava com o valor da ultima varredura
+        // completa — o numero so se mexia quando o observador de arquivos batia na pasta
+        // certa (por isso as vezes "acertava sozinho depois de um tempo"). A parte cara da
+        // descoberta continua pulada; em vez de vazio, passa as pastas que ja estao no banco.
+        val foldersToScan: ArrayList<String> = if (skipDiscovery) {
+            ArrayList(directoryDB.getAll().map { it.path })
+        } else {
+            mLastMediaFetcher!!.getFoldersToScan()
+        }
         com.goodwy.gallery.extensions.Right100Diag.add("principal: descoberta de pastas " + (if (skipDiscovery) "PULADA (mesmas " + folderKeys?.size + " pastas do MediaStore)" else "feita"))
         foldersToScan.remove(FAVORITES)
         foldersToScan.add(0, FAVORITES)
