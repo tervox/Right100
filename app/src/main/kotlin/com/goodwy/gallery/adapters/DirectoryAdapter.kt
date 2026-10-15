@@ -127,8 +127,41 @@ class DirectoryAdapter(
         return createViewHolder(binding.root)
     }
 
+    // Soma o contador das pastas filhas na hora de desenhar. O campo
+    // subfoldersMediaCount era preenchido em getDirsToShow() (Context.kt:221/244)
+    // sobre objetos que passaram por clone()/distinctBy/getSortedDirectories
+    // (MainActivity.kt:1784-1786). Quando outra varredura reconcilia
+    // android11Files, ela atualiza um objeto diferente do exibido e a linha fica
+    // com o numero antigo — era o 264 vs 258, que "acertava depois de um tempo".
+    // Recalculando aqui, a partir da lista que o adapter esta mostrando, nao ha
+    // valor intermediario para divergir.
+    private fun resolveCount(dir: Directory): Int {
+        val idx = dirs.indexOfFirst { it.path.equals(dir.path, ignoreCase = true) }
+        if (idx < 0) return dir.subfoldersMediaCount
+        val it = dirs[idx]
+
+        if (config.groupDirectSubfolders) {
+            val prefix = it.path.trimEnd('/') + "/"
+            val children = dirs.filter { d ->
+                d.path.length > prefix.length &&
+                    d.path.startsWith(prefix) &&
+                    d.path.count { c -> c == '/' } == prefix.count { c -> c == '/' }
+            }
+            if (children.isNotEmpty()) {
+                return children.sumOf { d -> d.mediaCnt } + it.mediaCnt
+            }
+            return it.mediaCnt
+        }
+        return it.mediaCnt
+    }
+
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val dir = dirs.getOrNull(position) ?: return
+        if (groupDirectSubfolders) {
+            dir.subfoldersMediaCount = resolveCount(dir)
+        } else {
+            dir.subfoldersMediaCount = dir.mediaCnt
+        }
         holder.bindView(dir, true, !isPickIntent) { itemView, adapterPosition ->
             setupView(itemView, dir, holder)
         }
