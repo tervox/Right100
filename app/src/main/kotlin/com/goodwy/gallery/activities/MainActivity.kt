@@ -2211,7 +2211,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 || grouping and GROUP_BY_LAST_MODIFIED_DAILY != 0
                 || grouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0
                 || grouping and GROUP_BY_LAST_MODIFIED_YEARLY != 0
-            val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0 || config.showFolderSize
+            // Antes dependia da ordenacao/exibicao estar ligada. Se o usuario nao estava
+            // ordenando por tamanho, getProperFileSize era false e o size vinha 0 - a pasta
+            // mostrava tamanho errado ou vazio. Aqui sempre calcula no caminho parcial.
+            val getProperFileSize = true
 
             val fetcher = MediaFetcher(applicationContext)
             // Mapas do banco so quando o criterio de ordenacao precisa deles (carrega uma vez).
@@ -2301,6 +2304,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         this@apply.size = newDir.size
                         types = newDir.types
                         sortValue = getDirectorySortingValue(curMedia, path, name, size, mediaCnt)
+                        // A TELA le subfoldersMediaCount, nao mediaCnt (DirectoryAdapter.kt:1036).
+                        // Sem esta linha o refresh por arrastar atualizava o valor no banco mas o
+                        // numero na lista continuava o antigo - era o "puxar nao muda nada".
+                        subfoldersMediaCount = newDir.mediaCnt
                     }
                     updateDBDirectory(existing)
                     changedDir = existing

@@ -38,4 +38,7 @@ interface DirectoryDao {
 
     @Query("UPDATE directories SET media_count = :mediaCnt WHERE path = :path COLLATE NOCASE")
     fun updateDirectoryMediaCount(path: String, mediaCnt: Int)
+
+    @Query("UPDATE directories SET media_count = :mediaCnt, size = :size WHERE path = :path COLLATE NOCASE")
+    fun updateDirectoryMediaCountAndSize(path: String, mediaCnt: Int, size: Long)
 }

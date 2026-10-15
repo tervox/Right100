@@ -534,7 +534,14 @@ fun Context.rescanFolderMediaSync(path: String, callback: (() -> Unit)? = null) 
                 // ate essa varredura terminar. Atualiza a contagem junto com o resto, na origem e no destino.
                 try {
                     if (path.isNotEmpty() && path != FAVORITES && path != RECYCLE_BIN) {
-                        directoryDB.updateDirectoryMediaCount(path, newMedia.count { it is Medium })
+                        // Gravava so a contagem: o tamanho da pasta ficava com o valor da
+                        // ultima varredura completa (ou zero), sumindo depois de copiar/mover.
+                        val totalSize = newMedia.filterIsInstance<Medium>().sumOf { it.size }
+                        directoryDB.updateDirectoryMediaCountAndSize(
+                            path,
+                            newMedia.count { it is Medium },
+                            totalSize
+                        )
                     }
                 } catch (ignored: Exception) {
                 }
