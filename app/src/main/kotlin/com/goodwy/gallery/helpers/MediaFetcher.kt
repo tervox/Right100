@@ -96,71 +96,32 @@ class MediaFetcher(val context: Context) {
                 curMedia.addAll(newMedia)
             }
         } else {
+            var reconciledWithDisk = false
             if (curPath != FAVORITES && curPath != RECYCLE_BIN && isRPlus() &&
                 (!isExternalStorageManager() || context.config.mediaStoreListing)
             ) {
-                if (android11Files?.containsKey(curPath.lowercase(Locale.getDefault())) == true) {
-                    curMedia.addAll(android11Files[curPath.lowercase(Locale.getDefault())]!!)
+                val key = curPath.lowercase(Locale.getDefault())
+                if (android11Files?.containsKey(key) == true) {
+                    curMedia.addAll(android11Files[key]!!)
                 } else if (android11Files == null) {
                     val files = getAndroid11FolderMedia(isPickImage, isPickVideo, favoritePaths, false, getProperDateTaken, dateTakens, folderPath = curPath)
-                    if (files.containsKey(curPath.lowercase(Locale.getDefault()))) {
-                        curMedia.addAll(files[curPath.lowercase(Locale.getDefault())]!!)
+                    if (files.containsKey(key)) {
+                        curMedia.addAll(files[key]!!)
                     }
-                    // Confere com o que existe de fato na pasta (so os NOMES: uma leitura, sem consultar
-                    // cada arquivo). 1) Tira linhas-fantasma do MediaStore (arquivo que ja saiu da pasta
-                    // mas o sistema ainda lista). 2) Acrescenta o que o sistema ainda nao indexou (ex.:
-                    // acabou de ser movido/copiado). Antes o video movido aparecia, sumia e nao voltava.
-                    if (isExternalStorageManager()) {
-                        val names = try {
-                            File(curPath).list()
-                        } catch (_: Exception) {
-                            null
-                        }
-                        if (names != null) {
-                            val base = curPath.trimEnd('/')
-                            val existing = HashSet<String>(names.size * 2 + 1)
-                            names.forEach { existing.add((base + "/" + it).lowercase(Locale.getDefault())) }
-                            val known = HashSet<String>(curMedia.size * 2 + 1)
-                            curMedia.forEach { known.add(it.path.lowercase(Locale.getDefault())) }
-                            // So remove se algum item bate com a pasta (evita apagar tudo se o formato
-                            // do caminho for diferente) ou se a pasta esta mesmo vazia.
-                            val storeCount = curMedia.size
-                            if (existing.isEmpty() || known.any { existing.contains(it) }) {
-                                curMedia.removeAll { !existing.contains(it.path.lowercase(Locale.getDefault())) }
-                                known.retainAll(existing)
-                            }
-                            val ghosts = storeCount - curMedia.size
-                            if (existing.any { !known.contains(it) }) {
-                                val extras = getMediaInFolder(
-                                    curPath, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified, false,
-                                    favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>,
-                                    dateTakens.clone() as HashMap<String, Long>, cachedDurations, known
-                                )
-                                // Sem checkProperFileSize o tamanho vinha 0; como sao poucos arquivos, le o
-                                // tamanho de cada um (a soma da pasta e o "peso" mostrado dependem disso).
-                                extras.forEach { if (it.size <= 0L) it.size = File(it.path).length() }
-
-                                // `known` e' o skipPaths do getMediaInFolder: deveria devolver so o que
-                                // ainda nao estava em curMedia. Mas `known` e' montado com lowercase() e
-                                // pode nao cobrir tudo (formato de caminho diferente, arquivo recem-chegado).
-                                // Com addAll() esses itens entravam DUPLICADOS e a pasta mostrava mais
-                                // midias do que tem — o numero "acertava sozinho" depois que o
-                                // MediaStore indexava. Unindo por caminho, duplicata nunca passa.
-                                val jaTinha = HashSet<String>(curMedia.size * 2 + 1)
-                                curMedia.forEach { jaTinha.add(it.path.lowercase(Locale.getDefault())) }
-                                val novos = extras.filterNot { jaTinha.contains(it.path.lowercase(Locale.getDefault())) }
-                                curMedia.addAll(novos)
-                            }
-                            com.goodwy.gallery.extensions.Right100Diag.add(
-                                "pasta " + curPath + ": MediaStore=" + storeCount + " fantasmas removidos=" + ghosts +
-                                    " final=" + curMedia.size
-                            )
-                        }
-                    }
+                }
+                // A MESMA conferencia com o disco em TODOS os caminhos (varredura geral da tela principal,
+                // pasta aberta e atualizacao parcial). Antes so a pasta aberta conferia: a tela principal
+                // contava o que o MediaStore dizia (40) e ao abrir a pasta aparecia o numero real (310).
+                // Agora o numero de midias e o mesmo em todo lugar.
+                if (isExternalStorageManager()) {
+                    reconciledWithDisk = reconcileWithDisk(
+                        curPath, curMedia, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified,
+                        favoritePaths, getVideoDurations, lastModifieds, dateTakens, cachedDurations
+                    )
                 }
             }
 
-            if (curMedia.isEmpty()) {
+            if (curMedia.isEmpty() && !reconciledWithDisk && hasMediaNamesOnDisk(curPath)) {
                 val newMedia = getMediaInFolder(
                     curPath, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified, getProperFileSize,
                     favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>,
@@ -186,6 +147,76 @@ class MediaFetcher(val context: Context) {
 
         sortMedia(curMedia, context.config.getFolderSorting(curPath))
         return curMedia
+    }
+
+    // Pasta que o MediaStore diz estar sem midia: antes era lida arquivo por arquivo (tamanho e data de
+    // cada um) so para confirmar que estava vazia, o que demorava muito em pastas com milhares de
+    // arquivos de outro tipo (ex.: torrents) — era o que fazia o app levar ~20 s para abrir. Agora olha
+    // so os NOMES: sem nome de midia, nao ha o que ler.
+    private fun hasMediaNamesOnDisk(folder: String): Boolean {
+        if (!context.config.mediaStoreListing || folder == FAVORITES || folder == RECYCLE_BIN) return true
+        val names = (try {
+            File(folder).list()
+        } catch (_: Exception) {
+            null
+        }) ?: return true
+        return names.any { it.isImageFast() || it.isVideoFast() || it.isGif() || it.isRawFast() || it.isSvg() }
+    }
+
+    // Confere a lista do MediaStore com os NOMES que existem de fato na pasta (uma leitura, sem consultar
+    // cada arquivo): 1) tira linhas-fantasma (arquivo que ja saiu da pasta mas o sistema ainda lista);
+    // 2) acrescenta o que o sistema ainda nao indexou (acabou de ser movido, copiado ou restaurado).
+    // Devolve true se conseguiu ler a pasta.
+    private fun reconcileWithDisk(
+        curPath: String, curMedia: ArrayList<Medium>, isPickImage: Boolean, isPickVideo: Boolean, filterMedia: Int,
+        getProperDateTaken: Boolean, getProperLastModified: Boolean, favoritePaths: ArrayList<String>,
+        getVideoDurations: Boolean, lastModifieds: HashMap<String, Long>, dateTakens: HashMap<String, Long>,
+        cachedDurations: HashMap<String, Int>
+    ): Boolean {
+        val names = (try {
+            File(curPath).list()
+        } catch (_: Exception) {
+            null
+        }) ?: return false
+
+        val base = curPath.trimEnd(/)
+        val existing = HashSet<String>(names.size * 2 + 1)
+        names.forEach { existing.add((base + "/" + it).lowercase(Locale.getDefault())) }
+        val known = HashSet<String>(curMedia.size * 2 + 1)
+        curMedia.forEach { known.add(it.path.lowercase(Locale.getDefault())) }
+
+        val storeCount = curMedia.size
+        // So remove se algum item bate com a pasta (evita apagar tudo se o formato do caminho for
+        // diferente) ou se a pasta esta mesmo vazia.
+        if (existing.isEmpty() || known.any { existing.contains(it) }) {
+            curMedia.removeAll { !existing.contains(it.path.lowercase(Locale.getDefault())) }
+            known.retainAll(existing)
+        }
+        val ghosts = storeCount - curMedia.size
+
+        var added = 0
+        if (existing.any { !known.contains(it) }) {
+            val extras = getMediaInFolder(
+                curPath, isPickImage, isPickVideo, filterMedia, getProperDateTaken, getProperLastModified, false,
+                favoritePaths, getVideoDurations, lastModifieds.clone() as HashMap<String, Long>,
+                dateTakens.clone() as HashMap<String, Long>, cachedDurations, known
+            )
+            // Sem checkProperFileSize o tamanho vinha 0; sao poucos arquivos, entao le o tamanho de cada um
+            // (a soma da pasta e o "peso" mostrado dependem disso).
+            extras.forEach { if (it.size <= 0L) it.size = File(it.path).length() }
+            // Une por caminho: duplicata nunca passa.
+            val already = HashSet<String>(curMedia.size * 2 + 1)
+            curMedia.forEach { already.add(it.path.lowercase(Locale.getDefault())) }
+            val novos = extras.filterNot { already.contains(it.path.lowercase(Locale.getDefault())) }
+            curMedia.addAll(novos)
+            added = novos.size
+        }
+        if (ghosts != 0 || added != 0) {
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "pasta " + curPath + ": MediaStore=" + storeCount + " fantasmas=" + ghosts + " extras=" + added + " final=" + curMedia.size
+            )
+        }
+        return true
     }
 
     fun getFoldersToScan(): ArrayList<String> {
@@ -583,7 +614,10 @@ class MediaFetcher(val context: Context) {
         // Filtrar por pasta específica evita scan completo do MediaStore
         // So imagens e videos: sem isto a consulta percorria TODOS os arquivos do aparelho
         // (documentos, audio, caches...) e filtrava por extensao no codigo.
-        val mediaOnly = "(media_type IN (1,3) OR mime_type LIKE 'image/%' OR mime_type LIKE 'video/%')"
+        // Inclui linhas SEM tipo (mime nulo ou generico): arquivos recem-copiados/restaurados ainda nao
+        // classificados. A consulta por pasta ja os trazia e a geral nao; por isso a tela principal e a pasta
+        // aberta divergiam. O tipo final e conferido pela extensao logo abaixo.
+        val mediaOnly = "(media_type IN (1,3) OR mime_type LIKE 'image/%' OR mime_type LIKE 'video/%' OR mime_type IS NULL OR mime_type = 'application/octet-stream')"
         val (selection, selectionArgs) = if (folderPath != null) {
             // Por pasta nao restringe o tipo no SQL: um arquivo recem-movido pode ainda estar sem
             // tipo no MediaStore e sumia da lista; o tipo e conferido pela extensao logo abaixo.

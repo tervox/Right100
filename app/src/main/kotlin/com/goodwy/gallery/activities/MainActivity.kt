@@ -1287,6 +1287,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mIsGettingDirs = false
         mShouldStopFetching = false
 
+        val diagT0 = android.os.SystemClock.elapsedRealtime()
         // if hidden item showing is disabled but all Favorite items are hidden, hide the Favorites folder
         if (!config.shouldShowHidden) {
             val favoritesFolder = newDirs.firstOrNull { it.areFavorites() }
@@ -1335,6 +1336,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val dirPathsToRemove = ArrayList<String>()
         val lastModifieds = mLastMediaFetcher!!.getLastModifieds()
         val dateTakens = mLastMediaFetcher!!.getDateTakens()
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: etapa banco: modificados=" + lastModifieds.size + " datas=" + dateTakens.size + " (" + (android.os.SystemClock.elapsedRealtime() - diagT0) + " ms)")
 
         if (
             config.showRecycleBinAtFolders
@@ -1376,11 +1378,20 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             getProperDateTaken = true,
             dateTakens = dateTakens
         )
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: etapa MediaStore: pastas=" + (android11Files?.size ?: -1) + " itens=" + (android11Files?.values?.sumOf { it.size } ?: -1) + " (" + (android.os.SystemClock.elapsedRealtime() - diagT0) + " ms desde o inicio)")
+        var diagPrevPath: String? = null
+        var diagPrevT = 0L
         try {
             for (directory in dirs) {
                 if (mShouldStopFetching || isDestroyed || isFinishing) {
                     return
                 }
+                val diagNow = android.os.SystemClock.elapsedRealtime()
+                if (diagPrevPath != null && diagNow - diagPrevT > 400L) {
+                    com.goodwy.gallery.extensions.Right100Diag.add("principal: pasta LENTA " + diagPrevPath + " " + (diagNow - diagPrevT) + " ms")
+                }
+                diagPrevPath = directory.path
+                diagPrevT = diagNow
 
                 val folderMtime = try {
                     java.io.File(directory.path).lastModified()
@@ -1572,7 +1583,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         } else {
             mLastMediaFetcher!!.getFoldersToScan()
         }
-        com.goodwy.gallery.extensions.Right100Diag.add("principal: descoberta de pastas " + (if (skipDiscovery) "PULADA (mesmas " + folderKeys?.size + " pastas do MediaStore)" else "feita"))
+        com.goodwy.gallery.extensions.Right100Diag.add("principal: descoberta de pastas " + (if (skipDiscovery) "PULADA (mesmas " + folderKeys?.size + " pastas do MediaStore)" else "feita") + " (" + (android.os.SystemClock.elapsedRealtime() - diagT0) + " ms desde o inicio)")
         foldersToScan.remove(FAVORITES)
         foldersToScan.add(0, FAVORITES)
         if (config.showRecycleBinAtFolders) {
