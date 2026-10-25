@@ -179,7 +179,7 @@ class MediaFetcher(val context: Context) {
             null
         }) ?: return false
 
-        val base = curPath.trimEnd(/)
+        val base = curPath.trimEnd('/')
         val existing = HashSet<String>(names.size * 2 + 1)
         names.forEach { existing.add((base + "/" + it).lowercase(Locale.getDefault())) }
         val known = HashSet<String>(curMedia.size * 2 + 1)
