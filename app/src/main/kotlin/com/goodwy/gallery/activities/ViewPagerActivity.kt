@@ -529,7 +529,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // POSICAO recria paginas com indice que nao existe mais -> fragmento preto.
         // pendingRemovedPaths evita que o fragmento recriado tente carregar o arquivo apagado.
         try {
-            binding.viewPager.adapter = MyPagerAdapter(mMediums)
+            (binding.viewPager.adapter as? MyPagerAdapter)?.notifyDataSetChanged()
             binding.viewPager.setCurrentItem(mPos, false)
             updateTitle()
             refreshMenuItems()
