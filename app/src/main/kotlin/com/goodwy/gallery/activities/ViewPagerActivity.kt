@@ -495,8 +495,16 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         if (config.useRecycleBin && !skipRecycleBin && !medium.getIsInRecycleBin()) {
             movePathsInRecycleBin(arrayListOf(path)) { success ->
                 runOnUiThread {
-                    if (success) onCurrentFileRemoved()
-                    else toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (success) {
+                        try {
+                            onCurrentFileRemoved()
+                        } catch (e: Exception) {
+                            toast("visualizador: falha ao atualizar apos excluir: " + e.message)
+                        }
+                    } else {
+                        toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                    }
                 }
             }
         } else {
@@ -507,16 +515,25 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun onCurrentFileRemoved() {
+        // Se a tela ja esta fechando/salvando estado, notifyDataSetChanged() dispara transacao
+        // de fragment depois de onSaveInstanceState e derruba a Activity.
+        if (isFinishing || isDestroyed) return
         if (mPos < 0 || mPos >= mMediums.size) return
         val removedPath = mMediums[mPos].path
         pendingRemovedPaths.add(removedPath)
         mMediums.removeAt(mPos)
         if (mMediums.isEmpty()) { finish(); return }
         if (mPos >= mMediums.size) mPos = mMediums.size - 1
-        (binding.viewPager.adapter as? MyPagerAdapter)?.notifyDataSetChanged()
-        binding.viewPager.setCurrentItem(mPos, false)
-        updateTitle()
-        refreshMenuItems()
+        // A ordem importa e e a original: notifyDataSetChanged() primeiro sincroniza a contagem
+        // do ViewPager; inverter isso faz o populate() reclamar de adapter alterado sem aviso.
+        try {
+            (binding.viewPager.adapter as? MyPagerAdapter)?.notifyDataSetChanged()
+            binding.viewPager.setCurrentItem(mPos, false)
+            updateTitle()
+            refreshMenuItems()
+        } catch (e: Exception) {
+            toast("visualizador: falha ao atualizar apos excluir: " + e.message)
+        }
     }
 
     private fun renameCurrentFile() {
@@ -589,8 +606,13 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun restoreCurrentFile() {
-        restoreRecycleBinPath(getCurrentPath()) {
-            onCurrentFileRemoved()
+        val path = getCurrentPath()
+        restoreRecycleBinPath(path) {
+            // O callback pode voltar fora da UI thread; mexer no ViewPager la derruba a tela.
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                onCurrentFileRemoved()
+            }
         }
     }
 
