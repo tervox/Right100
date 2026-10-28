@@ -515,7 +515,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun onCurrentFileRemoved() {
-        // Se a tela ja esta fechando/salvando estado, notifyDataSetChanged() dispara transacao
+        // Se a tela ja esta fechando/salvando estado, tocar no ViewPager dispara transacao
         // de fragment depois de onSaveInstanceState e derruba a Activity.
         if (isFinishing || isDestroyed) return
         if (mPos < 0 || mPos >= mMediums.size) return
@@ -524,8 +524,10 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         mMediums.removeAt(mPos)
         if (mMediums.isEmpty()) { finish(); return }
         if (mPos >= mMediums.size) mPos = mMediums.size - 1
-        // A ordem importa e e a original: notifyDataSetChanged() primeiro sincroniza a contagem
-        // do ViewPager; inverter isso faz o populate() reclamar de adapter alterado sem aviso.
+        // Remontar o adapter realinha as posicoes dos fragmentos a lista nova. Com
+        // notifyDataSetChanged(), um FragmentStatePagerAdapter cujos fragmentos guardam a
+        // POSICAO recria paginas com indice que nao existe mais -> fragmento preto.
+        // pendingRemovedPaths evita que o fragmento recriado tente carregar o arquivo apagado.
         try {
             binding.viewPager.adapter = MyPagerAdapter(mMediums)
             binding.viewPager.setCurrentItem(mPos, false)
