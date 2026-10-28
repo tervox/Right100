@@ -2457,7 +2457,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun checkRecycleBinItems() {
-        if (config.useRecycleBin && config.lastBinCheck < System.currentTimeMillis() - DAY_SECONDS * 1000) {
+        if (System.currentTimeMillis() < 0L) {
+            // LIMPEZA AUTOMATICA DESATIVADA de proposito: este bloco apagava da lixeira
+            // tudo com mais de MONTH_MILLISECONDS (1 mes). A lixeira nao tem prazo; so o
+            // botao "Esvaziar Lixeira" remove itens. O codigo antigo fica aqui, inativo.
+            // Para reativar: troque a linha acima pela condicao original do git.
             config.lastBinCheck = System.currentTimeMillis()
             Handler().postDelayed({
                 ensureBackgroundThread {

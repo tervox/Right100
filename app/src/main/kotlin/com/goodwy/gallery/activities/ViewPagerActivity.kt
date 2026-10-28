@@ -527,7 +527,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // A ordem importa e e a original: notifyDataSetChanged() primeiro sincroniza a contagem
         // do ViewPager; inverter isso faz o populate() reclamar de adapter alterado sem aviso.
         try {
-            (binding.viewPager.adapter as? MyPagerAdapter)?.notifyDataSetChanged()
+            binding.viewPager.adapter = MyPagerAdapter(mMediums)
             binding.viewPager.setCurrentItem(mPos, false)
             updateTitle()
             refreshMenuItems()

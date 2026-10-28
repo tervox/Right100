@@ -976,8 +976,17 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                 if (File(source).length() == copiedSize) {
                     mediaDB.updateDeleted(destination.removePrefix(recycleBinPath), 0, "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}")
                     // tira a copia da lixeira depois de restaurar (antes ficava la para sempre)
+                    // So apaga a copia da lixeira com o DESTINO confirmado (existe e tem o mesmo
+                    // tamanho). Antes conferia apenas o tamanho do arquivo na lixeira: se a copia
+                    // falhasse, a midia sumia dos dois lados e "se excluia sozinha".
                     val trashFile = File(source)
-                    if (trashFile.isDirectory) trashFile.deleteRecursively() else trashFile.delete()
+                    val destFile = File(destination)
+                    val destOk = if (trashFile.isDirectory) destFile.isDirectory else destFile.isFile && destFile.length() == trashFile.length()
+                    if (trashFile.absolutePath.startsWith(recycleBinPath) && destFile.exists() && destOk) {
+                        if (trashFile.isDirectory) trashFile.deleteRecursively() else trashFile.delete()
+                    } else {
+                        android.util.Log.d("Right100", "restaurar: copia da lixeira preservada (destino nao confirmado): " + destination)
+                    }
                 }
                 newPaths.add(destination)
                 Right100Diag.add("restaurar da lixeira: " + source + " -> " + destination)
