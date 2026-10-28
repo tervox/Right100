@@ -869,6 +869,11 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                     if (fileDocument.getItemSize(true) == copiedSize && getDoesFilePathExist(destination)) {
                         mediaDB.updateDeleted("$RECYCLE_BIN$source", System.currentTimeMillis(), source)
                         pathsCnt--
+                        // remove o original: antes so copiava e ele continuava na pasta
+                        try {
+                            fileDocument.delete()
+                        } catch (_: Exception) {
+                        }
                     }
                 } catch (e: Exception) {
                     showErrorToast(e)
@@ -882,7 +887,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                 val internalFile = File(recycleBinPath, source)
                 val lastModified = file.lastModified()
                 try {
-                    if (file.copyRecursively(internalFile, true)) {
+                    if (moveIntoRecycleBin(file, internalFile)) {
                         mediaDB.updateDeleted("$RECYCLE_BIN$source", System.currentTimeMillis(), source)
                         pathsCnt--
 
@@ -935,7 +940,19 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
             }
 
             if (getDoesFilePathExist(destination)) {
-                val newFile = getAlternativeFile(File(destination))
+                val existingFile = File(destination)
+                val trashedFile = File(source)
+                // Lixo de antes da correcao: a origem nunca saiu do lugar. Se o conteudo e
+                // identico, so limpa a lixeira em vez de criar "nome(1)".
+                if (existingFile.isFile && trashedFile.isFile && filesIdentical(existingFile, trashedFile)) {
+                    trashedFile.delete()
+                    mediaDB.updateDeleted(destination.removePrefix(recycleBinPath), 0, "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}")
+                    com.goodwy.gallery.activities.MediaActivity.unmarkRecentlyRemoved(listOf(destination, source))
+                    Right100Diag.add("restaurar da lixeira: " + source + " era identico -> lixeira limpa, sem copia")
+                    newPaths.add(destination)
+                    continue
+                }
+                val newFile = getAlternativeFile(existingFile)
                 destination = newFile.path
             }
 
@@ -958,6 +975,9 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
 
                 if (File(source).length() == copiedSize) {
                     mediaDB.updateDeleted(destination.removePrefix(recycleBinPath), 0, "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}")
+                    // tira a copia da lixeira depois de restaurar (antes ficava la para sempre)
+                    val trashFile = File(source)
+                    if (trashFile.isDirectory) trashFile.deleteRecursively() else trashFile.delete()
                 }
                 newPaths.add(destination)
                 Right100Diag.add("restaurar da lixeira: " + source + " -> " + destination)
@@ -1798,3 +1818,34 @@ private fun android.app.Activity.runDiagProbe(text: String) {
     }
 }
 
+
+/**
+ * Move para a lixeira DE VERDADE (corrige "so vai a copia pra lixeira").
+ * 1) renameTo no mesmo volume: instantaneo, nao copia, nao deixa o original na pasta.
+ * 2) se falhar (SD/SAF): copia, confere o tamanho e apaga o original CONFERINDO o retorno.
+ * Devolve false se a origem nao saiu -> o app mostra erro em vez de fingir sucesso.
+ */
+private fun moveIntoRecycleBin(source: java.io.File, target: java.io.File): Boolean {
+    return try {
+        target.parentFile?.mkdirs()
+        if (target.exists()) target.deleteRecursively()
+
+        if (source.renameTo(target)) return true
+
+        if (!source.copyRecursively(target, true)) return false
+
+        if (source.isFile && target.length() != source.length()) {
+            target.deleteRecursively()
+            return false
+        }
+
+        val removed = if (source.isDirectory) source.deleteRecursively() else source.delete()
+        if (!removed) {
+            target.deleteRecursively()
+            return false
+        }
+        true
+    } catch (e: Exception) {
+        false
+    }
+}

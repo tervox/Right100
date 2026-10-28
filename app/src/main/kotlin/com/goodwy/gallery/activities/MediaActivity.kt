@@ -1900,7 +1900,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
             movePathsInRecycleBin(filtered.map { it.path } as ArrayList<String>) {
                 if (it) {
-                    deleteFilteredFiles(filtered)
+                    // O arquivo ja saiu da pasta (foi movido para a lixeira). O commons ainda roda
+                    // para limpar a linha do MediaStore, mas se ele reclamar de um arquivo que nao
+                    // existe mais, nao adianta mostrar erro nem deixar de atualizar a grade.
+                    deleteFilteredFiles(filtered, alreadyMovedToBin = true)
                 } else {
                     toast(com.goodwy.commons.R.string.unknown_error_occurred)
                 }
@@ -1920,9 +1923,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         return intent.getBooleanExtra(SKIP_AUTHENTICATION, false)
     }
 
-    private fun deleteFilteredFiles(filtered: ArrayList<FileDirItem>) {
+    private fun deleteFilteredFiles(filtered: ArrayList<FileDirItem>, alreadyMovedToBin: Boolean = false) {
         deleteFiles(filtered) {
-            if (!it) {
+            if (!it && !alreadyMovedToBin) {
                 toast(com.goodwy.commons.R.string.unknown_error_occurred)
                 return@deleteFiles
             }
