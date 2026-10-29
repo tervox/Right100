@@ -88,6 +88,11 @@ class DirectoryAdapter(
 
 
     init {
+        // Mantém snapshots independentes para o DiffUtil comparar
+        // os valores anteriores e novos de cada Directory.
+        dirs = ArrayList(dirs.map { it.copy() })
+        currentDirectoriesHash = dirs.hashCode()
+
         setupDragListener(true)
         fillLockedFolders()
         setHasStableIds(true)
@@ -903,7 +908,9 @@ class DirectoryAdapter(
     }
 
     fun updateDirs(newDirs: ArrayList<Directory>) {
-        val directories = newDirs.clone() as ArrayList<Directory>
+        // clone() copiava apenas a lista; os objetos Directory
+        // continuavam compartilhados com a lista recebida.
+        val directories = ArrayList(newDirs.map { it.copy() })
         if (directories.hashCode() != currentDirectoriesHash) {
             val oldDirs = dirs
             currentDirectoriesHash = directories.hashCode()

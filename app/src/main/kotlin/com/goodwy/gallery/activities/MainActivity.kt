@@ -1485,7 +1485,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     0L
                 }
                 // Com a listagem pelo MediaStore reler tudo e barato; so pula no modo antigo.
-                if (folderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[directory.path] == folderMtime
+                if (folderMtime != 0L && !config.mediaStoreListing && !config.groupDirectSubfolders
+                    && mFolderMtimes[directory.path] == folderMtime
                     && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()
                 ) {
                     continue

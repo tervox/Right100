@@ -207,7 +207,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             if (saved == null || saved != folderMtimeNow(path)) return true
             if (savedNewest == null) return false
             val diskNewest = newestFileInFolder(path)
-            if (diskNewest == 0L) return false
             return diskNewest != savedNewest
         }
         val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
