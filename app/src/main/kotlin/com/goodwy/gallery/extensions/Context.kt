@@ -1263,6 +1263,79 @@ private fun mediaSnapshotKey(path: String): String {
     return "folder_" + digest.joinToString("") { "%02x".format(it) }
 }
 
+private fun mediaSnapshotMetaKey(path: String): String =
+    mediaSnapshotKey(path) + "_signature"
+
+private fun mediaFolderSignature(path: String): String? {
+    if (path.isEmpty() || path == FAVORITES || path == RECYCLE_BIN) {
+        return null
+    }
+
+    val folder = java.io.File(path)
+    if (!folder.isDirectory) return null
+
+    val files = folder.listFiles()?.filter { it.isFile } ?: return null
+
+    val payload = buildString {
+        append(folder.lastModified())
+            .append('|')
+            .append(files.size)
+            .append('|')
+
+        files.sortedBy { it.name }.forEach { file ->
+            append(file.name.length)
+                .append(':')
+                .append(file.name)
+                .append(':')
+                .append(file.length())
+                .append(':')
+                .append(file.lastModified())
+                .append(';')
+        }
+    }
+
+    val digest = MessageDigest.getInstance("SHA-256")
+        .digest(payload.toByteArray(Charsets.UTF_8))
+
+    return folder.lastModified().toString() + ":" +
+        digest.joinToString("") { "%02x".format(it) }
+}
+
+fun Context.isPersistedMediaSnapshotFresh(path: String): Boolean {
+    if (path.isEmpty() || path == FAVORITES || path == RECYCLE_BIN) {
+        return false
+    }
+
+    val prefs = getSharedPreferences(
+        MEDIA_SNAPSHOT_PREFS,
+        Context.MODE_PRIVATE
+    )
+
+    val raw = prefs.getString(mediaSnapshotKey(path), null) ?: return false
+
+    val count = try {
+        JSONArray(raw).length()
+    } catch (_: Exception) {
+        return false
+    }
+
+    // Um snapshot no limite pode estar truncado.
+    if (count >= MEDIA_SNAPSHOT_MAX_ITEMS) return false
+
+    val savedSignature = prefs.getString(
+        mediaSnapshotMetaKey(path),
+        null
+    ) ?: return false
+
+    val currentSignature = try {
+        mediaFolderSignature(path)
+    } catch (_: Exception) {
+        null
+    } ?: return false
+
+    return savedSignature == currentSignature
+}
+
 private fun Context.loadMediaSnapshot(path: String): ArrayList<Medium>? {
     if (path.isEmpty() || path == FAVORITES || path == RECYCLE_BIN) return null
     val raw = getSharedPreferences(MEDIA_SNAPSHOT_PREFS, Context.MODE_PRIVATE)
@@ -1314,8 +1387,22 @@ fun Context.saveMediaSnapshot(path: String, media: List<ThumbnailItem>) {
                 put("mediaStoreId", item.mediaStoreId)
             })
         }
-        getSharedPreferences(MEDIA_SNAPSHOT_PREFS, Context.MODE_PRIVATE)
-            .edit().putString(mediaSnapshotKey(path), json.toString()).apply()
+        val prefs = getSharedPreferences(
+            MEDIA_SNAPSHOT_PREFS,
+            Context.MODE_PRIVATE
+        )
+
+        val editor = prefs.edit()
+            .putString(mediaSnapshotKey(path), json.toString())
+
+        val signature = mediaFolderSignature(path)
+        if (signature != null) {
+            editor.putString(mediaSnapshotMetaKey(path), signature)
+        } else {
+            editor.remove(mediaSnapshotMetaKey(path))
+        }
+
+        editor.apply()
     } catch (_: Exception) {
     }
 }

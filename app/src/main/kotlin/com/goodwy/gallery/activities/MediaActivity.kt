@@ -1162,6 +1162,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val hasFreshCurrentMedia = mMediaPath == mPath
             && !mMediaInvalidated
             && now - mLastSuccessfulMediaLoadAt < MEDIA_CACHE_TTL_MS
+            && !folderChangedOnDisk(mPath)
         if (hasFreshCurrentMedia) {
             // A lista e os requests do Glide já estão vivos; não reinicie o scanner
             // só porque a Activity voltou do visualizador ou foi recriada.
@@ -1183,7 +1184,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // MEDIA_CACHE_TTL_MS (5 min) derrubava o cache so porque o tempo passou e disparava uma
         // revarredura da pasta inteira sem nada ter mudado.
         val folderCacheFresh = folderCacheState.second > 0L && !folderChangedOnDisk(mPath)
-        if (!forceRefresh && folderCached != null) {
+        if (!forceRefresh && folderCached != null && folderCacheFresh) {
             com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": mostrando cache em memoria n=" + folderCached.size + " fresco=" + folderCacheFresh)
             synchronized(mediaLock) {
                 mMedia = folderCached
@@ -1217,9 +1218,22 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 } catch (_: Exception) {
                     null
                 }
+
+                // A assinatura percorre os arquivos da pasta. Faça isso no background,
+                // nunca na thread da interface.
+                val persistedIsFresh = try {
+                    applicationContext.isPersistedMediaSnapshotFresh(requestedPath)
+                } catch (_: Exception) {
+                    false
+                }
+
                 runOnUiThread {
                     if (isDestroyed || isFinishing || requestedPath != mPath) return@runOnUiThread
-                    if (persisted != null && persisted.isNotEmpty()) {
+                    if (
+                        persisted != null &&
+                        persisted.isNotEmpty() &&
+                        persistedIsFresh
+                    ) {
                         synchronized(mediaLock) {
                             mMedia = persisted
                             mMediaPath = requestedPath
@@ -1281,7 +1295,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // mMedia é companion object e persiste enquanto o processo continua vivo. Mostre
         // a grade imediatamente e revalide somente depois que a primeira pintura terminar;
         // consultar Room e iniciar o scanner antes disso competia com o Glide durante a entrada.
-        if (!forceRefresh && mMedia.isNotEmpty() && mMediaPath == mPath) {
+        if (
+            !forceRefresh &&
+            mMedia.isNotEmpty() &&
+            mMediaPath == mPath &&
+            !folderChangedOnDisk(mPath)
+        ) {
             mIsGettingMedia = false
             runOnUiThread { setupAdapter(); binding.loadingIndicator.hide(); binding.mediaRefreshLayout.isRefreshing = false }
             checkLastMediaChanged()
@@ -1295,6 +1314,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun loadMediaFromDatabaseAndScan(requestedPath: String) {
+        if (requestedPath.startsWith("/")) {
+            // Em pastas reais, não mostre a lista antiga do Room antes da
+            // varredura atual. Isso evitava o salto de mídias surgindo depois.
+            startAsyncTask()
+            return
+        }
+
         getCachedMedia(
             requestedPath,
             mIsGetVideoIntent && !mIsGetImageIntent,

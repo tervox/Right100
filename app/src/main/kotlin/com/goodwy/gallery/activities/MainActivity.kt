@@ -135,10 +135,44 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mLastFolderKeys: Set<String>? = null
     @Volatile private var mRescanPending = false
     private var mScanSignature = ""
-    // Data de modificacao de cada pasta no fim da ultima varredura dela. Pasta com a mesma data
-    // nao ganhou nem perdeu arquivos, entao nao precisa ser reescaneada (cada arquivo custa uma
-    // consulta lenta ao armazenamento).
+    // Fingerprint do conteúdo direto da pasta. Inclui quantidade, nomes,
+    // tamanho total e datas dos arquivos, não somente o mtime do diretório.
     private val mFolderMtimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private fun folderScanFingerprint(path: String): Long {
+        val folder = java.io.File(path)
+        if (!folder.isDirectory) return 0L
+
+        val files = folder.listFiles() ?: return 0L
+
+        var count = 0L
+        var totalBytes = 0L
+        var newestModified = 0L
+        var namesHash = 0L
+
+        for (file in files) {
+            if (!file.isFile) continue
+
+            count++
+            totalBytes += file.length()
+
+            val modified = file.lastModified()
+            if (modified > newestModified) {
+                newestModified = modified
+            }
+
+            namesHash += file.name.hashCode().toLong()
+        }
+
+        var fingerprint = folder.lastModified()
+        fingerprint = fingerprint * 31L + count
+        fingerprint = fingerprint * 31L + totalBytes
+        fingerprint = fingerprint * 31L + newestModified
+        fingerprint = fingerprint * 31L + namesHash
+
+        fingerprint = fingerprint and Long.MAX_VALUE
+        return if (fingerprint == 0L) 1L else fingerprint
+    }
 
     // Guarda as datas das pastas e as chaves do MediaStore entre sessoes.
     // Sem isso, ao reiniciar o processo, o mapa comeca vazio e todas as pastas
@@ -1730,13 +1764,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 return
             }
 
-            val newFolderMtime = try {
-                java.io.File(folder).lastModified()
-            } catch (_: Exception) {
-                0L
-            }
-            // Pasta ja vista (vazia ou oculta) e que nao mudou desde entao: nao reescaneia.
-            if (newFolderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[folder] == newFolderMtime) {
+            val newFolderFingerprint = folderScanFingerprint(folder)
+            // Só pula a pasta se a assinatura do conteúdo continuar igual.
+            // Assim, mudanças de tamanho dos arquivos também invalidam o cache.
+            if (
+                newFolderFingerprint != 0L &&
+                !config.groupDirectSubfolders &&
+                mFolderMtimes[folder] == newFolderFingerprint
+            ) {
                 continue
             }
 
@@ -1769,7 +1804,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             )
 
             if (newMedia.isEmpty()) {
-                if (newFolderMtime != 0L) mFolderMtimes[folder] = newFolderMtime
+                if (newFolderFingerprint != 0L) mFolderMtimes[folder] = newFolderFingerprint
                 continue
             }
 
@@ -1792,7 +1827,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 noMediaFolders = noMediaFolders
             )
             dirs.add(newDir)
-            if (newFolderMtime != 0L) mFolderMtimes[folder] = newFolderMtime
+            if (newFolderFingerprint != 0L) mFolderMtimes[folder] = newFolderFingerprint
             // Antes a tela so era atualizada DEPOIS de varrer todas as pastas: sem cache (primeira
             // abertura, apos atualizar o app, ou cache limpo) a tela ficava vazia por muito tempo e
             // parecia travada. Agora mostra o que ja foi achado, no maximo a cada 700 ms

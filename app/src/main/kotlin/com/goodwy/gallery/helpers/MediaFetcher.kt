@@ -511,9 +511,21 @@ class MediaFetcher(val context: Context) {
 
             var size = 0L
             if (checkProperFileSize || checkFileExistence) {
-                var newSize = fileSizes.remove(path)
-                if (newSize == null) {
-                    newSize = file.length()
+                val indexedSize = fileSizes.remove(path)
+
+                // O tamanho físico é a fonte principal. O tamanho da
+                // MediaStore pode estar desatualizado após mover ou
+                // substituir um arquivo.
+                val diskSize = if (file.exists() && file.isFile) {
+                    file.length()
+                } else {
+                    0L
+                }
+
+                val newSize = if (diskSize > 0L) {
+                    diskSize
+                } else {
+                    indexedSize ?: diskSize
                 }
                 size = newSize
             }
@@ -945,15 +957,30 @@ class MediaFetcher(val context: Context) {
         val sizes = HashMap<String, Long>()
         val projection = arrayOf(Images.Media.DATA, Images.Media.SIZE)
         val uri = Files.getContentUri("external")
-        val selection = "${Images.Media.DATA} LIKE ? AND ${Images.Media.DATA} NOT LIKE ?"
-        val selectionArgs = arrayOf("$folder/%", "$folder/%/%")
+        val escapedFolder = folder.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+
+        val selection =
+            "${Images.Media.DATA} LIKE ? ESCAPE '\\' AND " +
+            "${Images.Media.DATA} NOT LIKE ? ESCAPE '\\'"
+
+        val selectionArgs = arrayOf(
+            "$escapedFolder/%",
+            "$escapedFolder/%/%"
+        )
 
         try {
             context.queryCursor(uri, projection, selection, selectionArgs) { cursor ->
                 try {
                     val path = cursor.getStringValue(Images.Media.DATA)
                     val size = cursor.getLongValue(Images.Media.SIZE)
-                    if (!path.isNullOrEmpty() && size > 0L) {
+                    if (
+                        !path.isNullOrEmpty() &&
+                        java.io.File(path).parentFile?.absolutePath ==
+                            java.io.File(folder).absolutePath &&
+                        size > 0L
+                    ) {
                         sizes[path] = size
                     }
                 } catch (_: Exception) {
