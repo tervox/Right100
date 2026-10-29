@@ -749,8 +749,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             if (config.showAll) {
                 showAllMedia()
             } else if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 20_000L) {
-                // Ja ha uma varredura recente rodando: deixa terminar (uma nova roda depois).
-                mRescanPending = true
+                // A varredura em andamento entrega a lista COMPLETA de pastas - nao ha motivo
+                // para enfileirar outra atras dela. Era esta linha que produzia o laco do
+                // diagnostico: 4 varreduras completas em 40 s, todas iniciadas por tryLoadGallery.
+                // Nada fica adiado: entrar no app continua disparando a varredura na hora.
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "principal: varredura extra nao enfileirada (a atual entrega a lista completa)"
+                )
             } else {
                 getDirectories()
             }
