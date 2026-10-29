@@ -119,6 +119,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     @Volatile private var mScanRunning = false
     @Volatile private var mScanGeneration = 0
     @Volatile private var mScanStartedAt = 0L
+    // Evita repetir a varredura completa em cada retorno à tela principal.
+    // Mudanças reais continuam sendo tratadas pelo observer e pela checagem periódica.
+    @Volatile private var mLastCompletedScanAt = 0L
+
 
     // true enquanto um puxao-para-atualizar espera a varredura terminar, para o
     // indicador do SwipeRefreshLayout nao ficar girando sem resposta alguma.
@@ -834,6 +838,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 com.goodwy.gallery.extensions.Right100Diag.add(
                     "principal: varredura extra nao enfileirada (a atual entrega a lista completa)"
                 )
+            } else if (mLastCompletedScanAt > 0L && !mMediaStoreDirty) {
+                // A lista já foi carregada nesta sessão. O ContentObserver e a
+                // checagem periódica detectam mudanças; atualizar manualmente
+                // continua chamando getDirectories() diretamente.
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "principal: varredura omitida no onResume (lista já carregada)"
+                )
             } else {
                 getDirectories()
             }
@@ -1355,6 +1366,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 // Persiste apenas ao terminar a varredura mais recente.
                 // Uma varredura interrompida nao deve gravar um cache incompleto.
                 savePersistentFolderScanCache()
+                mLastCompletedScanAt = android.os.SystemClock.elapsedRealtime()
                 mScanRunning = false
                 if (mRescanPending && !isDestroyed && !isFinishing) {
                     mRescanPending = false

@@ -121,16 +121,36 @@ class GetMediaAsynctask(
             )
         }
 
-        // Salva durações dos vídeos no banco para acelerar próximas cargas
+        // As durações já estão nos objetos Medium desta carga.
+        // Persisti-las uma a uma antes de agrupar atrasava a entrega da grade.
+        // A persistência fica em segundo plano e não bloqueia a lista inicial.
         if (getVideoDurations) {
-            val mediaDB = GalleryDatabase.getInstance(context.applicationContext).MediumDao()
             val videosWithDuration = media.filterIsInstance<Medium>()
                 .filter { it.isVideo() && it.videoDuration > 0 }
-            videosWithDuration.forEach { medium ->
-                try { mediaDB.updateVideoDuration(medium.path, medium.videoDuration) } catch (_: Exception) {}
+                .map { it.path to it.videoDuration }
+
+            if (videosWithDuration.isNotEmpty()) {
+                Thread({
+                    try {
+                        val mediaDB = GalleryDatabase.getInstance(
+                            context.applicationContext
+                        ).MediumDao()
+
+                        videosWithDuration.forEach { (path, duration) ->
+                            try {
+                                mediaDB.updateVideoDuration(path, duration)
+                            } catch (_: Exception) {
+                                // Uma falha individual não deve bloquear a grade.
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // A duração obtida para a carga atual continua disponível.
+                    }
+                }, "Right100-DurationDB").apply {
+                    isDaemon = true
+                    start()
+                }
             }
-
-
         }
 
         return mediaFetcher.groupMedia(media, pathToUse)

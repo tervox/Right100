@@ -1032,74 +1032,115 @@ class MediaAdapter(
                     if (mediumThumbnail.tag == thumbnailPath) {
                         var fallbackLoaded = false
                         
-                        if (medium.type == TYPE_VIDEOS && android.os.Build.VERSION.SDK_INT >= 29) {
-                            fun loadViaUri(uri: android.net.Uri?): android.graphics.Bitmap? {
-                                if (uri == null) return null
-                                return try {
-                                    activity.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+                        if (medium.type == TYPE_VIDEOS) {
+                            // Consultas ao MediaStore e decodificação de vídeo
+                            // não devem bloquear a thread que atualiza a interface.
+                            val targetTag = thumbnailPath
+                            fallbackLoaded = true
+
+                            ensureBackgroundThread {
+                                var bmp: android.graphics.Bitmap? = null
+
+                                try {
+                                    fun loadViaUri(uri: android.net.Uri?): android.graphics.Bitmap? {
+                                        if (uri == null ||
+                                            android.os.Build.VERSION.SDK_INT < 29
+                                        ) return null
+
+                                        return try {
+                                            activity.contentResolver.loadThumbnail(
+                                                uri,
+                                                android.util.Size(320, 320),
+                                                null
+                                            )
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                    }
+
+                                    val mediaId = medium.mediaStoreId
+
+                                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                                        bmp = if (medium.path.startsWith("content://")) {
+                                            loadViaUri(android.net.Uri.parse(medium.path))
+                                        } else {
+                                            loadViaUri(
+                                                if (mediaId > 0L) {
+                                                    android.content.ContentUris.withAppendedId(
+                                                        android.provider.MediaStore.Files.getContentUri("external"),
+                                                        mediaId
+                                                    )
+                                                } else null
+                                            )
+                                        }
+                                    }
+
+                                    // Se o ID guardado ficou obsoleto, consulta o ID atual.
+                                    if (bmp == null &&
+                                        !medium.path.startsWith("content://")
+                                    ) {
+                                        val freshId = try {
+                                            activity.contentResolver.query(
+                                                android.provider.MediaStore.Files.getContentUri("external"),
+                                                arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                                                "${android.provider.MediaStore.MediaColumns.DATA} = ?",
+                                                arrayOf(medium.path),
+                                                null
+                                            )?.use {
+                                                if (it.moveToFirst()) it.getLong(0) else -1L
+                                            } ?: -1L
+                                        } catch (_: Exception) {
+                                            -1L
+                                        }
+
+                                        if (freshId > 0L && freshId != mediaId) {
+                                            bmp = loadViaUri(
+                                                android.content.ContentUris.withAppendedId(
+                                                    android.provider.MediaStore.Files.getContentUri("external"),
+                                                    freshId
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    if (bmp == null &&
+                                        !medium.path.startsWith("content://") &&
+                                        android.os.Build.VERSION.SDK_INT >= 29
+                                    ) {
+                                        bmp = try {
+                                            android.media.ThumbnailUtils.createVideoThumbnail(
+                                                java.io.File(medium.path),
+                                                android.util.Size(320, 320),
+                                                null
+                                            )
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                    }
                                 } catch (_: Exception) {
-                                    null
+                                    // O callback de UI abaixo mostra o placeholder se falhar.
                                 }
-                            }
 
-                            try {
-                                // medium.mediaStoreId pode estar desatualizado (MediaStore
-                                // reatribui _id quando o arquivo e reescaneado). Antes so
-                                // buscava um _id novo quando o campo vinha vazio (<= 0L) -
-                                // nunca quando vinha errado, e um _id errado falha igual ao
-                                // content:// que ja falhou acima, sem nunca chegar no
-                                // ThumbnailUtils. Agora tenta o cacheado e, se falhar, busca
-                                // o _id atual pelo DATA antes de desistir.
-                                val mediaId = medium.mediaStoreId
-
-                                var bmp = if (medium.path.startsWith("content://")) {
-                                    loadViaUri(android.net.Uri.parse(medium.path))
-                                } else {
-                                    loadViaUri(
-                                        if (mediaId > 0L) {
-                                            android.content.ContentUris.withAppendedId(
-                                                android.provider.MediaStore.Files.getContentUri("external"), mediaId
+                                val finalBmp = bmp
+                                activity.runOnUiThread {
+                                    if (mediumThumbnail.tag == targetTag) {
+                                        if (finalBmp != null) {
+                                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                            mediumThumbnail.setImageBitmap(finalBmp)
+                                        } else {
+                                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                            mediumThumbnail.setImageDrawable(
+                                                AppCompatResources.getDrawable(
+                                                    activity,
+                                                    R.drawable.ic_vector_warning_colored
+                                                )
                                             )
-                                        } else null
-                                    )
-                                }
-
-                                if (bmp == null && !medium.path.startsWith("content://")) {
-                                    val freshId = try {
-                                        activity.contentResolver.query(
-                                            android.provider.MediaStore.Files.getContentUri("external"),
-                                            arrayOf(android.provider.MediaStore.MediaColumns._ID),
-                                            "${android.provider.MediaStore.MediaColumns.DATA} = ?",
-                                            arrayOf(medium.path), null
-                                        )?.use { if (it.moveToFirst()) it.getLong(0) else -1L } ?: -1L
-                                    } catch (_: Exception) {
-                                        -1L
-                                    }
-                                    if (freshId > 0L && freshId != mediaId) {
-                                        bmp = loadViaUri(
-                                            android.content.ContentUris.withAppendedId(
-                                                android.provider.MediaStore.Files.getContentUri("external"), freshId
-                                            )
-                                        )
+                                        }
+                                    } else {
+                                        // A célula já foi reciclada para outro arquivo.
+                                        finalBmp?.recycle()
                                     }
                                 }
-
-                                if (bmp == null) {
-                                    bmp = try {
-                                        android.media.ThumbnailUtils.createVideoThumbnail(
-                                            java.io.File(medium.path), android.util.Size(320, 320), null
-                                        )
-                                    } catch (_: Exception) {
-                                        null
-                                    }
-                                }
-
-                                if (bmp != null) {
-                                    mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
-                                    mediumThumbnail.setImageBitmap(bmp)
-                                    fallbackLoaded = true
-                                }
-                            } catch (_: Exception) {
                             }
                         }
                         if (!fallbackLoaded) {

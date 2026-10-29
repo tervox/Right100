@@ -79,6 +79,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private val mSearchHandler = Handler()
     private var mTempShowHiddenHandler = Handler()
     private var mCurrAsyncTask: GetMediaAsynctask? = null
+    @Volatile private var mMediaScanGeneration = 0
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
 
     // Evita iniciar dois preenchimentos concorrentes para a mesma pasta quando a lista
@@ -1322,6 +1323,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             if (isDestroyed || isFinishing) return@runOnUiThread
 
             mCurrAsyncTask?.stopFetching()
+            val generation = ++mMediaScanGeneration
             val requestedPath = mPath
             val task = GetMediaAsynctask(
                 context = applicationContext,
@@ -1333,7 +1335,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 ensureBackgroundThread {
                     // Cancelar AsyncTask não impede todo callback já enfileirado; descarte
                     // resultados que pertencem a uma pasta que deixou de estar visível.
-                    if (requestedPath != mPath || isFinishing || isDestroyed) {
+                    if (generation != mMediaScanGeneration ||
+                        requestedPath != mPath || isFinishing || isDestroyed
+                    ) {
+                        App.logGesture(
+                            "descartando resultado de scan antigo path=%s generation=%d atual=%d"
+                                .format(requestedPath, generation, mMediaScanGeneration)
+                        )
                         return@ensureBackgroundThread
                     }
                     val oldMedia = synchronized(mediaLock) { mMedia.clone() as ArrayList<ThumbnailItem> }
