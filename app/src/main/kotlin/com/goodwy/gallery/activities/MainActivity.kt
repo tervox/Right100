@@ -1399,7 +1399,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     0L
                 }
                 // Com a listagem pelo MediaStore reler tudo e barato; so pula no modo antigo.
-                if (folderMtime != 0L && !config.groupDirectSubfolders && !config.mediaStoreListing && mFolderMtimes[directory.path] == folderMtime
+                if (folderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[directory.path] == folderMtime
                     && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()
                 ) {
                     continue
@@ -1614,7 +1614,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 0L
             }
             // Pasta ja vista (vazia ou oculta) e que nao mudou desde entao: nao reescaneia.
-            if (newFolderMtime != 0L && !config.groupDirectSubfolders && !config.mediaStoreListing && mFolderMtimes[folder] == newFolderMtime) {
+            if (newFolderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[folder] == newFolderMtime) {
                 continue
             }
 
