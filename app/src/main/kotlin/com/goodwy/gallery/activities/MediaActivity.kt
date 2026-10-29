@@ -172,9 +172,26 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Data de modificacao da pasta no momento em que a lista foi guardada. Se mudou, entrou ou saiu
         // arquivo (mover, restaurar da lixeira, outro app) e a lista guardada esta velha.
         val mFolderMtime = HashMap<String, Long>()
+        // Data do arquivo mais novo da pasta quando a lista foi guardada. A data da PASTA nao
+        // muda quando um arquivo e sobrescrito com o mesmo nome; a do arquivo muda.
+        val mFolderNewestFile = HashMap<String, Long>()
 
         fun folderMtimeNow(path: String): Long = try {
             if (path.startsWith("/")) java.io.File(path).lastModified() else 0L
+        } catch (_: Exception) {
+            0L
+        }
+
+        // Data do arquivo mais novo da pasta, em segundos. Uma leitura de diretorio, sem abrir
+        // arquivo nenhum: basta para perceber midia nova, apagada, renomeada - ou sobrescrita
+        // com o mesmo nome, que a data da pasta nao acusa.
+        fun newestFileInFolder(path: String): Long = try {
+            if (!path.startsWith("/")) 0L else {
+                java.io.File(path).listFiles()
+                    ?.asSequence()
+                    ?.filter { !it.isDirectory }
+                    ?.maxOfOrNull { it.lastModified() / 1000L } ?: 0L
+            }
         } catch (_: Exception) {
             0L
         }
@@ -184,8 +201,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // devolvia 0 sempre, entao esta funcao respondia "nao mudou" para sempre e a
             // lixeira ficava ate 5 min (MEDIA_CACHE_TTL_MS) mostrando a lista de antes.
             if (!path.startsWith("/")) return true
-            val saved = synchronized(mFolderMediaCache) { mFolderMtime[path] }
-            return saved == null || saved != folderMtimeNow(path)
+            val state = synchronized(mFolderMediaCache) { mFolderMtime[path] to mFolderNewestFile[path] }
+            val saved = state.first
+            val savedNewest = state.second
+            if (saved == null || saved != folderMtimeNow(path)) return true
+            if (savedNewest == null) return false
+            val diskNewest = newestFileInFolder(path)
+            if (diskNewest == 0L) return false
+            return diskNewest != savedNewest
         }
         val mFolderMediaCache = object : LinkedHashMap<String, ArrayList<ThumbnailItem>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArrayList<ThumbnailItem>>?): Boolean {
@@ -1156,9 +1179,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             cached to updatedAt
         }
         val folderCached = folderCacheState.first
-        val folderCacheFresh = folderCacheState.second > 0L
-            && System.currentTimeMillis() - folderCacheState.second < MEDIA_CACHE_TTL_MS
-            && !folderChangedOnDisk(mPath)
+        // Sem prazo de validade: a lista vale enquanto o conteudo da pasta nao mudar. Antes o
+        // MEDIA_CACHE_TTL_MS (5 min) derrubava o cache so porque o tempo passou e disparava uma
+        // revarredura da pasta inteira sem nada ter mudado.
+        val folderCacheFresh = folderCacheState.second > 0L && !folderChangedOnDisk(mPath)
         if (!forceRefresh && folderCached != null) {
             com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": mostrando cache em memoria n=" + folderCached.size + " fresco=" + folderCacheFresh)
             synchronized(mediaLock) {
@@ -1204,7 +1228,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                             mFolderMediaCache[requestedPath] = ArrayList(persisted)
                             mFolderMediaCacheUpdatedAt[requestedPath] = System.currentTimeMillis()
                             mFolderMtime[requestedPath] = folderMtimeNow(requestedPath)
-                        }
+                        mFolderNewestFile[requestedPath] = newestFileInFolder(requestedPath)}
                         mMediaInvalidated = true
                         mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
                         // A grade com snapshot é exibida imediatamente - nada bloqueia
@@ -1842,7 +1866,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mFolderMediaCache[mPath] = ArrayList(filteredMedia)
             mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
             mFolderMtime[mPath] = folderMtimeNow(mPath)
-        }
+        mFolderNewestFile[mPath] = newestFileInFolder(mPath)}
         applicationContext.saveMediaSnapshot(mPath, filteredMedia)
 
         // Também preenche os itens que vieram do Room/cache, não apenas os que chegaram
@@ -2042,7 +2066,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
             mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
             mFolderMtime[mPath] = folderMtimeNow(mPath)
-        }
+        mFolderNewestFile[mPath] = newestFileInFolder(mPath)}
         // Também limpa do snapshot em disco para não ressurgir ao reabrir o app
         applicationContext.saveMediaSnapshot(mPath, mMedia)
         // Atualizar UI imediatamente com DiffUtil (sem flicker)
