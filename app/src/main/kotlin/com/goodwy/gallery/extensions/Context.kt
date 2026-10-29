@@ -75,6 +75,12 @@ private var noMediaFoldersCache: ArrayList<String>? = null
 private var noMediaFoldersCacheTime: Long = 0L
 private const val NO_MEDIA_CACHE_TTL = 60_000L
 
+// Chamado ao criar/apagar um .nomedia: o "(oculto)" no nome nao pode esperar o cache vencer.
+fun invalidateNoMediaFoldersCache() {
+    noMediaFoldersCache = null
+    noMediaFoldersCacheTime = 0L
+}
+
 val Context.audioManager get() = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
 fun Context.getHumanizedFilename(path: String): String {
@@ -570,7 +576,7 @@ fun Context.checkAppendingHidden(
     }
 
     return if (
-        path.doesThisOrParentHaveNoMedia(folderNoMediaStatuses, null)
+        (path.contains("/.") || path.doesThisOrParentHaveNoMedia(folderNoMediaStatuses, null))
         && !path.isThisOrParentIncluded(includedFolders)
     ) {
         "$dirName $hidden"
@@ -1241,7 +1247,7 @@ fun Context.getCachedDirectories(
                     }
                 }
 
-                it.name = if (hasNoMedia && !it.path.isThisOrParentIncluded(includedPaths)) {
+                it.name = if ((hasNoMedia || it.path.contains("/.")) && !it.path.isThisOrParentIncluded(includedPaths)) {
                     "${it.name.removeSuffix(hiddenString).trim()} $hiddenString"
                 } else {
                     it.name.removeSuffix(hiddenString).trim()

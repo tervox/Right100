@@ -303,6 +303,7 @@ fun BaseSimpleActivity.addNoMediaIntoMediaStore(path: String) {
     } catch (e: Exception) {
         showErrorToast(e)
     }
+    invalidateNoMediaFoldersCache()
 }
 
 fun BaseSimpleActivity.removeNoMedia(path: String, callback: (() -> Unit)? = null) {
@@ -313,6 +314,7 @@ fun BaseSimpleActivity.removeNoMedia(path: String, callback: (() -> Unit)? = nul
     }
 
     tryDeleteFileDirItem(file.toFileDirItem(applicationContext), false, false) {
+        invalidateNoMediaFoldersCache()
         callback?.invoke()
         deleteFromMediaStore(file.absolutePath) { needsRescan ->
             if (needsRescan) {

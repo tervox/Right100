@@ -1056,7 +1056,7 @@ class DirectoryAdapter(
             // Show folder size badge
             dirSize?.apply {
                 if (showFolderSize && directory.size > 0) {
-                    text = directory.size.formatSize()
+                    text = android.text.format.Formatter.formatFileSize(activity, directory.size)
                     beVisible()
                     if (isListViewType || folderStyle == FOLDER_STYLE_ROUNDED_CORNERS) {
                         setTextColor(textColor)

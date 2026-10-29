@@ -194,6 +194,18 @@ class MediaFetcher(val context: Context) {
         }
         val ghosts = storeCount - curMedia.size
 
+        // tamanhoRealDoDisco: o tamanho que o MediaStore informa fica velho quando um arquivo e
+        // editado, substituido ou baixado de novo por outro app (WhatsApp, Twitter...). A pasta
+        // somava esse valor antigo e o peso mostrado ficava bem diferente do real. Le o tamanho
+        // de verdade de cada arquivo (so consulta o tamanho, nao abre o arquivo). Limite para
+        // nao pesar em pastas gigantes.
+        if (curMedia.size <= 5000) {
+            curMedia.forEach { m ->
+                val real = try { File(m.path).length() } catch (_: Exception) { 0L }
+                if (real > 0L && real != m.size) m.size = real
+            }
+        }
+
         var added = 0
         if (existing.any { !known.contains(it) }) {
             val extras = getMediaInFolder(
