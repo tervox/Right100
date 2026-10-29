@@ -1871,7 +1871,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 if (!isFromCache && !didInitialScrollToTop) {
                     didInitialScrollToTop = true
                     binding.mediaGrid.post {
-                        if (!isDestroyed && !isFinishing && mPath == mMediaPath) {
+                        if (isDestroyed || isFinishing || mPath != mMediaPath) return@post
+                        // Se o usuario ja rolou enquanto o scan e os thumbnails ainda carregavam,
+                        // terminar de carregar NAO pode puxar a grade de volta para o topo.
+                        // So reposiciona quando a grade ainda esta no comeco mesmo.
+                        val lm = binding.mediaGrid.layoutManager
+                            as? androidx.recyclerview.widget.LinearLayoutManager
+                        if (lm == null || lm.findFirstVisibleItemPosition() < 1) {
                             binding.mediaGrid.scrollToPosition(0)
                         }
                     }
