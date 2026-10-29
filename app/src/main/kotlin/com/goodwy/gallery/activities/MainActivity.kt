@@ -134,6 +134,20 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // ha pasta nova para descobrir e a descoberta (cara) e pulada.
     private var mLastFolderKeys: Set<String>? = null
     @Volatile private var mRescanPending = false
+    // Momento e geração do MediaStore quando o app saiu da tela.
+    private var mPausedAt = 0L
+    private var mPausedGeneration = -1L
+
+    // Contador do Android que muda a cada inserção/edição/remoção de mídia
+    // (Android 11+). Consultar é instantâneo, não percorre arquivos.
+    private fun currentMediaGeneration(): Long {
+        if (android.os.Build.VERSION.SDK_INT < 30) return -1L
+        return try {
+            MediaStore.getExternalVolumeNames(this).sumOf { MediaStore.getGeneration(this, it) }
+        } catch (_: Exception) {
+            -1L
+        }
+    }
     private var mScanSignature = ""
     // Fingerprint do conteúdo direto da pasta. Inclui quantidade, nomes,
     // tamanho total e datas dos arquivos, não somente o mtime do diretório.
@@ -504,6 +518,24 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         binding.directoriesSwitchSearching.underlineText()
         binding.directoriesEmptyPlaceholder2.bringToFront()
 
+        // Detecta o que mudou enquanto o app estava fora da tela, ANTES do
+        // tryLoadGallery(), para que a varredura comece imediatamente.
+        if (mPausedAt > 0L && mLastCompletedScanAt > 0L) {
+            val generationNow = currentMediaGeneration()
+            if (generationNow < 0L || mPausedGeneration < 0L || generationNow != mPausedGeneration) {
+                mMediaStoreDirty = true
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "principal: midia mudou com o app fora da tela, varrendo"
+                )
+            }
+            mPausedAt = 0L
+            // onPause() cancela a checagem periódica; religa ao voltar.
+            if (mLoadedInitialPhotos) {
+                mLastMediaHandler.removeCallbacksAndMessages(null)
+                checkLastMediaChanged()
+            }
+        }
+
         if (!binding.mainMenu.isSearchOpen) {
             refreshMenuItems()
             tryLoadGallery()
@@ -550,6 +582,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     override fun onPause() {
         super.onPause()
+        mPausedAt = android.os.SystemClock.elapsedRealtime()
+        mPausedGeneration = currentMediaGeneration()
         binding.directoriesRefreshLayout.isRefreshing = false
         mRefreshHandler.removeCallbacksAndMessages(null)
         mIsGettingDirs = false
@@ -893,6 +927,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         mIsGettingDirs = true
+        mMediaStoreDirty = false
         mShouldStopFetching = false
         mScanRunning = true
         mScanStartedAt = android.os.SystemClock.elapsedRealtime()
@@ -1513,6 +1548,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         com.goodwy.gallery.extensions.Right100Diag.add("principal: etapa MediaStore: pastas=" + (android11Files?.size ?: -1) + " itens=" + (android11Files?.values?.sumOf { it.size } ?: -1) + " (" + (android.os.SystemClock.elapsedRealtime() - diagT0) + " ms desde o inicio)")
         var diagPrevPath: String? = null
         var diagPrevT = 0L
+        var uiDirty = false
+        var lastLoopUiAt = 0L
         try {
             for (directory in dirs) {
                 if (mShouldStopFetching || isDestroyed || isFinishing) {
@@ -1525,10 +1562,26 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 diagPrevPath = directory.path
                 diagPrevT = diagNow
 
-                val folderMtime = try {
-                    java.io.File(directory.path).lastModified()
-                } catch (_: Exception) {
+                // Mostra contadores/tamanhos corrigidos sem esperar o fim do laço.
+                if (uiDirty && diagNow - lastLoopUiAt > 350L) {
+                    uiDirty = false
+                    lastLoopUiAt = diagNow
+                    val progressDirs = dirs.clone() as ArrayList<Directory>
+                    runOnUiThread {
+                        if (!isDestroyed && !isFinishing) setupAdapter(progressDirs)
+                    }
+                }
+
+                // Com listagem pelo MediaStore a pasta nunca é pulada; não gasta
+                // tempo calculando a assinatura nesse caso.
+                val folderMtime = if (config.mediaStoreListing) {
                     0L
+                } else {
+                    try {
+                        folderScanFingerprint(directory.path)
+                    } catch (_: Exception) {
+                        0L
+                    }
                 }
                 // Com a listagem pelo MediaStore reler tudo e barato; so pula no modo antigo.
                 if (folderMtime != 0L && !config.mediaStoreListing && !config.groupDirectSubfolders
@@ -1653,6 +1706,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                         dirty = true
                     }
                     if (dirty) {
+                        uiDirty = true
                         try {
                             updateDBDirectory(directory)
                         } catch (_: Exception) {
@@ -1677,6 +1731,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
 
                 // update directories and media files in the local db, delete invalid items. Intentionally creating a new thread
+                uiDirty = true
                 updateDBDirectory(directory)
                 if (!directory.isRecycleBin() && !directory.areFavorites()) {
                     Thread {
