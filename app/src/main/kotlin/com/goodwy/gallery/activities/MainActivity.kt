@@ -1501,9 +1501,29 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 // nada mudava e o continue pulava a gravacao - o numero errado
                 // ficava congelado no banco para sempre.
                 if (directory.copy(subfoldersCount = 0, subfoldersMediaCount = 0) == newDir) {
+                    // "Nada mudou" NAO pode significar "nao grava nada": a lista le
+                    // subfoldersMediaCount e o selo do tamanho le size. Antes so mediaCnt era
+                    // sincronizado, entao o numero na tela ficava congelado e um size errado no
+                    // banco nunca convergia - e, como o == abaixo compara o Directory inteiro, a
+                    // pasta caia no caminho pesado (insertAll + getCachedMedia) em TODA varredura.
+                    var dirty = false
                     if (directory.mediaCnt != newDir.mediaCnt) {
                         directory.mediaCnt = newDir.mediaCnt
-                        directoryDB.updateDirectoryMediaCount(directory.path, newDir.mediaCnt)
+                        dirty = true
+                    }
+                    if (!config.groupDirectSubfolders && directory.subfoldersMediaCount != newDir.mediaCnt) {
+                        directory.subfoldersMediaCount = newDir.mediaCnt
+                        dirty = true
+                    }
+                    if (directory.size != newDir.size) {
+                        directory.size = newDir.size
+                        dirty = true
+                    }
+                    if (dirty) {
+                        try {
+                            updateDBDirectory(directory)
+                        } catch (_: Exception) {
+                        }
                     }
                     if (folderMtime != 0L) mFolderMtimes[directory.path] = folderMtime
                     continue
@@ -1518,6 +1538,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     this@apply.size = newDir.size
                     types = newDir.types
                     sortValue = getDirectorySortingValue(curMedia, path, name, size, mediaCnt)
+                    // A lista le subfoldersMediaCount (DirectoryAdapter), nao mediaCnt: sem esta
+                    // linha a pasta era reescrita no banco e o numero na tela continuava o antigo.
+                    if (!config.groupDirectSubfolders) subfoldersMediaCount = newDir.mediaCnt
                 }
 
                 // update directories and media files in the local db, delete invalid items. Intentionally creating a new thread
