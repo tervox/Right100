@@ -136,6 +136,81 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // consulta lenta ao armazenamento).
     private val mFolderMtimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
+    // Guarda as datas das pastas e as chaves do MediaStore entre sessoes.
+    // Sem isso, ao reiniciar o processo, o mapa comeca vazio e todas as pastas
+    // voltam a ser percorridas, mesmo que nada tenha mudado.
+    private fun loadPersistentFolderScanCache() {
+        try {
+            val prefs = getSharedPreferences(
+                "right100_folder_scan_cache",
+                MODE_PRIVATE
+            )
+
+            mScanSignature = prefs.getString("signature", "") ?: ""
+
+            val savedMtimes = org.json.JSONObject(
+                prefs.getString("folder_mtimes", "{}") ?: "{}"
+            )
+            val iterator = savedMtimes.keys()
+            while (iterator.hasNext()) {
+                val path = iterator.next()
+                val mtime = savedMtimes.optLong(path, 0L)
+                if (path.startsWith("/") && mtime > 0L) {
+                    mFolderMtimes[path] = mtime
+                }
+            }
+
+            val savedKeys = org.json.JSONArray(
+                prefs.getString("folder_keys", "[]") ?: "[]"
+            )
+            val keys = HashSet<String>()
+            for (i in 0 until savedKeys.length()) {
+                val path = savedKeys.optString(i, "")
+                if (path.isNotEmpty()) keys.add(path)
+            }
+            mLastFolderKeys = if (keys.isEmpty()) null else keys
+
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "principal: cache persistente carregado pastas=" +
+                    mFolderMtimes.size + " chaves=" + (mLastFolderKeys?.size ?: 0)
+            )
+        } catch (e: Exception) {
+            mFolderMtimes.clear()
+            mLastFolderKeys = null
+            mScanSignature = ""
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "principal: cache persistente indisponivel: " + e.message
+            )
+        }
+    }
+
+    private fun savePersistentFolderScanCache() {
+        try {
+            val savedMtimes = org.json.JSONObject()
+            mFolderMtimes.forEach { (path, mtime) ->
+                if (path.startsWith("/") && mtime > 0L) {
+                    savedMtimes.put(path, mtime)
+                }
+            }
+
+            val savedKeys = org.json.JSONArray()
+            mLastFolderKeys?.sorted()?.forEach { savedKeys.put(it) }
+
+            getSharedPreferences(
+                "right100_folder_scan_cache",
+                MODE_PRIVATE
+            ).edit()
+                .putString("signature", mScanSignature)
+                .putString("folder_mtimes", savedMtimes.toString())
+                .putString("folder_keys", savedKeys.toString())
+                .apply()
+        } catch (e: Exception) {
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "principal: falha ao salvar cache persistente: " + e.message
+            )
+        }
+    }
+
     private fun isScanBusy() = mIsGettingDirs || mScanRunning
 
     private val mDirtyRefreshRunnable = object : Runnable {
@@ -175,6 +250,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        // Recupera o cache de pastas da sessao anterior antes da primeira varredura.
+        // Assim, pastas que nao mudaram podem ser reutilizadas mesmo apos fechar o app.
+        loadPersistentFolderScanCache()
         appLaunched(BuildConfig.APPLICATION_ID)
 
         if (savedInstanceState == null) {
@@ -1274,6 +1352,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             // So a varredura mais recente libera o flag (uma interrompida nao pode liberar a nova).
             com.goodwy.gallery.extensions.Right100Diag.add("principal: varredura completa FIM #" + generation + (if (generation == mScanGeneration) "" else " (substituida por outra)") + " em " + (android.os.SystemClock.elapsedRealtime() - mScanStartedAt) + " ms")
             if (generation == mScanGeneration) {
+                // Persiste apenas ao terminar a varredura mais recente.
+                // Uma varredura interrompida nao deve gravar um cache incompleto.
+                savePersistentFolderScanCache()
                 mScanRunning = false
                 if (mRescanPending && !isDestroyed && !isFinishing) {
                     mRescanPending = false
@@ -1404,7 +1485,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     0L
                 }
                 // Com a listagem pelo MediaStore reler tudo e barato; so pula no modo antigo.
-                if (folderMtime != 0L && !config.groupDirectSubfolders && !config.mediaStoreListing && mFolderMtimes[directory.path] == folderMtime
+                if (folderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[directory.path] == folderMtime
                     && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()
                 ) {
                     continue
@@ -1642,7 +1723,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 0L
             }
             // Pasta ja vista (vazia ou oculta) e que nao mudou desde entao: nao reescaneia.
-            if (newFolderMtime != 0L && !config.groupDirectSubfolders && !config.mediaStoreListing && mFolderMtimes[folder] == newFolderMtime) {
+            if (newFolderMtime != 0L && !config.groupDirectSubfolders && mFolderMtimes[folder] == newFolderMtime) {
                 continue
             }
 
