@@ -16,6 +16,10 @@ import com.goodwy.gallery.helpers.SHOULD_INIT_FRAGMENT
 import com.goodwy.gallery.models.Medium
 
 class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val media: MutableList<Medium>) : FragmentStatePagerAdapter(fm) {
+    // Posicao em que o fragmento foi criado. Vai nos arguments (e nao num mapa em memoria)
+    // para sobreviver a recriacao da Activity.
+    private val ORIGINAL_POSITION = "original_position"
+
     private val fragments = HashMap<String, ViewPagerFragment>()
     var shouldInitFragment = true
 
@@ -26,6 +30,7 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
         val bundle = Bundle()
         bundle.putSerializable(MEDIUM, medium)
         bundle.putBoolean(SHOULD_INIT_FRAGMENT, shouldInitFragment)
+        bundle.putInt(ORIGINAL_POSITION, position)
         val fragment = if (medium.isVideo()) {
             VideoFragment()
         } else {
@@ -35,18 +40,19 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
         return fragment
     }
 
-    // Antes: sempre retornava POSITION_NONE, o que forçava o FragmentStatePagerAdapter a
-    // destruir e recriar TODOS os fragments instanciados (atual + até 4 vizinhos, já que
-    // offscreenPageLimit=2) toda vez que notifyDataSetChanged() rodava — inclusive depois de
-    // cada exclusão/movimentação de arquivo. Isso destruía VideoFragments com ExoPlayer ativo
-    // desnecessariamente, causando a demora/instabilidade ao excluir ou mover.
-    // Agora: identifica cada fragment pelo path do Medium que foi originalmente vinculado a ele
-    // (guardado nos arguments em getItem()) e só reporta POSITION_NONE para o que realmente sumiu.
+    // O PagerAdapter so aceita POSITION_UNCHANGED ou POSITION_NONE aqui.
+    // Devolver o INDICE novo do Medium parecia elegante, mas o FragmentStatePagerAdapter
+    // guarda os fragmentos por posicao (mFragments) e usa a posicao na tag do
+    // FragmentManager; ele nao move a referencia quando o ViewPager aceita o indice novo.
+    // Depois de excluir, a pagina seguinte recebia um fragmento que ja estava em outra
+    // posicao e ficava vazia - era a unica pagina preta, logo depois da que assumiu o lugar.
     override fun getItemPosition(item: Any): Int {
-        val medium = (item as? Fragment)?.arguments?.getSerializable(MEDIUM) as? Medium
-            ?: return PagerAdapter.POSITION_NONE
+        val args = (item as? Fragment)?.arguments ?: return PagerAdapter.POSITION_NONE
+        val medium = args.getSerializable(MEDIUM) as? Medium ?: return PagerAdapter.POSITION_NONE
         val newIndex = media.indexOfFirst { it.path == medium.path }
-        return if (newIndex == -1) PagerAdapter.POSITION_NONE else newIndex
+        if (newIndex == -1) return PagerAdapter.POSITION_NONE
+        val createdAt = args.getInt(ORIGINAL_POSITION, -1)
+        return if (createdAt == newIndex) PagerAdapter.POSITION_UNCHANGED else PagerAdapter.POSITION_NONE
     }
 
     override fun instantiateItem(container: ViewGroup, position: Int): Any {

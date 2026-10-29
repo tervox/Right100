@@ -180,7 +180,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         fun folderChangedOnDisk(path: String): Boolean {
-            if (!path.startsWith("/")) return false
+            // Pastas virtuais (favoritos e lixeira) nao existem no disco: folderMtimeNow()
+            // devolvia 0 sempre, entao esta funcao respondia "nao mudou" para sempre e a
+            // lixeira ficava ate 5 min (MEDIA_CACHE_TTL_MS) mostrando a lista de antes.
+            if (!path.startsWith("/")) return true
             val saved = synchronized(mFolderMediaCache) { mFolderMtime[path] }
             return saved == null || saved != folderMtimeNow(path)
         }
