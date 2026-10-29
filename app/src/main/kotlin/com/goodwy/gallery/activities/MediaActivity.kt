@@ -1821,6 +1821,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         )
     }
 
+    // Se esta Activity ja fez a primeira rolagem para o topo. Evita pular para o
+    // comeco a cada atualizacao da lista depois que a pasta ja foi aberta.
+    private var didInitialScrollToTop = false
+
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
@@ -1859,7 +1863,19 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             if (mLastSearchedText.isNotEmpty()) {
                 searchQueryChanged(mLastSearchedText, mSearchGeneration)
             } else if (filteredMedia.isNotEmpty() || !isFromCache) {
+                // Entrar na pasta tem que comecar sempre no topo. Rola so na primeira carga
+                // real desta tela (que e quando a pasta e aberta). Depois disso - excluir
+                // midia, atualizar a lista - a posicao do usuario e preservada, senao uma
+                // exclusao no meio da grade jogaria a grade inteira para o comeco.
                 setupAdapter()
+                if (!isFromCache && !didInitialScrollToTop) {
+                    didInitialScrollToTop = true
+                    binding.mediaGrid.post {
+                        if (!isDestroyed && !isFinishing && mPath == mMediaPath) {
+                            binding.mediaGrid.scrollToPosition(0)
+                        }
+                    }
+                }
             }
         }
 

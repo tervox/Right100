@@ -1821,7 +1821,7 @@ fun Context.updateDirectoryPath(path: String) {
         || grouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0
         || grouping and GROUP_BY_LAST_MODIFIED_YEARLY != 0
 
-    val getProperFileSize = config.directorySorting and SORT_BY_SIZE != 0
+    val getProperFileSize = true  // sempre calcula: a opcao de mostrar tamanho depende disso
 
     val lastModifieds = if (getProperLastModified) {
         mediaFetcher.getFolderLastModifieds(path)
