@@ -983,7 +983,14 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
         for (source in paths) {
             var destination = source.removePrefix(TrashStore.root(this).absolutePath)
             if (destination == source) {
+                destination = source.removePrefix(TrashStore.publicRoot(this).absolutePath)
+            }
+            if (destination == source) {
                 destination = source.removePrefix(TrashStore.legacyRoot(this).absolutePath)
+            }
+            if (destination == source) {
+                Right100Diag.add("restaurar: caminho fora das tres lixeiras, ignorado: " + source)
+                continue
             }
 
             val destinationParent = destination.getParentPath()
