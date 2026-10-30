@@ -127,9 +127,48 @@ object TrashStore {
 
     fun legacyRoot(context: Context): File = context.filesDir
 
-    /** Pasta oculta na raiz publica, usada quando o Android recusa rename para Android/data. */
+    /** Nome da pasta oculta da lixeira na raiz publica de cada volume. */
+    const val PUBLIC_DIR_NAME = ".right100_trash"
+
+    /**
+     * Pasta oculta na raiz publica do armazenamento interno. Fica na MESMA montagem da midia -
+     * ao contrario de Android/data/<pacote>, que o Android expoe como montagem separada e onde
+     * renameTo acaba sendo copia (medido no aparelho: 9889 ms para um video de 297 MB).
+     */
     fun publicRoot(context: Context): File =
-        File(android.os.Environment.getExternalStorageDirectory(), ".right100_trash")
+        File(android.os.Environment.getExternalStorageDirectory(), PUBLIC_DIR_NAME)
+
+    /** Volume do caminho: /storage/<x>; null para o armazenamento interno emulado. */
+    private fun sdVolumeOf(path: String): String? {
+        if (!path.startsWith("/storage/")) return null
+        val seg = path.removePrefix("/storage/").substringBefore('/')
+        return if (seg.isEmpty() || seg == "emulated" || seg == "self") null else seg
+    }
+
+    /** Raiz publica no MESMO volume do arquivo (cartao SD ganha a sua propria). */
+    fun publicRootFor(context: Context, sourcePath: String): File {
+        val vol = sdVolumeOf(sourcePath) ?: return publicRoot(context)
+        return File("/storage/$vol", PUBLIC_DIR_NAME)
+    }
+
+    /** Todas as raizes publicas plausiveis para uma chave relativa. */
+    fun publicRootsFor(context: Context, relativePath: String): List<File> {
+        val list = arrayListOf(publicRoot(context))
+        sdVolumeOf("/" + relativePath.trimStart('/'))?.let { list.add(File("/storage/$it", PUBLIC_DIR_NAME)) }
+        return list
+    }
+
+    /** Caminho fisico de um item da lixeira -> chave do banco (.recycle_bin/<caminho original>). */
+    fun toTrashKey(context: Context, path: String): String {
+        val novo = root(context).absolutePath
+        if (path.startsWith("$novo/")) return RECYCLE_BIN + path.removePrefix(novo)
+        val antigo = legacyRoot(context).absolutePath
+        if (path.startsWith("$antigo/")) return RECYCLE_BIN + path.removePrefix(antigo)
+        val marker = "/$PUBLIC_DIR_NAME"
+        val idx = path.indexOf(marker)
+        if (idx >= 0) return RECYCLE_BIN + path.substring(idx + marker.length)
+        return path
+    }
 
     // getExternalFilesDir() consulta o servico de armazenamento a cada chamada e pode levar
     // segundos com o disco ocupado (a varredura estava martelando o aparelho). O caminho nao
@@ -147,17 +186,20 @@ object TrashStore {
         val rel = relativePath.trimStart('/')
         val novo = File(root(context), rel)
         if (novo.exists()) return novo
-        val publico = File(publicRoot(context), rel)
-        if (publico.exists()) return publico
+        publicRootsFor(context, rel).forEach { raiz ->
+            val publico = File(raiz, rel)
+            if (publico.exists()) return publico
+        }
         val antigo = File(legacyRoot(context), rel)
         return if (antigo.exists()) antigo else novo
     }
 
     fun isTrashedFile(context: Context, path: String): Boolean {
         val novo = root(context).absolutePath.trimEnd('/')
-        val publico = publicRoot(context).absolutePath.trimEnd('/')
         val antigo = legacyRoot(context).absolutePath.trimEnd('/')
-        return path.startsWith("$novo/") || path.startsWith("$publico/") || path.startsWith("$antigo/")
+        // Qualquer pasta oculta de lixeira publica, em qualquer volume.
+        val naPublica = path.contains("/$PUBLIC_DIR_NAME/")
+        return path.startsWith("$novo/") || naPublica || path.startsWith("$antigo/")
     }
 }
 
@@ -1810,11 +1852,7 @@ object RecentlyDeletedPaths {
 
 fun Context.deleteDBPath(path: String) {
     RecentlyDeletedPaths.add(path)
-    deleteMediumWithPath(
-        path.replaceFirst(TrashStore.root(this).absolutePath, RECYCLE_BIN)
-            .replaceFirst(TrashStore.publicRoot(this).absolutePath, RECYCLE_BIN)
-            .replaceFirst(TrashStore.legacyRoot(this).absolutePath, RECYCLE_BIN)
-    )
+    deleteMediumWithPath(TrashStore.toTrashKey(this, path))
 }
 
 fun Context.deleteMediumWithPath(path: String) {

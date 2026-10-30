@@ -930,11 +930,15 @@ private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
     if (!source.exists()) return null
     val t0 = android.os.SystemClock.elapsedRealtime()
     val rel = source.absolutePath.trimStart('/')
-    val publicRoot = TrashStore.publicRoot(this)
+    val publicRoot = TrashStore.publicRootFor(this, source.absolutePath)
     val tamanhoMB = source.length() / 1024 / 1024
     val t1 = android.os.SystemClock.elapsedRealtime()
-    val candidates = arrayListOf(File(TrashStore.root(this), rel))
-    if (!source.absolutePath.startsWith(publicRoot.absolutePath + "/")) candidates.add(File(publicRoot, rel))
+    // ORDEM IMPORTA. Android/data/<pacote> e exposto como uma MONTAGEM separada do resto do
+    // armazenamento: renameTo para la nao e rename, o Android copia por baixo (medido neste
+    // aparelho: 9889 ms para um video de 297 MB, e 5818 ms antes disso). A pasta oculta na raiz
+    // publica esta na MESMA montagem da midia, entao renameTo ali e O(1): nenhum byte do
+    // arquivo e movido, seja ele 3 MB ou 3 GB.
+    val candidates = arrayListOf(File(publicRoot, rel), File(TrashStore.root(this), rel))
 
     for (target in candidates) {
         try {
@@ -1051,6 +1055,7 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
             // Renomear/mover evita copiar gigabytes de video byte a byte.
             val trashedFile = File(source)
             val restoredFile = File(destination)
+            val restoreT0 = android.os.SystemClock.elapsedRealtime()
             if (
                 TrashStore.isTrashedFile(this, source)
                 && trashedFile.exists()
@@ -1059,6 +1064,11 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                 && restoredFile.exists()
                 && !trashedFile.exists()
             ) {
+                Right100Diag.add(
+                    "restaurar rapido: " + trashedFile.name + " em " +
+                        (android.os.SystemClock.elapsedRealtime() - restoreT0) + " ms (" +
+                        (trashedFile.length() / 1024 / 1024) + "MB)"
+                )
                 recordRestored(source, destination, lastModified)
                 continue
             }
