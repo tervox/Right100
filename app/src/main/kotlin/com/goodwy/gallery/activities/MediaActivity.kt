@@ -1,5 +1,7 @@
 package com.goodwy.gallery.activities
 
+import com.goodwy.gallery.extensions.trashRootPath
+
 import android.app.WallpaperManager
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -1876,7 +1878,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             path = path,
             forceChooser = false,
             extras = hashMapOf(SHOW_FAVORITES to (mPath == FAVORITES)).apply {
-                if (path.startsWith(recycleBinPath)) put(IS_IN_RECYCLE_BIN, true)
+                if (path.startsWith(trashRootPath)) put(IS_IN_RECYCLE_BIN, true)
                 if (shouldSkipAuthentication()) put(SKIP_AUTHENTICATION, true)
             }
         )
@@ -1975,7 +1977,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         if (
             config.useRecycleBin
             && !skipRecycleBin
-            && !filtered.first().path.startsWith(recycleBinPath)
+            && !filtered.first().path.startsWith(trashRootPath)
         ) {
             val movingItems = resources.getQuantityString(
                 com.goodwy.commons.R.plurals.moving_items_into_bin,
@@ -2027,7 +2029,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             ensureBackgroundThread {
                 val useRecycleBin = config.useRecycleBin
                 filtered.forEach {
-                    if (it.path.startsWith(recycleBinPath) || !useRecycleBin) {
+                    if (it.path.startsWith(trashRootPath) || !useRecycleBin) {
                         deleteDBPath(it.path)
                     }
                 }

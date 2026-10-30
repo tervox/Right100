@@ -1634,7 +1634,11 @@ fun Context.getUpdatedDeletedMedia(): ArrayList<Medium> {
     }
 
     media.forEach {
-        it.path = File(recycleBinPath, it.path.removePrefix(RECYCLE_BIN)).toString()
+        // Procura no lugar novo e, se nao achar, na lixeira antiga: sem isso os itens
+        // excluidos antes desta correcao sumiriam da lixeira (e o getCachedMedia ainda os
+        // apagaria do banco, achando que o arquivo nao existe mais).
+        val rel = it.path.removePrefix(RECYCLE_BIN).trimStart('/')
+        it.path = TrashStore.resolveTrashedFile(this, rel).toString()
     }
     return media
 }
@@ -1664,7 +1668,10 @@ object RecentlyDeletedPaths {
 
 fun Context.deleteDBPath(path: String) {
     RecentlyDeletedPaths.add(path)
-    deleteMediumWithPath(path.replaceFirst(recycleBinPath, RECYCLE_BIN))
+    deleteMediumWithPath(
+        path.replaceFirst(TrashStore.root(this).absolutePath, RECYCLE_BIN)
+            .replaceFirst(TrashStore.legacyRoot(this).absolutePath, RECYCLE_BIN)
+    )
 }
 
 fun Context.deleteMediumWithPath(path: String) {

@@ -1,5 +1,7 @@
 package com.goodwy.gallery.activities
 
+import com.goodwy.gallery.extensions.trashRootPath
+
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -1190,7 +1192,7 @@ class SettingsActivity : SimpleActivity() {
                 mRecycleBinContentSize = mediaDB.getDeletedMedia().sumByLong { medium ->
                     val size = medium.size
                     if (size == 0L) {
-                        val path = medium.path.removePrefix(RECYCLE_BIN).prependIndent(recycleBinPath)
+                        val path = medium.path.removePrefix(RECYCLE_BIN).prependIndent(trashRootPath)
                         File(path).length()
                     } else {
                         size

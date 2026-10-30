@@ -891,7 +891,12 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                 val internalFile = File(recycleBinPath, source)
                 val lastModified = file.lastModified()
                 try {
+                    val trashT0 = android.os.SystemClock.elapsedRealtime()
                     if (moveIntoRecycleBin(file, internalFile)) {
+                        Right100Diag.add(
+                            "lixeira: " + file.name + " em " + (android.os.SystemClock.elapsedRealtime() - trashT0) +
+                                " ms -> " + internalFile.parent
+                        )
                         mediaDB.updateDeleted("$RECYCLE_BIN$source", System.currentTimeMillis(), source)
                         pathsCnt--
 
@@ -932,7 +937,10 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
         }
 
         for (source in paths) {
-            var destination = source.removePrefix(recycleBinPath)
+            var destination = source.removePrefix(TrashStore.root(this).absolutePath)
+            if (destination == source) {
+                destination = source.removePrefix(TrashStore.legacyRoot(this).absolutePath)
+            }
 
             val destinationParent = destination.getParentPath()
             if (isRestrictedWithSAFSdk30(destinationParent) && !isInDownloadDir(destinationParent)) {
@@ -980,7 +988,7 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
             val trashedFile = File(source)
             val restoredFile = File(destination)
             if (
-                source.startsWith(recycleBinPath)
+                TrashStore.isTrashedFile(this, source)
                 && trashedFile.exists()
                 && restoredFile.parentFile?.isDirectory == true
                 && trashedFile.renameTo(restoredFile)
@@ -1018,7 +1026,7 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                     val destOk = if (trashFile.isDirectory) destFile.isDirectory else destFile.isFile && destFile.length() == trashFile.length()
                     if (destFile.exists() && destOk) {
                         recordRestored(source, destination, lastModified)
-                        if (trashFile.absolutePath.startsWith(recycleBinPath)) {
+                        if (TrashStore.isTrashedFile(this, trashFile.absolutePath)) {
                             if (trashFile.isDirectory) trashFile.deleteRecursively() else trashFile.delete()
                         }
                     } else {
@@ -1053,7 +1061,24 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
 fun BaseSimpleActivity.emptyTheRecycleBin(callback: (() -> Unit)? = null) {
     ensureBackgroundThread {
         try {
-            recycleBin.deleteRecursively()
+            // Apaga item por item resolvendo o caminho real: a lixeira antiga ficava dentro
+            // de filesDir, e apagar filesDir inteiro levaria o banco e as preferencias do app.
+            val trashed = try {
+                mediaDB.getDeletedMedia()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            trashed.forEach { m ->
+                val rel = m.path.removePrefix(RECYCLE_BIN).trimStart('/')
+                try {
+                    TrashStore.resolveTrashedFile(this, rel).deleteRecursively()
+                } catch (_: Exception) {
+                }
+            }
+            try {
+                TrashStore.root(this).deleteRecursively()
+            } catch (_: Exception) {
+            }
             mediaDB.clearRecycleBin()
             directoryDB.deleteRecycleBin()
             toast(com.goodwy.commons.R.string.recycle_bin_emptied)

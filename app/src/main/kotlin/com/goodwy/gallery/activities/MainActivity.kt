@@ -1,5 +1,7 @@
 package com.goodwy.gallery.activities
 
+import com.goodwy.gallery.extensions.trashRootPath
+
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.Intent
@@ -2682,7 +2684,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                             System.currentTimeMillis() - MONTH_MILLISECONDS
                         )
                         filesToDelete.forEach {
-                            if (File(it.path.replaceFirst(RECYCLE_BIN, recycleBinPath)).delete()) {
+                            if (File(it.path.replaceFirst(RECYCLE_BIN, trashRootPath)).delete()) {
                                 mediaDB.deleteMediumPath(it.path)
                             }
                         }
