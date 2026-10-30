@@ -914,6 +914,18 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                 }
             }
         }
+        val totalMovidos = paths.size
+        val falhas = pathsCnt
+        if (falhas == 0) {
+            val texto = if (totalMovidos == 1) {
+                getString(R.string.lixeira_movido)
+            } else {
+                getString(R.string.lixeira_movidos, totalMovidos)
+            }
+            Right100Toast.mostrar(this, texto)
+        } else if (totalMovidos - falhas > 0) {
+            Right100Toast.mostrar(this, getString(R.string.lixeira_movidos_parcial, totalMovidos - falhas, falhas))
+        }
         callback?.invoke(pathsCnt == 0)
     }
 }
@@ -954,17 +966,30 @@ private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
             val target = File(raiz, nome)
             val tMkdir = android.os.SystemClock.elapsedRealtime()
             if (target.exists()) continue
-            // Privada = outra montagem: renameTo falha (EXDEV), entao copia por stream e so apaga
-            // a origem depois de conferir o tamanho. Publica = mesmo volume, rename instantaneo.
+            // Privada = outra montagem: renameTo falha (EXDEV), entao copia por stream. Copia para
+            // "nome.tmp" e so renomeia DEPOIS de conferir o tamanho: se o app for morto no meio da
+            // copia, o que sobra e um .tmp incompleto (apagado na proxima abertura), nunca um item
+            // de lixeira pela metade. Publica = mesmo volume, rename instantaneo.
             val moveu = if (raiz.absolutePath == privada.absolutePath) {
+                val temporario = File(raiz, nome + ".tmp")
                 try {
+                    if (temporario.exists()) temporario.delete()
                     source.inputStream().use { entrada ->
-                        target.outputStream().use { saida -> entrada.copyTo(saida, 256 * 1024) }
+                        temporario.outputStream().use { saida -> entrada.copyTo(saida, 256 * 1024) }
                     }
-                    target.length() == source.length() && target.length() > 0L && source.delete()
+                    val tamanhoOk = temporario.length() == source.length() && temporario.length() > 0L
+                    if (tamanhoOk && temporario.renameTo(target) && target.exists() && source.delete()) {
+                        true
+                    } else {
+                        try {
+                            if (temporario.exists()) temporario.delete()
+                        } catch (_: Exception) {
+                        }
+                        false
+                    }
                 } catch (_: Exception) {
                     try {
-                        if (target.exists()) target.delete()
+                        if (temporario.exists()) temporario.delete()
                     } catch (_: Exception) {
                     }
                     false
@@ -1151,6 +1176,18 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
 
         // A tela não precisa esperar o MediaStore indexar os arquivos; a pasta será
         // atualizada pelo scan/cache ao voltar. Dispare o scan sem bloquear o retorno.
+        val restaurados = newPaths.size
+        val falhasRestauro = paths.size - restaurados
+        if (restaurados > 0) {
+            val texto = if (falhasRestauro == 0) {
+                if (restaurados == 1) getString(R.string.lixeira_restaurado)
+                else getString(R.string.lixeira_restaurados, restaurados)
+            } else {
+                getString(R.string.lixeira_restaurados_parcial, restaurados, falhasRestauro)
+            }
+            Right100Toast.mostrar(this, texto)
+        }
+
         val allRestored = newPaths.size == paths.size
         runOnUiThread { callback(allRestored) }
         if (newPaths.isNotEmpty()) {
@@ -1795,6 +1832,24 @@ fun Activity.newAppRecommendation() {
 // registro dos ultimos eventos de atualizacao + uma sonda que compara o MediaStore com o disco
 // para um nome de arquivo. Abre em Configuracoes > Diagnostico de midia.
 // ---------------------------------------------------------------------------------------------
+/**
+ * Confirmacao curta na tela. Junta avisos em menos de 900 ms para nao empilhar um toast por
+ * arquivo quando o usuario exclui ou restaura varios de uma vez, e publica sempre no main
+ * thread - a exclusao e a restauracao rodam em thread de fundo.
+ */
+object Right100Toast {
+    private var ultimo = 0L
+
+    fun mostrar(context: android.content.Context, texto: String) {
+        val agora = android.os.SystemClock.elapsedRealtime()
+        if (agora - ultimo < 900) return
+        ultimo = agora
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(context, texto, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
 object Right100Diag {
     private val lock = Any()
     private val lines = java.util.ArrayDeque<Pair<Long, String>>()

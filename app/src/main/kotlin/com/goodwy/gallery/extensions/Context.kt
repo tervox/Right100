@@ -181,6 +181,26 @@ object TrashStore {
     fun rootsFor(context: Context): List<File> =
         arrayListOf(privateRoot(context), publicRoot(context), root(context))
 
+    /**
+     * Apaga copias ".tmp" que sobraram de uma exclusao interrompida (app morto no meio da copia).
+     * Um .tmp nunca e um item valido da lixeira: ele so existe enquanto a copia esta rolando.
+     */
+    fun limparTemporarios(context: Context) {
+        rootsFor(context).forEach { raiz ->
+            try {
+                raiz.listFiles()?.forEach { f ->
+                    if (f.isFile && f.name.endsWith(".tmp")) {
+                        try {
+                            if (f.delete()) Right100Diag.add("lixeira: .tmp incompleto apagado " + f.name)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     /** Nome livre dentro da raiz: "video.mp4", depois "video~1.mp4", "video~2.mp4"... */
     fun flatNameFor(context: Context, raiz: File, source: File): String {
         val usados = readFlatIndexFor(context, raiz).keys
@@ -1940,12 +1960,33 @@ fun Context.migrateTrashToPrivate() {
                     destino.mkdirs()
                     val nome = TrashStore.flatNameFor(this, destino, f)
                     val alvo = File(destino, nome)
+                    val temporario = File(destino, nome + ".tmp")
                     val copiou = try {
+                        if (temporario.exists()) temporario.delete()
                         f.inputStream().use { entrada ->
-                            alvo.outputStream().use { saida -> entrada.copyTo(saida, 256 * 1024) }
+                            temporario.outputStream().use { saida -> entrada.copyTo(saida, 256 * 1024) }
                         }
-                        alvo.length() == f.length()
+                        if (temporario.length() != f.length()) {
+                            try {
+                                temporario.delete()
+                            } catch (_: Exception) {
+                            }
+                            false
+                        } else {
+                            val renomeou = temporario.renameTo(alvo)
+                            if (!renomeou) {
+                                try {
+                                    temporario.delete()
+                                } catch (_: Exception) {
+                                }
+                            }
+                            renomeou
+                        }
                     } catch (_: Exception) {
+                        try {
+                            temporario.delete()
+                        } catch (_: Exception) {
+                        }
                         false
                     }
                     if (copiou && f.delete()) {
@@ -1977,6 +2018,7 @@ fun Context.recoverOrphanTrashItems() {
     if (agora - lastTrashRecovery < TRASH_RECOVERY_INTERVAL_MS) return
     lastTrashRecovery = agora
     flattenTrashLayout()
+    TrashStore.limparTemporarios(this)
     if (Right100Prefs.lixeiraPrivada(this)) migrateTrashToPrivate()
     try {
         val conhecidos = HashSet<String>()

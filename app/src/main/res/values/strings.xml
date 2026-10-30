@@ -359,4 +359,10 @@
     <string name="lixeira_modo_publica">Publica: rapida, mas aparece em gerenciador de arquivos</string>
     <string name="lixeira_modo_privada_curto">Privada</string>
     <string name="lixeira_modo_publica_curto">Publica</string>
+    <string name="lixeira_movido">Movido para a lixeira</string>
+    <string name="lixeira_movidos">%d itens movidos para a lixeira</string>
+    <string name="lixeira_movidos_parcial">%d movidos, %d falharam</string>
+    <string name="lixeira_restaurado">Restaurado</string>
+    <string name="lixeira_restaurados">%d itens restaurados</string>
+    <string name="lixeira_restaurados_parcial">%d restaurados, %d falharam</string>
 </resources>
