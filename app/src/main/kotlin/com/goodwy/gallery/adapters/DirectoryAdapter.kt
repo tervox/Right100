@@ -72,6 +72,10 @@ class DirectoryAdapter(
     private var groupDirectSubfolders = config.groupDirectSubfolders
     private var currentDirectoriesHash = dirs.hashCode()
     private var lockedFolderPaths = ArrayList<String>()
+
+    // Resultado da conferencia "(oculto)" por caminho, calculada fora da thread principal.
+    private val ocultosCalculados = HashMap<String, Boolean>()
+
     private var isDragAndDropping = false
     private var startReorderDragListener: StartReorderDragListener? = null
 
@@ -95,6 +99,7 @@ class DirectoryAdapter(
 
         setupDragListener(true)
         fillLockedFolders()
+        recalcularOcultos()
         setHasStableIds(true)
         attachedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
@@ -496,6 +501,7 @@ class DirectoryAdapter(
         dirs.forEach {
             it.name = activity.checkAppendingHidden(it.path, hidden, includedFolders, ArrayList())
         }
+        recalcularOcultos()
         listener?.updateDirectories(dirs.toMutableList() as ArrayList)
         activity.runOnUiThread {
             updateDirs(dirs)
@@ -927,6 +933,7 @@ class DirectoryAdapter(
             finishActMode()
         }
         rebuildPositionCache()
+        recalcularOcultos()
     }
 
     private fun rebuildPositionCache() {
@@ -1071,7 +1078,23 @@ class DirectoryAdapter(
                 dirName.ellipsize = TextUtils.TruncateAt.MIDDLE
             }
 
-            var nameCount = directory.name
+            // O rotulo "(oculto)" era escrito so por updateFolderNames(), que roda apenas quando
+            // o usuario oculta/mostra uma pasta pela barra de acoes: pasta que ja estava oculta
+            // nunca era marcada, e a marca sumia na varredura seguinte (que reconstroi os
+            // Directory com o nome limpo). Agora monta no desenho: tira o rotulo que estiver
+            // gravado no nome e recoloca so se a pasta estiver oculta AGORA.
+            var nameCount = if (config.shouldShowHidden) {
+                val rotuloOculto = activity.getString(R.string.hidden)
+                val base = if (directory.name.endsWith(" $rotuloOculto")) {
+                    directory.name.removeSuffix(" $rotuloOculto")
+                } else {
+                    directory.name
+                }
+                if (ocultosCalculados[directory.path] == true) "$base $rotuloOculto" else base
+            } else {
+                directory.name
+            }
+
             if (showMediaCount == FOLDER_MEDIA_CNT_BRACKETS) {
                 nameCount += " (${directory.subfoldersMediaCount})"
             }
@@ -1146,6 +1169,52 @@ class DirectoryAdapter(
 
     override fun onChange(position: Int) = dirs.getOrNull(position)?.getBubbleText(directorySorting, activity, dateFormat, timeFormat) ?: ""
 
+
+    /**
+     * Confere TODA pasta da lista e guarda o resultado em ocultosCalculados, fora da thread
+     * principal: File.exists() em varias pastas por item nao pode rodar no desenho.
+     */
+    private fun recalcularOcultos() {
+        val caminhos = dirs.map { it.path }
+        val incluidos = HashSet(config.includedFolders)
+
+        ensureBackgroundThread {
+            val mapa = HashMap<String, Boolean>(caminhos.size * 2)
+            caminhos.forEach { caminho ->
+                mapa[caminho] = caminho.estaOcultaParaOUsuario(incluidos)
+            }
+
+            activity.runOnUiThread {
+                if (activity.isDestroyed || activity.isFinishing) {
+                    return@runOnUiThread
+                }
+                ocultosCalculados.clear()
+                ocultosCalculados.putAll(mapa)
+                rebindVisibleFolders()
+            }
+        }
+    }
+
+    /**
+     * Oculta = caminho com pasta de nome iniciado por ponto, ou .nomedia na propria pasta ou em
+     * qualquer pasta pai. Caminho incluido manualmente nas configuracoes nunca e marcado,
+     * igual ao checkAppendingHidden().
+     */
+    private fun String.estaOcultaParaOUsuario(incluidos: MutableSet<String>): Boolean {
+        if (isThisOrParentIncluded(incluidos)) return false
+        if (contains("/.")) return true
+
+        var atual: File? = File(this)
+        while (atual != null) {
+            try {
+                if (File(atual, NOMEDIA).exists()) return true
+            } catch (_: Exception) {
+            }
+            if (atual.absolutePath == "/") break
+            atual = atual.parentFile
+        }
+        return false
+    }
 
     private fun bindItem(view: View): DirectoryItemBinding {
         return when {
