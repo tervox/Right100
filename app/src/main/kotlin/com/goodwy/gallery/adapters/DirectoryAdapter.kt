@@ -76,6 +76,11 @@ class DirectoryAdapter(
     // Resultado da conferencia "(oculto)" por caminho, calculada fora da thread principal.
     private val ocultosCalculados = HashMap<String, Boolean>()
 
+    // Lista de pastas com .nomedia vinda do proprio app (getNoMediaFoldersSync, MediaStore).
+    // E a mesma fonte que o MediaFetcher usa em getFoldersToScan() para decidir visibilidade,
+    // por isso vale mais que uma checagem de arquivo solta.
+    @Volatile private var noMediaDoApp: List<String> = emptyList()
+
     private var isDragAndDropping = false
     private var startReorderDragListener: StartReorderDragListener? = null
 
@@ -1090,7 +1095,13 @@ class DirectoryAdapter(
                 } else {
                     directory.name
                 }
-                if (ocultosCalculados[directory.path] == true) "$base $rotuloOculto" else base
+                // Se a passada de fundo ainda nao terminou (ou nunca rodou para esta pasta),
+                // calcula na hora com a lista ja carregada - assim o rotulo nao depende de
+                // um rebind posterior para aparecer.
+                val oculta = ocultosCalculados.getOrPut(directory.path) {
+                    directory.path.estaOculta(HashSet(config.includedFolders), noMediaDoApp)
+                }
+                if (oculta) "$base $rotuloOculto" else base
             } else {
                 directory.name
             }
@@ -1179,17 +1190,31 @@ class DirectoryAdapter(
         val incluidos = HashSet(config.includedFolders)
 
         ensureBackgroundThread {
+            // getNoMediaFoldersSync() pode consultar o MediaStore na primeira vez: nunca na UI.
+            val lista = try {
+                activity.getNoMediaFoldersSync()
+            } catch (_: Exception) {
+                ArrayList<String>()
+            }
+
             val mapa = HashMap<String, Boolean>(caminhos.size * 2)
+            val detalhes = StringBuilder()
             caminhos.forEach { caminho ->
-                mapa[caminho] = caminho.estaOcultaParaOUsuario(incluidos)
+                val resultado = caminho.estaOculta(incluidos, lista, detalhes)
+                mapa[caminho] = resultado
             }
 
             activity.runOnUiThread {
                 if (activity.isDestroyed || activity.isFinishing) {
                     return@runOnUiThread
                 }
+                noMediaDoApp = lista
                 ocultosCalculados.clear()
                 ocultosCalculados.putAll(mapa)
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "oculto: marcadas=" + mapa.count { it.value } + " de " + mapa.size +
+                        " nomediaLista=" + lista.size + " | " + detalhes.toString().trim()
+                )
                 rebindVisibleFolders()
             }
         }
@@ -1200,20 +1225,57 @@ class DirectoryAdapter(
      * qualquer pasta pai. Caminho incluido manualmente nas configuracoes nunca e marcado,
      * igual ao checkAppendingHidden().
      */
-    private fun String.estaOcultaParaOUsuario(incluidos: MutableSet<String>): Boolean {
-        if (isThisOrParentIncluded(incluidos)) return false
-        if (contains("/.")) return true
+    /**
+     * Oculta = ponto no caminho, OU .nomedia na pasta/em pasta pai segundo a lista do proprio
+     * app (getNoMediaFoldersSync), OU o arquivo .nomedia existindo no disco. As tres coisas sao
+     * conferidas porque em versoes anteriores so a terceira existia e ela nao concordou com a
+     * lista do app neste aparelho. O `detalhes` vai para o diagnostico: mostra, pasta por pasta,
+     * o que cada checagem respondeu - sem isso, um erro aqui vira adivinhacao.
+     */
+    private fun String.estaOculta(
+        incluidos: MutableSet<String>,
+        noMedia: List<String>,
+        detalhes: StringBuilder? = null
+    ): Boolean {
+        val alvo = trimEnd('/')
+        val incluida = alvo.isThisOrParentIncluded(incluidos)
+        val ponto = alvo.contains("/.")
 
-        var atual: File? = File(this)
-        while (atual != null) {
-            try {
-                if (File(atual, NOMEDIA).exists()) return true
-            } catch (_: Exception) {
+        var naLista = false
+        if (!incluida && !ponto) {
+            naLista = noMedia.any { n ->
+                val p = n.trimEnd('/')
+                alvo.equals(p, true) || alvo.startsWith("$p/", true)
             }
-            if (atual.absolutePath == "/") break
-            atual = atual.parentFile
         }
-        return false
+
+        var noArquivo = false
+        if (!incluida && !ponto && !naLista) {
+            var atual: File? = File(alvo)
+            while (atual != null) {
+                try {
+                    if (File(atual, NOMEDIA).exists()) {
+                        noArquivo = true
+                        break
+                    }
+                } catch (_: Exception) {
+                }
+                if (atual.absolutePath == "/") break
+                atual = atual.parentFile
+            }
+        }
+
+        val resultado = !incluida && (ponto || naLista || noArquivo)
+        if (detalhes != null && detalhes.length < 3000) {
+            detalhes.append(alvo.substringAfterLast('/'))
+                .append("[inc=").append(if (incluida) 1 else 0)
+                .append(",pt=").append(if (ponto) 1 else 0)
+                .append(",lst=").append(if (naLista) 1 else 0)
+                .append(",arq=").append(if (noArquivo) 1 else 0)
+                .append(",fin=").append(if (resultado) 1 else 0)
+                .append("] ")
+        }
+        return resultado
     }
 
     private fun bindItem(view: View): DirectoryItemBinding {
