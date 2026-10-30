@@ -188,7 +188,7 @@ class MediaAdapter(
             findItem(R.id.cab_set_as).isVisible = isOneItemSelected
             findItem(R.id.cab_resize).isVisible = canResize(selectedItems)
             findItem(R.id.cab_confirm_selection).isVisible = isAGetIntent && allowMultiplePicks && selectedKeys.isNotEmpty()
-            findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { it.startsWith(activity.trashRootPath) }
+            findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { activity.isInTrashPath(it) }
             findItem(R.id.cab_create_shortcut).isVisible = isOneItemSelected
 
             checkHideBtnVisibility(this, selectedItems)
@@ -529,7 +529,7 @@ class MediaAdapter(
     internal fun fabTrash() {
         if (selectedKeys.isEmpty()) return
         val firstPath = getFirstSelectedItemPath() ?: return
-        if (firstPath.startsWith(activity.trashRootPath)) {
+        if (activity.isInTrashPath(firstPath)) {
             // Dentro da lixeira so existe excluir de vez: fluxo padrao (confirmacao, senha).
             checkDeleteConfirmation()
             return
@@ -603,11 +603,11 @@ class MediaAdapter(
         val paths = getSelectedPaths()
 
         val trashRootPath = activity.trashRootPath
-        val fileDirItems = paths.asSequence().filter { isCopyOperation || !it.startsWith(trashRootPath) }.map {
+        val fileDirItems = paths.asSequence().filter { isCopyOperation || !activity.isInTrashPath(it) }.map {
             FileDirItem(it, it.getFilenameFromPath())
         }.toMutableList() as ArrayList
 
-        if (!isCopyOperation && paths.any { it.startsWith(trashRootPath) }) {
+        if (!isCopyOperation && paths.any { activity.isInTrashPath(it) }) {
             activity.toast(com.goodwy.commons.R.string.moving_recycle_bin_items_disabled, Toast.LENGTH_LONG)
         }
 
@@ -741,7 +741,7 @@ class MediaAdapter(
             "$deleteItemsString ($fileSize)"
         }
 
-        val isRecycleBin = firstPath.startsWith(activity.trashRootPath)
+        val isRecycleBin = activity.isInTrashPath(firstPath)
         val baseString =
             if (config.useRecycleBin && !config.tempSkipRecycleBin && !isRecycleBin) com.goodwy.commons.R.string.move_to_recycle_bin_confirmation else com.goodwy.commons.R.string.deletion_confirmation
         val question = String.format(resources.getString(baseString), itemsAndSize)

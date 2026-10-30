@@ -127,6 +127,10 @@ object TrashStore {
 
     fun legacyRoot(context: Context): File = context.filesDir
 
+    /** Pasta oculta na raiz publica, usada quando o Android recusa rename para Android/data. */
+    fun publicRoot(context: Context): File =
+        File(android.os.Environment.getExternalStorageDirectory(), ".right100_trash")
+
     fun root(context: Context): File {
         val base = context.getExternalFilesDir(null) ?: context.filesDir
         return File(base, DIR_NAME)
@@ -136,18 +140,26 @@ object TrashStore {
         val rel = relativePath.trimStart('/')
         val novo = File(root(context), rel)
         if (novo.exists()) return novo
+        val publico = File(publicRoot(context), rel)
+        if (publico.exists()) return publico
         val antigo = File(legacyRoot(context), rel)
         return if (antigo.exists()) antigo else novo
     }
 
     fun isTrashedFile(context: Context, path: String): Boolean {
         val novo = root(context).absolutePath.trimEnd('/')
+        val publico = publicRoot(context).absolutePath.trimEnd('/')
         val antigo = legacyRoot(context).absolutePath.trimEnd('/')
-        return path.startsWith("$novo/") || path.startsWith("$antigo/")
+        return path.startsWith("$novo/") || path.startsWith("$publico/") || path.startsWith("$antigo/")
     }
 }
 
 val Context.trashRootPath: String get() = TrashStore.root(this).absolutePath
+
+// Verdadeiro se o caminho esta na lixeira em QUALQUER uma das raizes: a nova
+// (Android/data/<pacote>/files/.trash), a oculta publica (.right100_trash) ou a antiga
+// (/data/user/0/<pacote>/files), onde estao os itens excluidos antes desta correcao.
+fun Context.isInTrashPath(path: String): Boolean = TrashStore.isTrashedFile(this, path)
 
 fun Context.movePinnedDirectoriesToFront(dirs: ArrayList<Directory>): ArrayList<Directory> {
     val foundFolders = ArrayList<Directory>()

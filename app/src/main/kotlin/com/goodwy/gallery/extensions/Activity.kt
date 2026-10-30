@@ -854,7 +854,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                 var inputStream: InputStream? = null
                 var out: OutputStream? = null
                 try {
-                    val destination = "$recycleBinPath/$source"
+                    val destination = "$trashRootPath/$source"
                     val fileDocument = getSomeDocumentFile(source)
                     inputStream = applicationContext.contentResolver.openInputStream(fileDocument?.uri!!)
                     out = getFileOutputStreamSync(destination, source.getMimeType())
@@ -888,20 +888,24 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                 }
             } else {
                 val file = File(source)
-                val internalFile = File(recycleBinPath, source)
+                val internalFile = File(trashRootPath, source)
                 val lastModified = file.lastModified()
                 try {
                     val trashT0 = android.os.SystemClock.elapsedRealtime()
-                    if (moveIntoRecycleBin(file, internalFile)) {
+                    // Primeiro rename para o mesmo volume (instantaneo). So copia se o Android
+                    // recusar - antes o destino era /data/user/0 e o rename falhava SEMPRE.
+                    val movedTo = moveIntoTrash(file)
+                    if (movedTo != null || moveIntoRecycleBin(file, internalFile)) {
                         Right100Diag.add(
                             "lixeira: " + file.name + " em " + (android.os.SystemClock.elapsedRealtime() - trashT0) +
-                                " ms -> " + internalFile.parent
+                                " ms -> " + (movedTo?.absolutePath ?: internalFile.parent) +
+                                (if (movedTo != null) " (rename)" else " (copia)")
                         )
                         mediaDB.updateDeleted("$RECYCLE_BIN$source", System.currentTimeMillis(), source)
                         pathsCnt--
 
                         if (config.keepLastModified && lastModified != 0L) {
-                            internalFile.setLastModified(lastModified)
+                            (movedTo ?: internalFile).setLastModified(lastModified)
                         }
                     }
                 } catch (e: Exception) {
@@ -914,6 +918,38 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
     }
 }
 
+/**
+ * Move para a lixeira por rename dentro do MESMO volume - instantaneo, sem copiar bytes.
+ * Tenta duas raizes no volume da midia: a privada do app (Android/data/<pacote>/files/.trash)
+ * e, se o Android recusar rename ali, uma pasta oculta na raiz publica (.right100_trash, com
+ * .nomedia). A chave no banco continua sendo RECYCLE_BIN + caminho original, entao o lugar
+ * fisico pode variar sem quebrar nada. Devolve null quando nao deu para renomear (o chamador
+ * cai na copia de sempre).
+ */
+private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
+    if (!source.exists()) return null
+    val rel = source.absolutePath.trimStart('/')
+    val publicRoot = TrashStore.publicRoot(this)
+    val candidates = arrayListOf(File(TrashStore.root(this), rel))
+    if (!source.absolutePath.startsWith(publicRoot.absolutePath + "/")) candidates.add(File(publicRoot, rel))
+
+    for (target in candidates) {
+        try {
+            target.parentFile?.mkdirs()
+            if (target.exists()) continue
+            if (source.renameTo(target)) {
+                try {
+                    File(publicRoot, ".nomedia").createNewFile()
+                } catch (_: Exception) {
+                }
+                return target
+            }
+        } catch (_: Exception) {
+        }
+    }
+    return null
+}
+
 fun BaseSimpleActivity.restoreRecycleBinPath(path: String, callback: (Boolean) -> Unit) {
     restoreRecycleBinPaths(arrayListOf(path), callback)
 }
@@ -923,10 +959,18 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
         val newPaths = ArrayList<String>()
         var shownRestoringToPictures = false
         fun recordRestored(source: String, destination: String, lastModified: Long) {
+            // A chave tem que ser RECYCLE_BIN + caminho ORIGINAL, igual a que foi gravada na
+            // exclusao - agora que o arquivo pode estar em tres raizes diferentes.
+            val relDest = destination.removePrefix(TrashStore.root(this).absolutePath)
+                .removePrefix(TrashStore.publicRoot(this).absolutePath)
+                .removePrefix(TrashStore.legacyRoot(this).absolutePath)
+            val relSource = source.removePrefix(TrashStore.root(this).absolutePath)
+                .removePrefix(TrashStore.publicRoot(this).absolutePath)
+                .removePrefix(TrashStore.legacyRoot(this).absolutePath)
             mediaDB.updateDeleted(
-                destination.removePrefix(recycleBinPath),
+                relDest,
                 0,
-                "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}"
+                "$RECYCLE_BIN$relSource"
             )
             newPaths.add(destination)
             MediaActivity.unmarkRecentlyRemoved(listOf(destination, source))
@@ -1077,6 +1121,10 @@ fun BaseSimpleActivity.emptyTheRecycleBin(callback: (() -> Unit)? = null) {
             }
             try {
                 TrashStore.root(this).deleteRecursively()
+            } catch (_: Exception) {
+            }
+            try {
+                TrashStore.publicRoot(this).deleteRecursively()
             } catch (_: Exception) {
             }
             mediaDB.clearRecycleBin()
