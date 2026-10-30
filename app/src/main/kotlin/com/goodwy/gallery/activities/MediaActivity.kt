@@ -1984,14 +1984,26 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             )
             toast(movingItems)
 
-            movePathsInRecycleBin(filtered.map { it.path } as ArrayList<String>) {
-                if (it) {
+            val caminhosOtimistas = filtered.map { it.path } as ArrayList<String>
+            // SAI DA GRADE AGORA, e a copia para a lixeira segue em background. Num video
+            // grande a copia leva segundos (a lixeira privada e outra montagem); antes a grade
+            // so era atualizada DEPOIS que a copia terminava, e o item parecia nao sair.
+            // Se a copia falhar, o item volta: unmarkRecentlyRemoved + refreshItems.
+            removeMediaImmediately(caminhosOtimistas)
+            Right100Diag.add("lixeira: " + caminhosOtimistas.size + " item(ns) fora da grade, copiando em background")
+
+            movePathsInRecycleBin(caminhosOtimistas) { moved ->
+                if (moved) {
                     // O arquivo ja saiu da pasta (foi movido para a lixeira). O commons ainda roda
                     // para limpar a linha do MediaStore, mas se ele reclamar de um arquivo que nao
                     // existe mais, nao adianta mostrar erro nem deixar de atualizar a grade.
                     deleteFilteredFiles(filtered, alreadyMovedToBin = true)
                 } else {
+                    // Nao foi para a lixeira: nao pode continuar escondido na grade.
+                    unmarkRecentlyRemoved(caminhosOtimistas)
+                    Right100Diag.add("lixeira: falhou, devolvendo " + caminhosOtimistas.size + " item(ns) a grade")
                     toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                    refreshItems()
                 }
             }
         } else {

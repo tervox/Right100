@@ -464,8 +464,15 @@ class MediaAdapter(
     }
 
     private fun doRestoreFiles(paths: ArrayList<String>) {
-        activity.restoreRecycleBinPaths(paths) { _ ->
-            listener?.refreshItems()
+        // Some da lixeira na hora. Restaurar COPIA de volta para a pasta original (outra
+        // montagem), e num video grande isso leva segundos; antes a lista so atualizava
+        // depois que a copia terminava.
+        listener?.removeMediaImmediately(paths)
+        activity.restoreRecycleBinPaths(paths) { success ->
+            if (!success) {
+                MediaActivity.unmarkRecentlyRemoved(paths)
+                listener?.refreshItems()
+            }
             finishActMode()
         }
     }

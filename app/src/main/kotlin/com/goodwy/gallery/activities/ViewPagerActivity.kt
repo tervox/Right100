@@ -498,20 +498,27 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val path = medium.path
         val fileDirItem = medium.toFileDirItem()
 
+        val posRemovido = mPos
+
         if (config.useRecycleBin && !skipRecycleBin && !medium.getIsInRecycleBin()) {
+            // PASSA PARA A PROXIMA AGORA. O player do video ja foi liberado algumas linhas
+            // acima; a copia para a lixeira privada roda atras e pode levar segundos.
+            try {
+                onCurrentFileRemoved()
+            } catch (e: Exception) {
+                toast("visualizador: falha ao atualizar apos excluir: " + e.message)
+            }
             movePathsInRecycleBin(arrayListOf(path)) { success ->
                 runOnUiThread {
                     mDeleteInProgress = false
                     binding.bottomActions.bottomDelete.isEnabled = true
                     binding.mediumViewerToolbar.menu.findItem(R.id.menu_delete)?.isEnabled = true
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    if (success) {
-                        try {
-                            onCurrentFileRemoved()
-                        } catch (e: Exception) {
-                            toast("visualizador: falha ao atualizar apos excluir: " + e.message)
-                        }
-                    } else {
+                    if (!success) {
+                        // Nao foi para a lixeira: devolve a midia a tela na posicao original
+                        // e libera o path do filtro de removidos recentemente.
+                        pendingRemovedPaths.remove(path)
+                        MediaActivity.unmarkRecentlyRemoved(arrayListOf(path))
+                        devolverMidiaRemovida(medium, posRemovido)
                         toast(com.goodwy.commons.R.string.unknown_error_occurred)
                     }
                 }
@@ -551,6 +558,27 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             refreshMenuItems()
         } catch (e: Exception) {
             toast("visualizador: falha ao atualizar apos excluir: " + e.message)
+        }
+    }
+
+    /**
+     * Desfaz a remocao otimista quando a operacao fisica falha (sem espaco, por exemplo).
+     * Devolve a midia na posicao original e libera o path do filtro "removidos recentemente" -
+     * sem isso ela continuaria escondida na grade da pasta por 3 minutos.
+     */
+    private fun devolverMidiaRemovida(medium: Medium, posicao: Int) {
+        if (isFinishing || isDestroyed) return
+        pendingRemovedPaths.remove(medium.path)
+        MediaActivity.unmarkRecentlyRemoved(arrayListOf(medium.path))
+        val onde = posicao.coerceIn(0, mMediums.size)
+        mMediums.add(onde, medium)
+        mPos = onde
+        try {
+            (binding.viewPager.adapter as? MyPagerAdapter)?.notifyDataSetChanged()
+            binding.viewPager.setCurrentItem(mPos, false)
+            updateTitle()
+            refreshMenuItems()
+        } catch (_: Exception) {
         }
     }
 
@@ -625,11 +653,25 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun restoreCurrentFile() {
         val path = getCurrentPath()
+        val medium = getCurrentMedium()
+        val posRemovido = mPos
+        // Mesmo raciocinio do excluir: a tela passa para a proxima na hora e a copia de
+        // volta para a pasta original roda atras.
+        if (medium != null) {
+            try {
+                onCurrentFileRemoved()
+            } catch (_: Exception) {
+            }
+        }
         restoreRecycleBinPath(path) { success ->
             // O callback pode voltar fora da UI thread; mexer no ViewPager la derruba a tela.
             runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                if (success) onCurrentFileRemoved()
+                if (!success && medium != null) {
+                    pendingRemovedPaths.remove(path)
+                    MediaActivity.unmarkRecentlyRemoved(arrayListOf(path))
+                    if (!isFinishing && !isDestroyed) devolverMidiaRemovida(medium, posRemovido)
+                    toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                }
             }
         }
     }
