@@ -941,14 +941,38 @@ private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
     // UMA pasta so: o arquivo vai para a raiz da lixeira com o proprio nome. Antes o destino era
     // publicRoot + caminho original inteiro, o que recriava storage/emulated/0/DCIM/... dentro da
     // lixeira. O caminho de origem fica no indice, entao o restaurar continua indo para o lugar certo.
-    for (raiz in arrayListOf(publicRoot, TrashStore.root(this))) {
+    val privada = TrashStore.privateRoot(this)
+    val ordem = if (Right100Prefs.lixeiraPrivada(this)) {
+        arrayListOf(privada, publicRoot, TrashStore.root(this))
+    } else {
+        arrayListOf(publicRoot, privada, TrashStore.root(this))
+    }
+    for (raiz in ordem) {
         try {
             raiz.mkdirs()
             val nome = TrashStore.flatNameFor(this, raiz, source)
             val target = File(raiz, nome)
             val tMkdir = android.os.SystemClock.elapsedRealtime()
             if (target.exists()) continue
-            if (source.renameTo(target)) {
+            // Privada = outra montagem: renameTo falha (EXDEV), entao copia por stream e so apaga
+            // a origem depois de conferir o tamanho. Publica = mesmo volume, rename instantaneo.
+            val moveu = if (raiz.absolutePath == privada.absolutePath) {
+                try {
+                    source.inputStream().use { entrada ->
+                        target.outputStream().use { saida -> entrada.copyTo(saida, 256 * 1024) }
+                    }
+                    target.length() == source.length() && target.length() > 0L && source.delete()
+                } catch (_: Exception) {
+                    try {
+                        if (target.exists()) target.delete()
+                    } catch (_: Exception) {
+                    }
+                    false
+                }
+            } else {
+                source.renameTo(target)
+            }
+            if (moveu) {
                 Right100Diag.add(
                     "moveIntoTrash: raiz=" + (t1 - t0) + "ms mkdirs=" + (tMkdir - t1) +
                         "ms rename=" + (android.os.SystemClock.elapsedRealtime() - tMkdir) +

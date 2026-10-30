@@ -175,6 +175,7 @@ class SettingsActivity : SimpleActivity() {
         setupUseRecycleBin()
         setupShowRecycleBin()
         setupShowRecycleBinLast()
+        setupRecycleBinStorage()
         setupEmptyRecycleBin()
 
         setupExportFavorites()
@@ -835,6 +836,32 @@ class SettingsActivity : SimpleActivity() {
         binding.settingsAllowRotatingWithGesturesHolder.setOnClickListener {
             binding.settingsAllowRotatingWithGestures.toggle()
             config.allowRotatingWithGestures = binding.settingsAllowRotatingWithGestures.isChecked
+        }
+    }
+
+    /**
+     * Onde guardar a lixeira. Escolha unica (RadioGroupDialog), como o "Nome repetido ao
+     * copiar/mover": nunca existe estado com as duas opcoes ligadas.
+     */
+    private fun setupRecycleBinStorage() = binding.apply {
+        val ctx = this@SettingsActivity
+        settingsRecycleBinStorage.text = getString(
+            if (Right100Prefs.lixeiraPrivada(ctx)) R.string.lixeira_modo_privada_curto
+            else R.string.lixeira_modo_publica_curto
+        )
+        settingsRecycleBinStorageHolder.setOnClickListener {
+            val items = arrayListOf(
+                RadioItem(0, getString(R.string.lixeira_modo_privada)),
+                RadioItem(1, getString(R.string.lixeira_modo_publica))
+            )
+            val atual = if (Right100Prefs.lixeiraPrivada(ctx)) 0 else 1
+            RadioGroupDialog(ctx, items, atual, R.string.lixeira_modo) {
+                Right100Prefs.setLixeiraPrivada(ctx, (it as Int) == 0)
+                settingsRecycleBinStorage.text = getString(
+                    if (Right100Prefs.lixeiraPrivada(ctx)) R.string.lixeira_modo_privada_curto
+                    else R.string.lixeira_modo_publica_curto
+                )
+            }
         }
     }
 

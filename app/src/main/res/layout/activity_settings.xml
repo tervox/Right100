@@ -1303,6 +1303,26 @@
                             tools:text="0 B" />
 
                     </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_recycle_bin_storage_holder"
+                        style="@style/SettingsHolderStyle">
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_recycle_bin_storage_label"
+                            style="@style/SettingsTextLabelStyle"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@+id/settings_recycle_bin_storage"
+                            android:text="@string/lixeira_modo" />
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_recycle_bin_storage"
+                            style="@style/SettingsTextValueStyle"
+                            android:layout_alignParentEnd="true"
+                            android:layout_marginEnd="@dimen/settings_margin"
+                            tools:text="@string/lixeira_modo_privada_curto" />
+                    </RelativeLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

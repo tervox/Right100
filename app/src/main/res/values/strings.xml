@@ -353,4 +353,10 @@
     <string name="select_all_fab_setting">Botao flutuante de selecionar todos</string>
     <string name="viewer_animation_setting">Animacao ao navegar (fotos)</string>
     <string name="video_viewer_animation_setting">Animacao ao navegar (videos)</string>
+    <string name="lixeira_modo">Onde guardar a lixeira</string>
+    <string name="lixeira_modo_sub">Privada (invisivel) ou publica (mais rapida)</string>
+    <string name="lixeira_modo_privada">Privada: dentro do app, ninguem ve (excluir copia)</string>
+    <string name="lixeira_modo_publica">Publica: rapida, mas aparece em gerenciador de arquivos</string>
+    <string name="lixeira_modo_privada_curto">Privada</string>
+    <string name="lixeira_modo_publica_curto">Publica</string>
 </resources>

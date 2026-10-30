@@ -122,6 +122,27 @@ val Context.recycleBin: File get() = filesDir
  * Itens que ja estavam na lixeira antiga continuam funcionando: toda leitura passa por
  * resolveTrashedFile(), que procura no lugar novo e, se nao achar, na lixeira antiga.
  */
+/**
+ * Onde a lixeira mora. Duas opcoes na tela de Configuracoes:
+ *  privada (padrao): /data/user/0/<pacote>/files/.trash - ninguem fora do app ve; excluir copia.
+ *  publica: /storage/emulated/0/.right100_trash - some das galerias pelo .nomedia, mas aparece
+ *  em gerenciador com "mostrar ocultos" e no PC; excluir e rename, quase instantaneo.
+ * A raiz nao escolhida continua como plano B, para uma falha de escrita nunca deixar o arquivo
+ * pela metade. A escolha e UM boolean: nao existe estado com as duas ativas.
+ */
+object Right100Prefs {
+    private const val PREFS = "right100_trash"
+    private const val KEY_PRIVADA = "lixeira_privada"
+
+    fun lixeiraPrivada(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_PRIVADA, true)
+
+    fun setLixeiraPrivada(context: Context, privada: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_PRIVADA, privada).apply()
+    }
+}
+
 object TrashStore {
     private const val DIR_NAME = ".trash"
 
@@ -134,25 +155,35 @@ object TrashStore {
      * arquivo nao diz de onde ele veio - o indice diz. O caminho original continua tambem na
      * chave do banco (RECYCLE_BIN + caminho), entao o restaurar nao depende do layout fisico.
      */
-    fun readFlatIndex(context: Context): HashMap<String, String> {
+    fun readFlatIndexFor(context: Context, raiz: File): HashMap<String, String> {
         val map = HashMap<String, String>()
-        arrayListOf(publicRoot(context), root(context)).forEach { raiz ->
-            val f = File(raiz, FLAT_INDEX_NAME)
-            if (!f.isFile) return@forEach
-            try {
-                f.forEachLine { linha ->
-                    val tab = linha.indexOf('\t')
-                    if (tab > 0) map[linha.substring(0, tab)] = linha.substring(tab + 1)
-                }
-            } catch (_: Exception) {
+        val f = File(raiz, FLAT_INDEX_NAME)
+        if (!f.isFile) return map
+        try {
+            f.forEachLine { linha ->
+                val tab = linha.indexOf('\t')
+                if (tab > 0) map[linha.substring(0, tab)] = linha.substring(tab + 1)
             }
+        } catch (_: Exception) {
         }
         return map
     }
 
+    fun readFlatIndex(context: Context): HashMap<String, String> {
+        val map = HashMap<String, String>()
+        rootsFor(context).forEach { raiz ->
+            map.putAll(readFlatIndexFor(context, raiz))
+        }
+        return map
+    }
+
+    /** Raizes da lixeira, da preferida para a mais antiga. */
+    fun rootsFor(context: Context): List<File> =
+        arrayListOf(privateRoot(context), publicRoot(context), root(context))
+
     /** Nome livre dentro da raiz: "video.mp4", depois "video~1.mp4", "video~2.mp4"... */
     fun flatNameFor(context: Context, raiz: File, source: File): String {
-        val usados = readFlatIndex(context).keys
+        val usados = readFlatIndexFor(context, raiz).keys
         var nome = source.name
         if (!File(raiz, nome).exists() && !usados.contains(nome)) return nome
         val base = if (nome.contains('.')) nome.substringBeforeLast('.') else nome
@@ -178,12 +209,20 @@ object TrashStore {
     /** Caminho original de um item plano (null se o arquivo nao esta solto na raiz da lixeira). */
     fun originalPathOfFlat(context: Context, physical: File): String? {
         val pai = physical.parentFile?.absolutePath ?: return null
-        val naRaiz = arrayListOf(publicRoot(context), root(context)).any { it.absolutePath == pai }
+        val naRaiz = rootsFor(context).any { it.absolutePath == pai }
         if (!naRaiz) return null
         return readFlatIndex(context)[physical.name]
     }
 
     fun legacyRoot(context: Context): File = context.filesDir
+
+    /**
+     * Lixeira PRIVADA: /data/user/0/<pacote>/files/.trash - o mesmo esquema do Fossify, que usa
+     * filesDir direto. Fica fora de qualquer volume visivel: gerenciador de arquivos com
+     * "mostrar ocultos" nao lista, PC por USB nao ve, MediaStore nao indexa.
+     * Preco: /data e outra montagem, entao renameTo falha e o arquivo e copiado.
+     */
+    fun privateRoot(context: Context): File = File(context.filesDir, DIR_NAME)
 
     /** Nome da pasta oculta da lixeira na raiz publica de cada volume. */
     const val PUBLIC_DIR_NAME = ".right100_trash"
@@ -218,6 +257,9 @@ object TrashStore {
 
     /** Caminho fisico de um item da lixeira -> chave do banco (.recycle_bin/<caminho original>). */
     fun toTrashKey(context: Context, path: String): String {
+        originalPathOfFlat(context, File(path))?.let { return RECYCLE_BIN + it }
+        val privado = privateRoot(context).absolutePath
+        if (path.startsWith("$privado/")) return RECYCLE_BIN + path.removePrefix(privado)
         val novo = root(context).absolutePath
         if (path.startsWith("$novo/")) return RECYCLE_BIN + path.removePrefix(novo)
         val antigo = legacyRoot(context).absolutePath
@@ -249,6 +291,8 @@ object TrashStore {
 
     fun resolveTrashedFile(context: Context, relativePath: String): File {
         val rel = relativePath.trimStart('/')
+        val daPrivada = File(privateRoot(context), rel)
+        if (daPrivada.exists()) return daPrivada
         val novo = File(root(context), rel)
         if (novo.exists()) return novo
         publicRootsFor(context, rel).forEach { raiz ->
@@ -1867,17 +1911,71 @@ fun Context.flattenTrashLayout() {
     }
 }
 
+/**
+ * Copia para a lixeira privada o que ainda esta nas raizes antigas (a oculta publica e a de
+ * Android/data), confere o tamanho, apaga a origem e registra no indice qual era o caminho
+ * original. Roda so quando o modo privado esta ligado.
+ */
+fun Context.migrateTrashToPrivate() {
+    try {
+        val destino = TrashStore.privateRoot(this)
+        arrayListOf(TrashStore.publicRoot(this), TrashStore.root(this)).forEach { raiz ->
+            if (!raiz.isDirectory || raiz.absolutePath == destino.absolutePath) return@forEach
+            val origemIndex = TrashStore.readFlatIndexFor(this, raiz)
+            val arquivos = raiz.listFiles()
+                ?.filter { it.isFile && it.name != NOMEDIA && it.name != TrashStore.FLAT_INDEX_NAME }
+                ?: return@forEach
+            arquivos.forEach { f ->
+                try {
+                    val original = origemIndex[f.name]
+                        ?: ("/" + f.absolutePath.removePrefix(raiz.absolutePath).trimStart('/'))
+                    destino.mkdirs()
+                    val nome = TrashStore.flatNameFor(this, destino, f)
+                    val alvo = File(destino, nome)
+                    val copiou = try {
+                        f.inputStream().use { entrada ->
+                            alvo.outputStream().use { saida -> entrada.copyTo(saida, 256 * 1024) }
+                        }
+                        alvo.length() == f.length()
+                    } catch (_: Exception) {
+                        false
+                    }
+                    if (copiou && f.delete()) {
+                        TrashStore.rememberFlat(this, destino, nome, original)
+                        Right100Diag.add("lixeira privada: " + f.name + " -> " + nome + " origem " + original)
+                    } else if (!copiou && alvo.exists()) {
+                        alvo.delete()
+                    }
+                } catch (_: Exception) {
+                }
+            }
+            try {
+                val restam = raiz.listFiles()
+                    ?.count { it.isFile && it.name != NOMEDIA && it.name != TrashStore.FLAT_INDEX_NAME } ?: 0
+                if (restam == 0) {
+                    raiz.deleteRecursively()
+                    Right100Diag.add("lixeira privada: raiz antiga removida " + raiz.absolutePath)
+                }
+            } catch (_: Exception) {
+            }
+        }
+    } catch (_: Exception) {
+    }
+}
+
 fun Context.recoverOrphanTrashItems() {
     // Uma vez a cada 30 s basta: sem isso, cada abertura da lixeira varreria a pasta toda.
     val agora = android.os.SystemClock.elapsedRealtime()
     if (agora - lastTrashRecovery < TRASH_RECOVERY_INTERVAL_MS) return
     lastTrashRecovery = agora
     flattenTrashLayout()
+    if (Right100Prefs.lixeiraPrivada(this)) migrateTrashToPrivate()
     try {
         val conhecidos = HashSet<String>()
         mediaDB.getDeletedMedia().forEach { conhecidos.add(it.path) }
 
         val alvos = arrayListOf(
+            TrashStore.privateRoot(this) to TrashStore.privateRoot(this),
             TrashStore.root(this) to TrashStore.root(this),
             TrashStore.publicRoot(this) to TrashStore.publicRoot(this)
         )
