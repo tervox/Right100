@@ -1242,7 +1242,7 @@ class DirectoryAdapter(
         val ponto = alvo.contains("/.")
 
         var naLista = false
-        if (!incluida && !ponto) {
+        if (!ponto) {
             naLista = noMedia.any { n ->
                 val p = n.trimEnd('/')
                 alvo.equals(p, true) || alvo.startsWith("$p/", true)
@@ -1250,7 +1250,7 @@ class DirectoryAdapter(
         }
 
         var noArquivo = false
-        if (!incluida && !ponto && !naLista) {
+        if (!ponto && !naLista) {
             var atual: File? = File(alvo)
             while (atual != null) {
                 try {
@@ -1265,7 +1265,8 @@ class DirectoryAdapter(
             }
         }
 
-        val resultado = !incluida && (ponto || naLista || noArquivo)
+        // incluida nao entra na conta: pasta incluida nas configuracoes continua sendo oculta
+        val resultado = ponto || naLista || noArquivo
         if (detalhes != null && detalhes.length < 3000) {
             detalhes.append(alvo.substringAfterLast('/'))
                 .append("[inc=").append(if (incluida) 1 else 0)
