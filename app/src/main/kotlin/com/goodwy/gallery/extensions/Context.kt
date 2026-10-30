@@ -299,16 +299,17 @@ object TrashStore {
             val publico = File(raiz, rel)
             if (publico.exists()) return publico
         }
-        // Item plano: procura no indice qual nome fisico corresponde a este caminho original.
+        // Item plano: o nome fisico nao carrega a origem, o indice carrega. Precisa olhar TODAS
+        // as raizes, inclusive a privada (files/.trash): antes so olhava as publicas e a de
+        // Android/data, entao um item guardado na privada nao era encontrado, a lixeira aparecia
+        // vazia e o getCachedMedia ainda apagava a linha do banco por achar que o arquivo sumiu.
         val alvo = "/" + rel
         readFlatIndex(context).forEach { (nome, original) ->
             if (original == alvo || original == rel) {
-                publicRootsFor(context, rel).forEach { raiz ->
+                rootsFor(context).forEach { raiz ->
                     val f = File(raiz, nome)
                     if (f.exists()) return f
                 }
-                val f = File(root(context), nome)
-                if (f.exists()) return f
             }
         }
         val antigo = File(legacyRoot(context), rel)
@@ -1769,7 +1770,14 @@ fun Context.getCachedMedia(
                     !(if (naLixeira) File(it.path).exists() else getDoesFilePathExist(it.path, OTGPath))
                 }.forEach {
                     if (TrashStore.isTrashedFile(appCtx, it.path)) {
-                        deleteDBPath(it.path)
+                        // So apaga a linha da lixeira quando o arquivo nao existe em NENHUMA raiz.
+                        // Sem esta conferencia, um caminho mal resolvido apagava o registro e o
+                        // item sumia da lixeira de vez, mesmo com o arquivo intacto no disco.
+                        val nome = it.path.getFilenameFromPath()
+                        val existeNaLixeira = TrashStore.rootsFor(appCtx).any { raiz ->
+                            File(raiz, nome).exists()
+                        }
+                        if (!existeNaLixeira) deleteDBPath(it.path)
                     } else {
                         mediaToDelete.add(it)
                     }
