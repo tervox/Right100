@@ -1,7 +1,5 @@
 package com.goodwy.gallery.activities
 
-import com.goodwy.gallery.extensions.trashRootPath
-
 import android.app.WallpaperManager
 import android.content.Intent
 import android.content.res.ColorStateList

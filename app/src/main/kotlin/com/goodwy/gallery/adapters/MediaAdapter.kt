@@ -1,7 +1,5 @@
 package com.goodwy.gallery.adapters
 
-import com.goodwy.gallery.extensions.trashRootPath
-
 import android.annotation.SuppressLint
 import android.content.ContentUris
 import android.os.Build

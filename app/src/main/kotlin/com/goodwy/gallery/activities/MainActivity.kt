@@ -1,7 +1,5 @@
 package com.goodwy.gallery.activities
 
-import com.goodwy.gallery.extensions.trashRootPath
-
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.Intent

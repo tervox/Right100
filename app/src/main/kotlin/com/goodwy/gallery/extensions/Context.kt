@@ -106,6 +106,49 @@ val Context.dateTakensDB: DateTakensDao
 
 val Context.recycleBin: File get() = filesDir
 
+/**
+ * Onde o arquivo fica de verdade quando vai para a lixeira.
+ *
+ * Antes: a lixeira era filesDir = /data/user/0/<pacote>/files, e a midia mora em
+ * /storage/emulated/0. Sao pontos de montagem DIFERENTES: renameTo entre eles falha sempre com
+ * EXDEV, entao moveIntoRecycleBin caia no plano B e copiava o arquivo inteiro. Excluir um video
+ * de 1 GB = copiar 1 GB; restaurar = copiar 1 GB de volta. Era essa a demora.
+ *
+ * Agora: getExternalFilesDir()/.trash, no MESMO volume da midia
+ * (/storage/emulated/0/Android/data/<pacote>/files/.trash), entao renameTo e instantaneo nos dois
+ * sentidos. Continua privada do app: nao aparece na galeria, outro app nao le e some ao
+ * desinstalar - o mesmo comportamento de antes.
+ *
+ * Itens que ja estavam na lixeira antiga continuam funcionando: toda leitura passa por
+ * resolveTrashedFile(), que procura no lugar novo e, se nao achar, na lixeira antiga.
+ */
+object TrashStore {
+    private const val DIR_NAME = ".trash"
+
+    fun legacyRoot(context: Context): File = context.filesDir
+
+    fun root(context: Context): File {
+        val base = context.getExternalFilesDir(null) ?: context.filesDir
+        return File(base, DIR_NAME)
+    }
+
+    fun resolveTrashedFile(context: Context, relativePath: String): File {
+        val rel = relativePath.trimStart('/')
+        val novo = File(root(context), rel)
+        if (novo.exists()) return novo
+        val antigo = File(legacyRoot(context), rel)
+        return if (antigo.exists()) antigo else novo
+    }
+
+    fun isTrashedFile(context: Context, path: String): Boolean {
+        val novo = root(context).absolutePath.trimEnd('/')
+        val antigo = legacyRoot(context).absolutePath.trimEnd('/')
+        return path.startsWith("$novo/") || path.startsWith("$antigo/")
+    }
+}
+
+val Context.trashRootPath: String get() = TrashStore.root(this).absolutePath
+
 fun Context.movePinnedDirectoriesToFront(dirs: ArrayList<Directory>): ArrayList<Directory> {
     val foundFolders = ArrayList<Directory>()
     val pinnedFolders = config.pinnedFolders
@@ -1522,7 +1565,7 @@ fun Context.getCachedMedia(
             // creating a new thread intentionally, do not reuse the common background thread
             Thread {
                 media.filter { !getDoesFilePathExist(it.path, OTGPath) }.forEach {
-                    if (it.path.startsWith(recycleBinPath)) {
+                    if (TrashStore.isTrashedFile(applicationContext, it.path)) {
                         deleteDBPath(it.path)
                     } else {
                         mediaToDelete.add(it)
