@@ -251,7 +251,7 @@ class MediaFetcher(val context: Context) {
                 android.util.Log.w("MediaFetcher", "MediaStore devolveu cursor nulo")
                 // Converte para ArrayList: a funcao promete ArrayList<String> e o
                 // chamador usa add(0, ...) - aqui folders e LinkedHashSet.
-                return ArrayList(folders)
+                return ArrayList(folders.filterNot { TrashStore.isTrashFolderPath(it) })
             }
             folders.addAll(parseCursor(cursor))
 
@@ -286,7 +286,7 @@ class MediaFetcher(val context: Context) {
             distinctPaths.filter {
                 it.shouldFolderBeVisible(excludedPaths, includedPaths, shouldShowHidden, folderNoMediaStatuses) { path, hasNoMedia ->
                     folderNoMediaStatuses[path] = hasNoMedia
-                }
+                } && !TrashStore.isTrashFolderPath(it)
             }.toMutableList() as ArrayList<String>
         } catch (_: Exception) {
             ArrayList()

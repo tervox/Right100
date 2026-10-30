@@ -201,6 +201,17 @@ object TrashStore {
         val naPublica = path.contains("/$PUBLIC_DIR_NAME/")
         return path.startsWith("$novo/") || naPublica || path.startsWith("$antigo/")
     }
+
+    /**
+     * true para caminho que esta DENTRO de uma pasta de lixeira. A lixeira publica fica na raiz do
+     * armazenamento (/storage/emulated/0/.right100_trash), entao a descoberta de pastas a tratava
+     * como pasta comum de midia e ela aparecia na galeria junto com o "recycle_bin" - o usuario
+     * via duas lixeiras. Nada ali e midia do usuario: e o deposito da propria lixeira.
+     */
+    fun isTrashFolderPath(path: String): Boolean {
+        val p = path.replace('\\', '/')
+        return p.contains("/$PUBLIC_DIR_NAME") || p.contains("/.recycle_bin")
+    }
 }
 
 val Context.trashRootPath: String get() = TrashStore.root(this).absolutePath
@@ -1763,6 +1774,17 @@ fun Context.recoverOrphanTrashItems() {
         )
         val legado = File(TrashStore.legacyRoot(this), "storage")
         if (legado.isDirectory) alvos.add(legado to TrashStore.legacyRoot(this))
+
+        // .nomedia em cada raiz da lixeira: sem ele o MediaStore indexa a pasta e ela volta a
+        // aparecer em outras galerias do aparelho.
+        arrayListOf(TrashStore.root(this), TrashStore.publicRoot(this)).forEach { raiz ->
+            if (raiz.isDirectory) {
+                try {
+                    File(raiz, NOMEDIA).createNewFile()
+                } catch (_: Exception) {
+                }
+            }
+        }
 
         val novos = ArrayList<Medium>()
         alvos.forEach { (dir, base) ->
