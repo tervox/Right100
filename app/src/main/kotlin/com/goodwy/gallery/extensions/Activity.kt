@@ -928,18 +928,31 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
  */
 private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
     if (!source.exists()) return null
+    val t0 = android.os.SystemClock.elapsedRealtime()
     val rel = source.absolutePath.trimStart('/')
     val publicRoot = TrashStore.publicRoot(this)
+    val tamanhoMB = source.length() / 1024 / 1024
+    val t1 = android.os.SystemClock.elapsedRealtime()
     val candidates = arrayListOf(File(TrashStore.root(this), rel))
     if (!source.absolutePath.startsWith(publicRoot.absolutePath + "/")) candidates.add(File(publicRoot, rel))
 
     for (target in candidates) {
         try {
             target.parentFile?.mkdirs()
+            val tMkdir = android.os.SystemClock.elapsedRealtime()
             if (target.exists()) continue
             if (source.renameTo(target)) {
+                Right100Diag.add(
+                    "moveIntoTrash: raiz=" + (t1 - t0) + "ms mkdirs=" + (tMkdir - t1) +
+                        "ms rename=" + (android.os.SystemClock.elapsedRealtime() - tMkdir) +
+                        "ms tamanho=" + tamanhoMB + "MB"
+                )
                 try {
-                    File(publicRoot, ".nomedia").createNewFile()
+                    if (target.absolutePath.startsWith(publicRoot.absolutePath)) {
+                        File(publicRoot, ".nomedia").createNewFile()
+                    } else {
+                        File(TrashStore.root(this), ".nomedia").createNewFile()
+                    }
                 } catch (_: Exception) {
                 }
                 return target

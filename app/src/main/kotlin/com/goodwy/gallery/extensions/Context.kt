@@ -131,9 +131,16 @@ object TrashStore {
     fun publicRoot(context: Context): File =
         File(android.os.Environment.getExternalStorageDirectory(), ".right100_trash")
 
+    // getExternalFilesDir() consulta o servico de armazenamento a cada chamada e pode levar
+    // segundos com o disco ocupado (a varredura estava martelando o aparelho). O caminho nao
+    // muda durante a vida do processo.
+    @Volatile
+    private var cachedRoot: File? = null
+
     fun root(context: Context): File {
-        val base = context.getExternalFilesDir(null) ?: context.filesDir
-        return File(base, DIR_NAME)
+        cachedRoot?.let { return it }
+        val base = context.getExternalFilesDir(null) ?: return File(context.filesDir, DIR_NAME)
+        return File(base, DIR_NAME).also { cachedRoot = it }
     }
 
     fun resolveTrashedFile(context: Context, relativePath: String): File {
@@ -1547,7 +1554,9 @@ fun Context.getCachedMedia(
             }
         }
 
-        if (!shouldShowHidden) {
+        // A lixeira guarda os arquivos numa pasta oculta (.trash). Sem esta excecao, desligar
+        // "mostrar ocultas" fazia a lixeira inteira sumir da lista.
+        if (!shouldShowHidden && path != RECYCLE_BIN) {
             media = media.filter { !it.path.contains("/.") } as ArrayList<Medium>
         }
 
@@ -1576,8 +1585,16 @@ fun Context.getCachedMedia(
             val mediaToDelete = ArrayList<Medium>()
             // creating a new thread intentionally, do not reuse the common background thread
             Thread {
-                media.filter { !getDoesFilePathExist(it.path, OTGPath) }.forEach {
-                    if (TrashStore.isTrashedFile(applicationContext, it.path)) {
+                val appCtx = applicationContext
+                media.filter {
+                    // getDoesFilePathExist() da como inexistente qualquer caminho dentro de
+                    // Android/data - e a lixeira fica la, no mesmo volume da midia. Era esta
+                    // linha que apagava o registro logo apos excluir, fazendo a midia "sumir"
+                    // da lixeira. Para item da lixeira, a verdade e o proprio arquivo.
+                    val naLixeira = TrashStore.isTrashedFile(appCtx, it.path)
+                    !(if (naLixeira) File(it.path).exists() else getDoesFilePathExist(it.path, OTGPath))
+                }.forEach {
+                    if (TrashStore.isTrashedFile(appCtx, it.path)) {
                         deleteDBPath(it.path)
                     } else {
                         mediaToDelete.add(it)
@@ -1680,8 +1697,71 @@ fun Context.updateFavorite(path: String, isFavorite: Boolean) {
     }
 }
 
+/**
+ * Reintegra ao banco os arquivos que estao fisicamente na pasta da lixeira mas perderam a linha
+ * (acontecia em massa com os itens movidos para Android/data: getDoesFilePathExist() os dava
+ * como inexistentes e a varredura apagava o registro, fazendo a midia "sumir" da lixeira).
+ * Nada e apagado aqui - os arquivos so voltam a aparecer.
+ */
+fun Context.recoverOrphanTrashItems() {
+    try {
+        val conhecidos = HashSet<String>()
+        mediaDB.getDeletedMedia().forEach { conhecidos.add(it.path) }
+
+        val alvos = arrayListOf(
+            TrashStore.root(this) to TrashStore.root(this),
+            TrashStore.publicRoot(this) to TrashStore.publicRoot(this)
+        )
+        val legado = File(TrashStore.legacyRoot(this), "storage")
+        if (legado.isDirectory) alvos.add(legado to TrashStore.legacyRoot(this))
+
+        val novos = ArrayList<Medium>()
+        alvos.forEach { (dir, base) ->
+            if (!dir.isDirectory) return@forEach
+            dir.walkTopDown().forEach { file ->
+                if (!file.isFile || file.name == NOMEDIA) return@forEach
+                val rel = file.absolutePath.removePrefix(base.absolutePath).trimStart('/')
+                if (rel.isEmpty()) return@forEach
+                val chave = "$RECYCLE_BIN/$rel"
+                if (!conhecidos.add(chave)) return@forEach
+                val tipo = when {
+                    file.absolutePath.isVideoFast() -> TYPE_VIDEOS
+                    file.absolutePath.isGif() -> TYPE_GIFS
+                    file.absolutePath.isRawFast() -> TYPE_RAWS
+                    file.absolutePath.isSvg() -> TYPE_SVGS
+                    file.absolutePath.isPortrait() -> TYPE_PORTRAITS
+                    else -> TYPE_IMAGES
+                }
+                novos.add(
+                    Medium(
+                        id = null,
+                        name = file.name,
+                        path = chave,
+                        parentPath = RECYCLE_BIN,
+                        modified = file.lastModified(),
+                        taken = file.lastModified(),
+                        size = file.length(),
+                        type = tipo,
+                        videoDuration = 0,
+                        isFavorite = false,
+                        deletedTS = System.currentTimeMillis(),
+                        mediaStoreId = 0L
+                    )
+                )
+            }
+        }
+
+        if (novos.isNotEmpty()) {
+            mediaDB.insertAll(novos)
+            Right100Diag.add("lixeira: " + novos.size + " item(ns) recuperado(s) do disco")
+        }
+    } catch (ignored: Exception) {
+    }
+}
+
 // remove the "recycle_bin" from the file path prefix, replace it with real bin path /data/user...
 fun Context.getUpdatedDeletedMedia(): ArrayList<Medium> {
+    recoverOrphanTrashItems()
     val media = try {
         mediaDB.getDeletedMedia() as ArrayList<Medium>
     } catch (ignored: Exception) {
