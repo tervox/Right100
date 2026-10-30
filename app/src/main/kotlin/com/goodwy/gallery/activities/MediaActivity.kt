@@ -2028,6 +2028,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 return@deleteFiles
             }
 
+            // Segunda mensagem da exclusao DEFINITIVA: antes este caminho so falava em caso de
+            // erro ("Excluindo..." no inicio, e nada no fim). O caminho da lixeira ja confirma
+            // dentro de movePathsInRecycleBin, por isso alreadyMovedToBin fica de fora.
+            if (!alreadyMovedToBin) {
+                com.goodwy.gallery.extensions.Right100Toast.mostrar(
+                    this,
+                    if (filtered.size == 1) getString(R.string.acao_excluido)
+                    else getString(R.string.acao_excluidos, filtered.size)
+                )
+            }
+
             val filteredPaths = filtered.asSequence().map { it.path }.toHashSet()
 
             // Aqui a operação física já confirmou sucesso.

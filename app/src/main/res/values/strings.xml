@@ -359,10 +359,16 @@
     <string name="lixeira_modo_publica">Publica: rapida, mas aparece em gerenciador de arquivos</string>
     <string name="lixeira_modo_privada_curto">Privada</string>
     <string name="lixeira_modo_publica_curto">Publica</string>
-    <string name="lixeira_movido">Movido para a lixeira</string>
-    <string name="lixeira_movidos">%d itens movidos para a lixeira</string>
-    <string name="lixeira_movidos_parcial">%d movidos, %d falharam</string>
-    <string name="lixeira_restaurado">Restaurado</string>
-    <string name="lixeira_restaurados">%d itens restaurados</string>
-    <string name="lixeira_restaurados_parcial">%d restaurados, %d falharam</string>
+    <string name="lixeira_movido">Movido para a lixeira com sucesso</string>
+    <string name="lixeira_movidos">%d itens movidos para a lixeira com sucesso</string>
+    <string name="lixeira_movidos_parcial">%d movidos com sucesso, %d falharam</string>
+    <string name="lixeira_restaurado">Restaurado com sucesso</string>
+    <string name="lixeira_restaurados">%d itens restaurados com sucesso</string>
+    <string name="lixeira_restaurados_parcial">%d restaurados com sucesso, %d falharam</string>
+    <string name="acao_excluido">Excluído com sucesso</string>
+    <string name="acao_excluidos">%d itens excluídos com sucesso</string>
+    <string name="acao_restaurando">Restaurando...</string>
+    <string name="acao_restaurando_varios">Restaurando %d itens...</string>
+    <string name="acao_copiando">Copiando...</string>
+    <string name="acao_movendo">Movendo...</string>
 </resources>

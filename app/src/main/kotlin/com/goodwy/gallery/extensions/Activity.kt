@@ -806,6 +806,10 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
             if (sourceGranted) {
                 handleSAFDialogSdk30(destination) { destGranted ->
                     if (destGranted) {
+                      Right100Toast.mostrar(
+                          applicationContext,
+                          if (isCopyOperation) getString(R.string.acao_copiando) else getString(R.string.acao_movendo)
+                      )
                       safeRun("Copiar/Mover (commons)") {
                         copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden) { copiedTo ->
                             com.goodwy.gallery.App.logGesture("COPYDIAG copiar/mover venceu destino=$copiedTo")
@@ -1024,6 +1028,12 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
     ensureBackgroundThread {
         val newPaths = ArrayList<String>()
         var shownRestoringToPictures = false
+        // Primeira mensagem: a acao. A segunda (confirmacao) sai no fim desta funcao.
+        Right100Toast.mostrar(
+            this,
+            if (paths.size == 1) getString(R.string.acao_restaurando)
+            else getString(R.string.acao_restaurando_varios, paths.size)
+        )
         fun recordRestored(source: String, destination: String, lastModified: Long) {
             // A chave tem que ser RECYCLE_BIN + caminho ORIGINAL, igual a que foi gravada na
             // exclusao - agora que o arquivo pode estar em tres raizes diferentes.
@@ -1839,11 +1849,17 @@ fun Activity.newAppRecommendation() {
  */
 object Right100Toast {
     private var ultimo = 0L
+    private var ultimoTexto = ""
 
     fun mostrar(context: android.content.Context, texto: String) {
         val agora = android.os.SystemClock.elapsedRealtime()
-        if (agora - ultimo < 900) return
+        // Agrupa apenas REPETICOES DO MESMO texto: excluir 20 itens nao empilha 20 avisos.
+        // Textos diferentes sempre aparecem, porque a acao ("Movendo...") e a confirmacao
+        // ("Movido com sucesso") chegam com menos de 900 ms uma da outra - antes a segunda
+        // era engolida pelo limite de tempo e o usuario ficava sem saber se terminou.
+        if (texto == ultimoTexto && agora - ultimo < 900) return
         ultimo = agora
+        ultimoTexto = texto
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             android.widget.Toast.makeText(context, texto, android.widget.Toast.LENGTH_SHORT).show()
         }
