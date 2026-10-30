@@ -1703,7 +1703,14 @@ fun Context.updateFavorite(path: String, isFavorite: Boolean) {
  * como inexistentes e a varredura apagava o registro, fazendo a midia "sumir" da lixeira).
  * Nada e apagado aqui - os arquivos so voltam a aparecer.
  */
+private var lastTrashRecovery = 0L
+private const val TRASH_RECOVERY_INTERVAL_MS = 30_000L
+
 fun Context.recoverOrphanTrashItems() {
+    // Uma vez a cada 30 s basta: sem isso, cada abertura da lixeira varreria a pasta toda.
+    val agora = android.os.SystemClock.elapsedRealtime()
+    if (agora - lastTrashRecovery < TRASH_RECOVERY_INTERVAL_MS) return
+    lastTrashRecovery = agora
     try {
         val conhecidos = HashSet<String>()
         mediaDB.getDeletedMedia().forEach { conhecidos.add(it.path) }
@@ -1805,6 +1812,7 @@ fun Context.deleteDBPath(path: String) {
     RecentlyDeletedPaths.add(path)
     deleteMediumWithPath(
         path.replaceFirst(TrashStore.root(this).absolutePath, RECYCLE_BIN)
+            .replaceFirst(TrashStore.publicRoot(this).absolutePath, RECYCLE_BIN)
             .replaceFirst(TrashStore.legacyRoot(this).absolutePath, RECYCLE_BIN)
     )
 }
