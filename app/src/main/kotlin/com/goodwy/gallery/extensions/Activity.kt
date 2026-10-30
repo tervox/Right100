@@ -938,11 +938,14 @@ private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
     // aparelho: 9889 ms para um video de 297 MB, e 5818 ms antes disso). A pasta oculta na raiz
     // publica esta na MESMA montagem da midia, entao renameTo ali e O(1): nenhum byte do
     // arquivo e movido, seja ele 3 MB ou 3 GB.
-    val candidates = arrayListOf(File(publicRoot, rel), File(TrashStore.root(this), rel))
-
-    for (target in candidates) {
+    // UMA pasta so: o arquivo vai para a raiz da lixeira com o proprio nome. Antes o destino era
+    // publicRoot + caminho original inteiro, o que recriava storage/emulated/0/DCIM/... dentro da
+    // lixeira. O caminho de origem fica no indice, entao o restaurar continua indo para o lugar certo.
+    for (raiz in arrayListOf(publicRoot, TrashStore.root(this))) {
         try {
-            target.parentFile?.mkdirs()
+            raiz.mkdirs()
+            val nome = TrashStore.flatNameFor(this, raiz, source)
+            val target = File(raiz, nome)
             val tMkdir = android.os.SystemClock.elapsedRealtime()
             if (target.exists()) continue
             if (source.renameTo(target)) {
@@ -951,12 +954,9 @@ private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
                         "ms rename=" + (android.os.SystemClock.elapsedRealtime() - tMkdir) +
                         "ms tamanho=" + tamanhoMB + "MB"
                 )
+                TrashStore.rememberFlat(this, raiz, target.name, source.absolutePath)
                 try {
-                    if (target.absolutePath.startsWith(publicRoot.absolutePath)) {
-                        File(publicRoot, ".nomedia").createNewFile()
-                    } else {
-                        File(TrashStore.root(this), ".nomedia").createNewFile()
-                    }
+                    File(raiz, NOMEDIA).createNewFile()
                 } catch (_: Exception) {
                 }
                 return target
@@ -981,9 +981,10 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
             val relDest = destination.removePrefix(TrashStore.root(this).absolutePath)
                 .removePrefix(TrashStore.publicRoot(this).absolutePath)
                 .removePrefix(TrashStore.legacyRoot(this).absolutePath)
-            val relSource = source.removePrefix(TrashStore.root(this).absolutePath)
-                .removePrefix(TrashStore.publicRoot(this).absolutePath)
-                .removePrefix(TrashStore.legacyRoot(this).absolutePath)
+            val relSource = TrashStore.originalPathOfFlat(this, File(source))
+                ?: source.removePrefix(TrashStore.root(this).absolutePath)
+                    .removePrefix(TrashStore.publicRoot(this).absolutePath)
+                    .removePrefix(TrashStore.legacyRoot(this).absolutePath)
             mediaDB.updateDeleted(
                 relDest,
                 0,
@@ -998,16 +999,20 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
         }
 
         for (source in paths) {
-            var destination = source.removePrefix(TrashStore.root(this).absolutePath)
-            if (destination == source) {
-                destination = source.removePrefix(TrashStore.publicRoot(this).absolutePath)
-            }
-            if (destination == source) {
-                destination = source.removePrefix(TrashStore.legacyRoot(this).absolutePath)
-            }
-            if (destination == source) {
-                Right100Diag.add("restaurar: caminho fora das tres lixeiras, ignorado: " + source)
-                continue
+            // Item plano: o caminho fisico nao diz de onde veio, o indice diz.
+            val originalDoIndice = TrashStore.originalPathOfFlat(this, File(source))
+            var destination = originalDoIndice ?: source.removePrefix(TrashStore.root(this).absolutePath)
+            if (originalDoIndice == null) {
+                if (destination == source) {
+                    destination = source.removePrefix(TrashStore.publicRoot(this).absolutePath)
+                }
+                if (destination == source) {
+                    destination = source.removePrefix(TrashStore.legacyRoot(this).absolutePath)
+                }
+                if (destination == source) {
+                    Right100Diag.add("restaurar: caminho fora das tres lixeiras, ignorado: " + source)
+                    continue
+                }
             }
 
             val destinationParent = destination.getParentPath()
