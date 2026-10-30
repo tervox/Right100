@@ -1091,11 +1091,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun restoreAllFiles() {
         val paths = mMedia.filter { it is Medium }.map { (it as Medium).path } as ArrayList<String>
         showRestoreConfirmationDialog(paths.size) {
-            restoreRecycleBinPaths(paths) {
-                ensureBackgroundThread {
-                    directoryDB.deleteDirPath(RECYCLE_BIN)
+            restoreRecycleBinPaths(paths) { success ->
+                if (success) {
+                    ensureBackgroundThread {
+                        directoryDB.deleteDirPath(RECYCLE_BIN)
+                    }
+                    finish()
+                } else {
+                    refreshItems()
                 }
-                finish()
             }
         }
     }

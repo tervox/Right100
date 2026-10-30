@@ -824,6 +824,8 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
     }
 }
 
+private const val RECYCLE_BIN_COPY_BUFFER_SIZE = 1024 * 1024
+
 fun BaseSimpleActivity.tryDeleteFileDirItem(
     fileDirItem: FileDirItem, allowDeleteFolder: Boolean = false, deleteFromDatabase: Boolean,
     callback: ((wasSuccess: Boolean) -> Unit)? = null
@@ -858,7 +860,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                     out = getFileOutputStreamSync(destination, source.getMimeType())
 
                     var copiedSize = 0L
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    val buffer = ByteArray(RECYCLE_BIN_COPY_BUFFER_SIZE)
                     var bytes = inputStream!!.read(buffer)
                     while (bytes >= 0) {
                         out!!.write(buffer, 0, bytes)
@@ -907,14 +909,28 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
     }
 }
 
-fun BaseSimpleActivity.restoreRecycleBinPath(path: String, callback: () -> Unit) {
+fun BaseSimpleActivity.restoreRecycleBinPath(path: String, callback: (Boolean) -> Unit) {
     restoreRecycleBinPaths(arrayListOf(path), callback)
 }
 
-fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback: () -> Unit) {
+fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback: (Boolean) -> Unit) {
     ensureBackgroundThread {
         val newPaths = ArrayList<String>()
         var shownRestoringToPictures = false
+        fun recordRestored(source: String, destination: String, lastModified: Long) {
+            mediaDB.updateDeleted(
+                destination.removePrefix(recycleBinPath),
+                0,
+                "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}"
+            )
+            newPaths.add(destination)
+            MediaActivity.unmarkRecentlyRemoved(listOf(destination, source))
+            if (config.keepLastModified && lastModified != 0L) {
+                File(destination).setLastModified(lastModified)
+            }
+            Right100Diag.add("restaurar da lixeira: " + source + " -> " + destination)
+        }
+
         for (source in paths) {
             var destination = source.removePrefix(recycleBinPath)
 
@@ -947,15 +963,32 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                 // Lixo de antes da correcao: a origem nunca saiu do lugar. Se o conteudo e
                 // identico, so limpa a lixeira em vez de criar "nome(1)".
                 if (existingFile.isFile && trashedFile.isFile && filesIdentical(existingFile, trashedFile)) {
-                    trashedFile.delete()
-                    mediaDB.updateDeleted(destination.removePrefix(recycleBinPath), 0, "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}")
-                    com.goodwy.gallery.activities.MediaActivity.unmarkRecentlyRemoved(listOf(destination, source))
-                    Right100Diag.add("restaurar da lixeira: " + source + " era identico -> lixeira limpa, sem copia")
-                    newPaths.add(destination)
+                    if (trashedFile.delete()) {
+                        recordRestored(source, destination, lastModified)
+                        Right100Diag.add("restaurar da lixeira: " + source + " era identico -> lixeira limpa, sem copia")
+                    } else {
+                        showErrorToast(java.io.IOException("Nao foi possivel remover a copia da lixeira"))
+                    }
                     continue
                 }
                 val newFile = getAlternativeFile(existingFile)
                 destination = newFile.path
+            }
+
+            // Na maioria dos casos a lixeira e a pasta original ficam no mesmo volume.
+            // Renomear/mover evita copiar gigabytes de video byte a byte.
+            val trashedFile = File(source)
+            val restoredFile = File(destination)
+            if (
+                source.startsWith(recycleBinPath)
+                && trashedFile.exists()
+                && restoredFile.parentFile?.isDirectory == true
+                && trashedFile.renameTo(restoredFile)
+                && restoredFile.exists()
+                && !trashedFile.exists()
+            ) {
+                recordRestored(source, destination, lastModified)
+                continue
             }
 
             var inputStream: InputStream? = null
@@ -965,7 +998,7 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                 inputStream = getFileInputStreamSync(source)
 
                 var copiedSize = 0L
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                val buffer = ByteArray(RECYCLE_BIN_COPY_BUFFER_SIZE)
                 var bytes = inputStream!!.read(buffer)
                 while (bytes >= 0) {
                     out!!.write(buffer, 0, bytes)
@@ -976,7 +1009,6 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                 out?.flush()
 
                 if (File(source).length() == copiedSize) {
-                    mediaDB.updateDeleted(destination.removePrefix(recycleBinPath), 0, "$RECYCLE_BIN${source.removePrefix(recycleBinPath)}")
                     // tira a copia da lixeira depois de restaurar (antes ficava la para sempre)
                     // So apaga a copia da lixeira com o DESTINO confirmado (existe e tem o mesmo
                     // tamanho). Antes conferia apenas o tamanho do arquivo na lixeira: se a copia
@@ -984,23 +1016,19 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
                     val trashFile = File(source)
                     val destFile = File(destination)
                     val destOk = if (trashFile.isDirectory) destFile.isDirectory else destFile.isFile && destFile.length() == trashFile.length()
-                    if (trashFile.absolutePath.startsWith(recycleBinPath) && destFile.exists() && destOk) {
-                        if (trashFile.isDirectory) trashFile.deleteRecursively() else trashFile.delete()
+                    if (destFile.exists() && destOk) {
+                        recordRestored(source, destination, lastModified)
+                        if (trashFile.absolutePath.startsWith(recycleBinPath)) {
+                            if (trashFile.isDirectory) trashFile.deleteRecursively() else trashFile.delete()
+                        }
                     } else {
                         android.util.Log.d("Right100", "restaurar: copia da lixeira preservada (destino nao confirmado): " + destination)
+                        showErrorToast(java.io.IOException("Nao foi possivel confirmar o arquivo restaurado"))
+                        continue
                     }
-                }
-                newPaths.add(destination)
-                Right100Diag.add("restaurar da lixeira: " + source + " -> " + destination)
-                // O arquivo voltou ao lugar dele por acao do usuario, nao foi o MediaStore
-                // reintroduzindo lixo. Tira da lista de removidos senao o filtro esconde
-                // ele por ate 3 minutos.
-                com.goodwy.gallery.activities.MediaActivity.unmarkRecentlyRemoved(
-                    listOf(destination, source)
-                )
-
-                if (config.keepLastModified && lastModified != 0L) {
-                    File(destination).setLastModified(lastModified)
+                } else {
+                    showErrorToast(java.io.IOException("A copia do arquivo ficou incompleta"))
+                    continue
                 }
             } catch (e: Exception) {
                 showErrorToast(e)
@@ -1010,22 +1038,13 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
             }
         }
 
-        // So atualiza as telas depois que o sistema indexou os arquivos restaurados (antes atualizava
-        // na hora e a pasta de origem nao mostrava a midia). Com limite de 6 s para nunca travar.
-        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
-        val refreshUi = {
-            if (finished.compareAndSet(false, true)) {
-                Right100Diag.add("restaurar da lixeira: atualizando telas (" + newPaths.size + " arquivos)")
-                runOnUiThread { callback() }
-            }
-        }
-        if (newPaths.isEmpty()) {
-            refreshUi()
-        } else {
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ refreshUi() }, 6000L)
+        // A tela não precisa esperar o MediaStore indexar os arquivos; a pasta será
+        // atualizada pelo scan/cache ao voltar. Dispare o scan sem bloquear o retorno.
+        val allRestored = newPaths.size == paths.size
+        runOnUiThread { callback(allRestored) }
+        if (newPaths.isNotEmpty()) {
             rescanPaths(newPaths) {
                 fixDateTaken(newPaths, false)
-                refreshUi()
             }
         }
     }
@@ -1836,27 +1855,56 @@ private fun android.app.Activity.runDiagProbe(text: String) {
  * 2) se falhar (SD/SAF): copia, confere o tamanho e apaga o original CONFERINDO o retorno.
  * Devolve false se a origem nao saiu -> o app mostra erro em vez de fingir sucesso.
  */
-private fun moveIntoRecycleBin(source: java.io.File, target: java.io.File): Boolean {
-    return try {
-        target.parentFile?.mkdirs()
-        if (target.exists()) target.deleteRecursively()
+private val recycleBinMoveLock = Any()
 
-        if (source.renameTo(target)) return true
+private fun moveIntoRecycleBin(source: java.io.File, target: java.io.File): Boolean =
+    synchronized(recycleBinMoveLock) {
+        try {
+            // Toques repetidos podem chegar depois que a primeira chamada moveu a origem.
+            // Não apague uma entrada existente da lixeira antes de confirmar a origem.
+            if (!source.exists()) return@synchronized false
+            target.parentFile?.mkdirs()
+            if (target.exists()) return@synchronized false
 
-        if (!source.copyRecursively(target, true)) return false
+            if (source.renameTo(target)) return@synchronized true
 
-        if (source.isFile && target.length() != source.length()) {
-            target.deleteRecursively()
-            return false
+            val copied = if (source.isFile) {
+                if (!target.createNewFile()) return@synchronized false
+                try {
+                    source.inputStream().use { input ->
+                        java.io.FileOutputStream(target).use { output ->
+                            input.copyTo(output, RECYCLE_BIN_COPY_BUFFER_SIZE)
+                        }
+                    }
+                    target.isFile && target.length() == source.length()
+                } catch (e: Exception) {
+                    target.delete()
+                    throw e
+                }
+            } else if (source.isDirectory) {
+                try {
+                    source.copyRecursively(target, overwrite = false) && target.isDirectory
+                } catch (e: Exception) {
+                    target.deleteRecursively()
+                    throw e
+                }
+            } else {
+                false
+            }
+
+            if (!copied) {
+                target.deleteRecursively()
+                return@synchronized false
+            }
+
+            val removed = if (source.isDirectory) source.deleteRecursively() else source.delete()
+            if (!removed) {
+                target.deleteRecursively()
+                false
+            } else {
+                true
+            }
+        } catch (_: Exception) {
+            false
         }
-
-        val removed = if (source.isDirectory) source.deleteRecursively() else source.delete()
-        if (!removed) {
-            target.deleteRecursively()
-            return false
-        }
-        true
-    } catch (e: Exception) {
-        false
     }
-}

@@ -77,6 +77,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     private var mSlideshowInterval = SLIDESHOW_DEFAULT_INTERVAL
     private var mSlideshowMoveBackwards = false
     private var mRandomTransformerAppliedForGesture = false
+    private var mDeleteInProgress = false
 
     private val binding by viewBinding(ActivityMediumBinding::inflate)
 
@@ -459,6 +460,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun askConfirmDelete() {
+        if (mDeleteInProgress) return
         val medium = getCurrentMedium() ?: return
         val fileDirItem = medium.toFileDirItem()
         val isInRecycleBin = medium.getIsInRecycleBin()
@@ -487,14 +489,21 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private fun deleteCurrentFile(skipRecycleBin: Boolean) {
-        (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
+        if (mDeleteInProgress) return
         val medium = getCurrentMedium() ?: return
+        mDeleteInProgress = true
+        binding.bottomActions.bottomDelete.isEnabled = false
+        binding.mediumViewerToolbar.menu.findItem(R.id.menu_delete)?.isEnabled = false
+        (getCurrentFragment() as? VideoFragment)?.releasePlayerForFileOp()
         val path = medium.path
         val fileDirItem = medium.toFileDirItem()
 
         if (config.useRecycleBin && !skipRecycleBin && !medium.getIsInRecycleBin()) {
             movePathsInRecycleBin(arrayListOf(path)) { success ->
                 runOnUiThread {
+                    mDeleteInProgress = false
+                    binding.bottomActions.bottomDelete.isEnabled = true
+                    binding.mediumViewerToolbar.menu.findItem(R.id.menu_delete)?.isEnabled = true
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     if (success) {
                         try {
@@ -509,7 +518,14 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             }
         } else {
             tryDeleteFileDirItem(fileDirItem, false, true) { success ->
-                runOnUiThread { if (success) onCurrentFileRemoved() }
+                runOnUiThread {
+                    mDeleteInProgress = false
+                    binding.bottomActions.bottomDelete.isEnabled = true
+                    binding.mediumViewerToolbar.menu.findItem(R.id.menu_delete)?.isEnabled = true
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (success) onCurrentFileRemoved()
+                    else toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                }
             }
         }
     }
@@ -609,11 +625,11 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
     private fun restoreCurrentFile() {
         val path = getCurrentPath()
-        restoreRecycleBinPath(path) {
+        restoreRecycleBinPath(path) { success ->
             // O callback pode voltar fora da UI thread; mexer no ViewPager la derruba a tela.
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                onCurrentFileRemoved()
+                if (success) onCurrentFileRemoved()
             }
         }
     }

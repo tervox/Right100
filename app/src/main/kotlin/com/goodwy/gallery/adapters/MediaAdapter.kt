@@ -464,7 +464,7 @@ class MediaAdapter(
     }
 
     private fun doRestoreFiles(paths: ArrayList<String>) {
-        activity.restoreRecycleBinPaths(paths) {
+        activity.restoreRecycleBinPaths(paths) { _ ->
             listener?.refreshItems()
             finishActMode()
         }
