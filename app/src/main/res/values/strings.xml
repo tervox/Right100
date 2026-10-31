@@ -407,4 +407,8 @@
         <item quantity="one">Excluindo %d item...</item>
         <item quantity="other">Excluindo %d itens...</item>
     </plurals>
+    <plurals name="acao_lixeira_esvaziada_qtd">
+        <item quantity="one">Lixeira esvaziada: %d item</item>
+        <item quantity="other">Lixeira esvaziada: %d itens</item>
+    </plurals>
 </resources>

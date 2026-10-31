@@ -1074,22 +1074,41 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun emptyRecycleBin() {
         showRecycleBinEmptyingDialog {
-            // Antes a tela continuava cheia ate emptyTheRecycleBin() apagar tudo do disco.
-            // Tira os itens da tela agora e deixa a limpeza em background.
+            val quantos = contarItensNaTela()
             limparLixeiraNaTelaAgora()
-            emptyTheRecycleBin {
-                finish()
-            }
+            // Aviso com a contagem na hora: antes saia um texto fixo ("lixeira esvaziada")
+            // sem numero, e so depois que o disco terminasse.
+            avisarLixeiraEsvaziada(quantos)
+            // Marca ANTES de fechar: a lista de pastas consome isso ao voltar e tira a lixeira
+            // da tela na hora, sem varredura e sem consultar o banco.
+            LixeiraEsvaziada.marcar()
+            // Sai da lixeira agora. Antes isso dependia do callback de emptyTheRecycleBin(), que
+            // nao era chamado quando a limpeza do disco lancava excecao - a tela ficava aberta.
+            finish()
+            emptyTheRecycleBin(null, false)
         }
     }
 
     private fun emptyAndDisableRecycleBin() {
         showRecycleBinEmptyingDialog {
+            val quantos = contarItensNaTela()
             limparLixeiraNaTelaAgora()
-            emptyAndDisableTheRecycleBin {
-                finish()
-            }
+            avisarLixeiraEsvaziada(quantos)
+            LixeiraEsvaziada.marcar()
+            finish()
+            emptyAndDisableTheRecycleBin { }
         }
+    }
+
+    private fun contarItensNaTela(): Int =
+        synchronized(mediaLock) { mMedia.count { it is Medium } }
+
+    private fun avisarLixeiraEsvaziada(quantos: Int) {
+        if (quantos <= 0) return
+        com.goodwy.gallery.extensions.Right100Toast.mostrar(
+            applicationContext,
+            resources.getQuantityString(R.plurals.acao_lixeira_esvaziada_qtd, quantos, quantos)
+        )
     }
 
     private fun limparLixeiraNaTelaAgora() {
@@ -1617,13 +1636,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 }
             }
 
-            if (mPath == RECYCLE_BIN) {
-                binding.mediaEmptyTextPlaceholder.setText(com.goodwy.commons.R.string.no_items_found)
-                binding.mediaEmptyTextPlaceholder.beVisible()
-                binding.mediaEmptyTextPlaceholder2.beGone()
-            } else {
-                finish()
-            }
+            // A lixeira era o unico caso que NAO fechava: ficava mostrando "nada encontrado"
+            // e so saia na mao. Agora fecha como qualquer pasta que ficou vazia.
+            finish()
 
             true
         } else {

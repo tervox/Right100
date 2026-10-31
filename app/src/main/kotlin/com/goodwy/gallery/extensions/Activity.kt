@@ -1222,8 +1222,11 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
     }
 }
 
-fun BaseSimpleActivity.emptyTheRecycleBin(callback: (() -> Unit)? = null) {
+fun BaseSimpleActivity.emptyTheRecycleBin(callback: (() -> Unit)? = null, avisarNaTela: Boolean = true) {
     ensureBackgroundThread {
+        val ctx = applicationContext
+        var quantos = 0
+        var falhou = false
         try {
             // Apaga item por item resolvendo o caminho real: a lixeira antiga ficava dentro
             // de filesDir, e apagar filesDir inteiro levaria o banco e as preferencias do app.
@@ -1247,12 +1250,27 @@ fun BaseSimpleActivity.emptyTheRecycleBin(callback: (() -> Unit)? = null) {
                 TrashStore.publicRoot(this).deleteRecursively()
             } catch (_: Exception) {
             }
+            quantos = trashed.size
             mediaDB.clearRecycleBin()
             directoryDB.deleteRecycleBin()
-            toast(com.goodwy.commons.R.string.recycle_bin_emptied)
-            callback?.invoke()
         } catch (e: Exception) {
-            toast(com.goodwy.commons.R.string.unknown_error_occurred)
+            falhou = true
+        } finally {
+            // Antes, uma excecao no meio pulava o callback: quem dependia dele (a tela da
+            // lixeira) nao recebia aviso nenhum e ficava aberta. Agora o aviso sai sempre.
+            runOnUiThread {
+                if (avisarNaTela) {
+                    if (falhou) {
+                        toast(com.goodwy.commons.R.string.unknown_error_occurred)
+                    } else {
+                        Right100Toast.mostrar(
+                            ctx,
+                            resources.getQuantityString(R.plurals.acao_lixeira_esvaziada_qtd, quantos, quantos)
+                        )
+                    }
+                }
+                callback?.invoke()
+            }
         }
     }
 }

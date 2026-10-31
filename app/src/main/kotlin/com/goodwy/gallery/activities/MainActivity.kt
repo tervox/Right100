@@ -536,6 +536,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
         }
 
+        // Esvaziou a lixeira dentro da pasta: a pasta sai da lista neste instante.
+        tirarLixeiraVaziaDaLista()
+
         if (!binding.mainMenu.isSearchOpen) {
             refreshMenuItems()
             tryLoadGallery()
@@ -2010,6 +2013,28 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         binding.directoriesEmptyPlaceholder2.underlineText()
         binding.directoriesFastscroller.beVisibleIf(binding.directoriesEmptyPlaceholder.isGone())
+    }
+
+    // Tira a pasta da lixeira da LISTA na hora em que ela e' esvaziada.
+    // Antes quem fazia isso era o laco de uma varredura completa (checkInvalidDirectories), e a
+    // varredura e' justamente pulada no retorno ("lista ja carregada") - a pasta vazia ficava na
+    // tela ate uma varredura acontecer. O aviso vem em memoria (LixeiraEsvaziada), entao a pasta
+    // some no mesmo quadro, sem varrer nada e sem consultar o banco.
+    private fun tirarLixeiraVaziaDaLista() {
+        if (!LixeiraEsvaziada.consumir()) return
+        val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
+        if (base.none { it.path == RECYCLE_BIN }) return
+
+        val nova = ArrayList(base.filterNot { it.path == RECYCLE_BIN })
+        mDirs.removeAll { it.path == RECYCLE_BIN }
+        com.goodwy.gallery.extensions.Right100Diag.add(
+            "principal: lixeira vazia saiu da lista de pastas (na hora)"
+        )
+        runOnUiThread {
+            if (isDestroyed || isFinishing) return@runOnUiThread
+            checkPlaceholderVisibility(nova)
+            setupAdapter(nova)
+        }
     }
 
     private fun setupAdapter(
