@@ -2111,11 +2111,18 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Marca os paths como "recentemente removidos" para impedir que uma varredura
         // do MediaStore anterior à atualização do sistema os reintroduza.
         markRecentlyRemoved(paths)
+        // "Sobrou midia?" era perguntado so no caminho da exclusao (deleteFilteredFiles).
+        // Mover a ultima midia para outra pasta nao passa por la: a grade ficava vazia e a
+        // pasta continuava aberta ate a varredura de 3 s (checkLastMediaChanged). Aqui e o
+        // funil por onde TODAS as remocoes passam - excluir, lixeira, mover, esvaziar.
+        var ficouSemMidia = false
         synchronized(mediaLock) {
             if (mMediaPath == mPath) {
+                val tinhaMidia = mMedia.any { it is Medium }
                 mMedia = ArrayList(mMedia.filter { item ->
                     !(item is Medium && pathSet.contains(item.path))
                 })
+                ficouSemMidia = tinhaMidia && mMedia.none { it is Medium }
             }
         }
         synchronized(mFolderMediaCache) {
@@ -2135,7 +2142,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Também limpa do snapshot em disco para não ressurgir ao reabrir o app
         applicationContext.saveMediaSnapshot(mPath, mMedia)
         // Atualizar UI imediatamente com DiffUtil (sem flicker)
-        runOnUiThread { getMediaAdapter()?.updateMedia(mMedia) }
+        runOnUiThread {
+            getMediaAdapter()?.updateMedia(mMedia)
+            if (ficouSemMidia && mMediaPath == mPath && !isFinishing && !isDestroyed) {
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "pasta " + mPath + ": ficou sem midia, fechando na hora"
+                )
+                // isDirEmpty() ja trata cada caso: pasta real fecha, lixeira/favoritos
+                // mostram o texto de vazio em vez de fechar a tela.
+                isDirEmpty()
+            }
+        }
         App.logGesture("removeMediaImmediately done mMediaSizeAfter=%d".format(mMedia.size))
         // markRecentlyRemoved() só protege por 30s. Sem isto, a linha antiga no Room
         // (mediaDB) nunca era apagada - getCachedMedia() (usado pelo caminho de
