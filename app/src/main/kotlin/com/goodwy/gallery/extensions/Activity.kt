@@ -1222,7 +1222,13 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
     }
 }
 
-fun BaseSimpleActivity.emptyTheRecycleBin(callback: (() -> Unit)? = null, avisarNaTela: Boolean = true) {
+fun BaseSimpleActivity.emptyTheRecycleBin(callback: (() -> Unit)? = null) =
+    emptyTheRecycleBinInterno(callback, true)
+
+fun BaseSimpleActivity.emptyTheRecycleBinSemAviso(callback: (() -> Unit)? = null) =
+    emptyTheRecycleBinInterno(callback, false)
+
+private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?, avisarNaTela: Boolean) {
     ensureBackgroundThread {
         val ctx = applicationContext
         var quantos = 0

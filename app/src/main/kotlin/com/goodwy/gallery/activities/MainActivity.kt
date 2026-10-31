@@ -2021,7 +2021,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // tela ate uma varredura acontecer. O aviso vem em memoria (LixeiraEsvaziada), entao a pasta
     // some no mesmo quadro, sem varrer nada e sem consultar o banco.
     private fun tirarLixeiraVaziaDaLista() {
-        if (!LixeiraEsvaziada.consumir()) return
+        if (!com.goodwy.gallery.helpers.LixeiraEsvaziada.consumir()) return
         val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
         if (base.none { it.path == RECYCLE_BIN }) return
 

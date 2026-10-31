@@ -1081,11 +1081,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             avisarLixeiraEsvaziada(quantos)
             // Marca ANTES de fechar: a lista de pastas consome isso ao voltar e tira a lixeira
             // da tela na hora, sem varredura e sem consultar o banco.
-            LixeiraEsvaziada.marcar()
+            com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
             // Sai da lixeira agora. Antes isso dependia do callback de emptyTheRecycleBin(), que
             // nao era chamado quando a limpeza do disco lancava excecao - a tela ficava aberta.
             finish()
-            emptyTheRecycleBin(null, false)
+            emptyTheRecycleBinSemAviso()
         }
     }
 
@@ -1094,7 +1094,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             val quantos = contarItensNaTela()
             limparLixeiraNaTelaAgora()
             avisarLixeiraEsvaziada(quantos)
-            LixeiraEsvaziada.marcar()
+            com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
             finish()
             emptyAndDisableTheRecycleBin { }
         }
