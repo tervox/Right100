@@ -132,8 +132,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (!mIsPlaying) return@Runnable
         mView.parent.requestDisallowInterceptTouchEvent(true)
         mIsLongPressActive = true
-        (activity as? com.goodwy.gallery.activities.ViewPagerActivity)
-            ?.viewPager?.logGesture("viddiag 2x ON")
+        com.goodwy.gallery.extensions.Right100Diag.add("viddiag 2x ON")
         mOriginalPlaybackSpeed = mExoPlayer?.playbackParameters?.speed ?: mConfig.playbackSpeed
         mView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         updatePlaybackSpeed(TOUCH_HOLD_SPEED_MULTIPLIER)
@@ -697,8 +696,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (activity == null || !isAdded) return
         if (mIsPlaying) {
             mUsuarioPausou = true
-            (activity as? com.goodwy.gallery.activities.ViewPagerActivity)
-                ?.viewPager?.logGesture("viddiag pausa pedida pelo usuario")
+            com.goodwy.gallery.extensions.Right100Diag.add("viddiag pausa pedida pelo usuario")
             pauseVideo()
         } else {
             mUsuarioPausou = false
@@ -945,8 +943,7 @@ fun releasePlayerForFileOp() = cleanup()
     private fun encerrarAceleracao() {
         if (!mIsLongPressActive) return
         mIsLongPressActive = false
-        (activity as? com.goodwy.gallery.activities.ViewPagerActivity)
-            ?.viewPager?.logGesture("viddiag 2x OFF")
+        com.goodwy.gallery.extensions.Right100Diag.add("viddiag 2x OFF")
         updatePlaybackSpeed(mOriginalPlaybackSpeed)
         if (::mPlaybackSpeedPill.isInitialized) mPlaybackSpeedPill.fadeOut()
     }
