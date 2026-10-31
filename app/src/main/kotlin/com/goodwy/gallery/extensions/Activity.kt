@@ -626,7 +626,14 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
     fileDirItems: ArrayList<FileDirItem>, destination: String, isCopyOperation: Boolean,
     decisions: HashMap<String, Int>, callback: (destinationPath: String) -> Unit
 ) {
-    android.widget.Toast.makeText(this, if (isCopyOperation) "Copiando..." else "Movendo...", android.widget.Toast.LENGTH_SHORT).show()
+    // Aqui era texto fixo ("Copiando..."): o numero de itens nunca aparecia.
+    Right100Toast.mostrar(
+        this,
+        resources.getQuantityString(
+            if (isCopyOperation) R.plurals.acao_copiando_qtd else R.plurals.acao_movendo_qtd,
+            fileDirItems.size, fileDirItems.size
+        )
+    )
     ensureBackgroundThread {
         val touched = ArrayList<String>()
         val failures = ArrayList<String>()
@@ -753,7 +760,13 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                 if (skippedCount > 0) notes.add("$skippedCount ignorados")
                 val extra = if (notes.isEmpty()) "" else " (" + notes.joinToString(", ") + ")"
                 when {
-                    okCount > 0 -> toast("$verb com sucesso$extra")
+                    okCount > 0 -> Right100Toast.mostrar(
+                        this,
+                        resources.getQuantityString(
+                            if (isCopyOperation) R.plurals.acao_copiado_qtd else R.plurals.acao_movido_qtd,
+                            okCount, okCount
+                        ) + extra
+                    )
                     skippedCount > 0 -> toast("Nada a fazer: " + notes.joinToString(", "))
                     else -> Unit
                 }
@@ -816,7 +829,13 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
                             // Sem isto a operacao terminava em silencio e o usuario ficava
                             // sem confirmacao de que deu certo.
                             runOnUiThread {
-                                toast(if (isCopyOperation) "Copiado com sucesso" else "Movido com sucesso")
+                                Right100Toast.mostrar(
+                                    this,
+                                    resources.getQuantityString(
+                                        if (isCopyOperation) R.plurals.acao_copiado_qtd else R.plurals.acao_movido_qtd,
+                                        fileDirItems.size, fileDirItems.size
+                                    )
+                                )
                             }
                             callback(copiedTo)
                         }
@@ -921,11 +940,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
         val totalMovidos = paths.size
         val falhas = pathsCnt
         if (falhas == 0) {
-            val texto = if (totalMovidos == 1) {
-                getString(R.string.lixeira_movido)
-            } else {
-                getString(R.string.lixeira_movidos, totalMovidos)
-            }
+            val texto = resources.getQuantityString(R.plurals.acao_lixeira_qtd, totalMovidos, totalMovidos)
             Right100Toast.mostrar(this, texto)
         } else if (totalMovidos - falhas > 0) {
             Right100Toast.mostrar(this, getString(R.string.lixeira_movidos_parcial, totalMovidos - falhas, falhas))
@@ -1190,8 +1205,7 @@ fun BaseSimpleActivity.restoreRecycleBinPaths(paths: ArrayList<String>, callback
         val falhasRestauro = paths.size - restaurados
         if (restaurados > 0) {
             val texto = if (falhasRestauro == 0) {
-                if (restaurados == 1) getString(R.string.lixeira_restaurado)
-                else getString(R.string.lixeira_restaurados, restaurados)
+                resources.getQuantityString(R.plurals.acao_restaurado_qtd, restaurados, restaurados)
             } else {
                 getString(R.string.lixeira_restaurados_parcial, restaurados, falhasRestauro)
             }

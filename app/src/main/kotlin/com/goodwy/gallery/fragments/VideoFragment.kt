@@ -107,7 +107,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private val mMainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var mTimerRunnable: Runnable? = null  // referencia para poder cancelar o loop
     private var mPendingInstantTap: Runnable? = null
-    private val mPendingPlayRunnable = Runnable { if (mIsFragmentVisible && !mIsPlaying && isAdded) playVideo() }
+    private val mPendingPlayRunnable = Runnable {
+        if (mIsFragmentVisible && !mIsPlaying && isAdded && !mUsuarioPausou) playVideo()
+    }
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
 
@@ -118,12 +120,20 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mStoredRememberLastVideoPosition = false
     private var mOriginalPlaybackSpeed = 1f
     private var mIsLongPressActive = false
+    // Verdadeiro quando a pausa foi pedida pelo usuario (botao ou duplo toque).
+    // Sem isso, dialogo/menu fechando com autoplay ligado chamava playVideo() e o
+    // video voltava a tocar sozinho por cima da pausa.
+    private var mUsuarioPausou = false
     private var mHasAudio = true
     private var mBecameVisibleAt = 0L
 
     private val mTouchHoldRunnable = Runnable {
+        // Pausado nao acelera: era daqui que vinha a sensacao de "ativou sozinho".
+        if (!mIsPlaying) return@Runnable
         mView.parent.requestDisallowInterceptTouchEvent(true)
         mIsLongPressActive = true
+        (activity as? com.goodwy.gallery.activities.ViewPagerActivity)
+            ?.viewPager?.logGesture("viddiag 2x ON")
         mOriginalPlaybackSpeed = mExoPlayer?.playbackParameters?.speed ?: mConfig.playbackSpeed
         mView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         updatePlaybackSpeed(TOUCH_HOLD_SPEED_MULTIPLIER)
@@ -219,8 +229,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mCurrTimeView = bottomVideoTimeHolder.videoCurrTime
             mBrightnessSideScroll = videoBrightnessController
             mVolumeSideScroll = videoVolumeController
-            mBrightnessSideScroll.onVerticalScroll = { mMainHandler.removeCallbacks(mTouchHoldRunnable) }
-            mVolumeSideScroll.onVerticalScroll = { mMainHandler.removeCallbacks(mTouchHoldRunnable) }
+            mBrightnessSideScroll.onVerticalScroll = { mMainHandler.removeCallbacks(mTouchHoldRunnable); encerrarAceleracao() }
+            mVolumeSideScroll.onVerticalScroll = { mMainHandler.removeCallbacks(mTouchHoldRunnable); encerrarAceleracao() }
             mTextureView = videoSurface
             mTextureView.surfaceTextureListener = this@VideoFragment
 
@@ -234,6 +244,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     val pending = Runnable {
                         mPendingInstantTap = null
                         if (!isAdded || !mIsFragmentVisible) return@Runnable
+                        // Toque em cima da barra de tempo/botoes nao esconde a interface:
+                        // era isto que fazia o botao de pause "sumir" logo depois de usado.
+                        if (::mTimeHolder.isInitialized && isTouchInside(mTimeHolder, x, y)) return@Runnable
                         if (!mConfig.allowInstantChange) {
                             toggleFullscreen()
                         } else {
@@ -246,7 +259,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                         }
                     }
                     mPendingInstantTap = pending
-                    mMainHandler.postDelayed(pending, ViewConfiguration.getDoubleTapTimeout().toLong() / 2L)
+                    // Era doubleTapTimeout / 2 (150 ms). Duplo toque humano leva 200-300 ms,
+                    // entao o primeiro toque executava a acao antes do segundo chegar e o
+                    // duplo toque fazia duas coisas. Com o tempo cheio do sistema, o segundo
+                    // toque cancela o pendente como deveria.
+                    mMainHandler.postDelayed(pending, ViewConfiguration.getDoubleTapTimeout().toLong())
                     return true
                 }
 
@@ -267,6 +284,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                     com.goodwy.gallery.App.logGesture("videoPreview gate (no gating - always calls handleEvent)")
                 }
                 handleEvent(event)
+                // O preview tambem precisa fechar o ciclo do long-press. Antes so o
+                // videoSurfaceFrame chamava handleTouchHoldEvent: toque iniciado na
+                // miniatura deixava o runnable de 500 ms vivo e o 2x disparava sozinho.
+                handleTouchHoldEvent(event)
                 updateVerticalGestureInterception(v, event)
                 false
             }
@@ -382,6 +403,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onPause() {
         super.onPause()
         storeStateVariables()
+        encerrarAceleracao()
         pauseVideo(updateActivityControls = false)
         if (mStoredRememberLastVideoPosition && mIsFragmentVisible && mWasVideoStarted) saveVideoProgress()
     }
@@ -402,7 +424,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mTimerRunnable = null
         }
         mIsFragmentVisible = menuVisible
-        if (mWasFragmentInit && menuVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer) playVideo()
+        if (mWasFragmentInit && menuVisible && mConfig.autoplayVideos && !mConfig.gestureVideoPlayer && !mUsuarioPausou) playVideo()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -673,7 +695,15 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     fun togglePlayPause() {
         if (activity == null || !isAdded) return
-        if (mIsPlaying) pauseVideo() else playVideo()
+        if (mIsPlaying) {
+            mUsuarioPausou = true
+            (activity as? com.goodwy.gallery.activities.ViewPagerActivity)
+                ?.viewPager?.logGesture("viddiag pausa pedida pelo usuario")
+            pauseVideo()
+        } else {
+            mUsuarioPausou = false
+            playVideo()
+        }
     }
 
     fun toggleMuteFromActivity() {
@@ -767,7 +797,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         // Consome tanto um toque que chegou antes do READY quanto o autoplay configurado,
         // mas nunca inicia um player que já ficou escondido por uma troca de página.
-        if (mIsFragmentVisible && (mPlayOnPrepared || mConfig.autoplayVideos) && !mIsPlaying) {
+        if (mIsFragmentVisible && (mPlayOnPrepared || mConfig.autoplayVideos) && !mIsPlaying && !mUsuarioPausou) {
             if (mPositionAtPause != 0L) {
                 mExoPlayer?.seekTo(mPositionAtPause)
                 mPositionAtPause = 0L
@@ -876,7 +906,7 @@ fun onBecameVisible() {
             initExoPlayer()
         }
         // Se o player já existe mas parou, retoma a reprodução se autoplay estiver ativo
-        if (mExoPlayer != null && !mIsPlaying && mConfig.autoplayVideos) {
+        if (mExoPlayer != null && !mIsPlaying && mConfig.autoplayVideos && !mUsuarioPausou) {
             mMainHandler.removeCallbacks(mPendingPlayRunnable)
             mMainHandler.postDelayed(mPendingPlayRunnable, 150L)
         }
@@ -890,6 +920,7 @@ fun onBecameHidden() {
     mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
     mMainHandler.removeCallbacks(mPendingPlayRunnable)
     mPendingInstantTap = null
+    encerrarAceleracao()
     pauseVideo(updateActivityControls = false)
 }
 
@@ -906,22 +937,42 @@ fun releasePlayerForFileOp() = cleanup()
         mTimerHandler.removeCallbacksAndMessages(null)
     }
 
+    /**
+     * Devolve a velocidade normal e esconde a pilula do 2x. Idempotente: pode ser chamada
+     * varias vezes sem efeito colateral. Centraliza o desligamento que antes existia so no
+     * ACTION_UP - e por isso ficava preso quando o UP nao chegava.
+     */
+    private fun encerrarAceleracao() {
+        if (!mIsLongPressActive) return
+        mIsLongPressActive = false
+        (activity as? com.goodwy.gallery.activities.ViewPagerActivity)
+            ?.viewPager?.logGesture("viddiag 2x OFF")
+        updatePlaybackSpeed(mOriginalPlaybackSpeed)
+        if (::mPlaybackSpeedPill.isInitialized) mPlaybackSpeedPill.fadeOut()
+    }
+
     protected fun handleTouchHoldEvent(event: MotionEvent) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 mInitialX = event.rawX; mInitialY = event.rawY
+                // Um 2x que sobrou do toque anterior nao pode continuar valendo.
+                encerrarAceleracao()
                 mMainHandler.removeCallbacks(mTouchHoldRunnable)
                 mMainHandler.postDelayed(mTouchHoldRunnable, TOUCH_HOLD_DURATION_MS.toLong())
             }
             MotionEvent.ACTION_MOVE -> {
                 val distX = abs(event.rawX - mInitialX); val distY = abs(event.rawY - mInitialY)
-                if (distX > mTouchSlop || distY > mTouchSlop) { mIsLongPressActive = false; mMainHandler.removeCallbacks(mTouchHoldRunnable) }
+                if (distX > mTouchSlop || distY > mTouchSlop) {
+                    // Antes isto so zerava a flag: mover o dedo com o 2x ligado deixava o
+                    // video travado em 2x ate trocar de midia, porque no ACTION_UP a
+                    // condicao ja era falsa e a velocidade nunca voltava.
+                    encerrarAceleracao()
+                    mMainHandler.removeCallbacks(mTouchHoldRunnable)
+                }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val wasLongPressActive = mIsLongPressActive
-                mIsLongPressActive = false
+                encerrarAceleracao()
                 mMainHandler.removeCallbacks(mTouchHoldRunnable)
-                if (wasLongPressActive) { updatePlaybackSpeed(mOriginalPlaybackSpeed); mPlaybackSpeedPill.fadeOut() }
             }
         }
     }

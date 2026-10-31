@@ -1074,6 +1074,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun emptyRecycleBin() {
         showRecycleBinEmptyingDialog {
+            // Antes a tela continuava cheia ate emptyTheRecycleBin() apagar tudo do disco.
+            // Tira os itens da tela agora e deixa a limpeza em background.
+            limparLixeiraNaTelaAgora()
             emptyTheRecycleBin {
                 finish()
             }
@@ -1082,10 +1085,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun emptyAndDisableRecycleBin() {
         showRecycleBinEmptyingDialog {
+            limparLixeiraNaTelaAgora()
             emptyAndDisableTheRecycleBin {
                 finish()
             }
         }
+    }
+
+    private fun limparLixeiraNaTelaAgora() {
+        val paths = synchronized(mediaLock) {
+            mMedia.filterIsInstance<Medium>().map { it.path }
+        }
+        if (paths.isEmpty()) return
+        com.goodwy.gallery.extensions.Right100Diag.add("lixeira: esvaziando, " + paths.size + " item(ns) fora da tela")
+        removeMediaImmediately(paths)
     }
 
     private fun restoreAllFiles() {
@@ -1592,7 +1605,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun isDirEmpty(): Boolean {
-        return if (mMedia.isEmpty() && config.filterMedia > 0) {
+        return if (mMedia.none { it is Medium } && config.filterMedia > 0) {
             if (mPath != FAVORITES && mPath != RECYCLE_BIN) {
                 deleteDirectoryIfEmpty()
                 deleteDBDirectory()
@@ -1977,12 +1990,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             && !skipRecycleBin
             && !filtered.first().path.startsWith(trashRootPath)
         ) {
-            val movingItems = resources.getQuantityString(
-                com.goodwy.commons.R.plurals.moving_items_into_bin,
-                filtered.size,
-                filtered.size
-            )
-            toast(movingItems)
+            toast(resources.getQuantityString(R.plurals.acao_para_lixeira_qtd, filtered.size, filtered.size))
 
             val caminhosOtimistas = filtered.map { it.path } as ArrayList<String>
             // SAI DA GRADE AGORA, e a copia para a lixeira segue em background. Num video
@@ -2007,12 +2015,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 }
             }
         } else {
-            val deletingItems = resources.getQuantityString(
-                com.goodwy.commons.R.plurals.deleting_items,
-                filtered.size,
-                filtered.size
-            )
-            toast(deletingItems)
+            toast(resources.getQuantityString(R.plurals.acao_excluindo_qtd, filtered.size, filtered.size))
             deleteFilteredFiles(filtered)
         }
     }
@@ -2034,8 +2037,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             if (!alreadyMovedToBin) {
                 com.goodwy.gallery.extensions.Right100Toast.mostrar(
                     this,
-                    if (filtered.size == 1) getString(R.string.acao_excluido)
-                    else getString(R.string.acao_excluidos, filtered.size)
+                    resources.getQuantityString(R.plurals.acao_excluido_qtd, filtered.size, filtered.size)
                 )
             }
 
@@ -2060,7 +2062,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // via removeMediaImmediately() -> updateMedia(). Não precisa atualizar
             // aqui de novo, senão o DiffUtil roda duas vezes.
 
-            if (mMedia.isEmpty()) {
+            // mMedia guarda tambem ThumbnailSection (cabecalhos de agrupamento). Com
+            // agrupamento ligado isEmpty() nunca era verdade e a tela ficava aberta numa
+            // pasta sem midia ate a varredura seguinte (3 s). Conta so Medium.
+            if (mMedia.none { it is Medium }) {
                 deleteDirectoryIfEmpty()
                 deleteDBDirectory()
                 finish()

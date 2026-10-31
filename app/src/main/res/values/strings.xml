@@ -371,4 +371,40 @@
     <string name="acao_restaurando_varios">Restaurando %d itens...</string>
     <string name="acao_copiando">Copiando...</string>
     <string name="acao_movendo">Movendo...</string>
+    <plurals name="acao_lixeira_qtd">
+        <item quantity="one">%d item movido para a lixeira com sucesso</item>
+        <item quantity="other">%d itens movidos para a lixeira com sucesso</item>
+    </plurals>
+    <plurals name="acao_restaurado_qtd">
+        <item quantity="one">%d item restaurado com sucesso</item>
+        <item quantity="other">%d itens restaurados com sucesso</item>
+    </plurals>
+    <plurals name="acao_excluido_qtd">
+        <item quantity="one">%d item excluído com sucesso</item>
+        <item quantity="other">%d itens excluídos com sucesso</item>
+    </plurals>
+    <plurals name="acao_copiado_qtd">
+        <item quantity="one">%d item copiado com sucesso</item>
+        <item quantity="other">%d itens copiados com sucesso</item>
+    </plurals>
+    <plurals name="acao_movido_qtd">
+        <item quantity="one">%d item movido com sucesso</item>
+        <item quantity="other">%d itens movidos com sucesso</item>
+    </plurals>
+    <plurals name="acao_copiando_qtd">
+        <item quantity="one">Copiando %d item...</item>
+        <item quantity="other">Copiando %d itens...</item>
+    </plurals>
+    <plurals name="acao_movendo_qtd">
+        <item quantity="one">Movendo %d item...</item>
+        <item quantity="other">Movendo %d itens...</item>
+    </plurals>
+    <plurals name="acao_para_lixeira_qtd">
+        <item quantity="one">Movendo %d item para a lixeira...</item>
+        <item quantity="other">Movendo %d itens para a lixeira...</item>
+    </plurals>
+    <plurals name="acao_excluindo_qtd">
+        <item quantity="one">Excluindo %d item...</item>
+        <item quantity="other">Excluindo %d itens...</item>
+    </plurals>
 </resources>
