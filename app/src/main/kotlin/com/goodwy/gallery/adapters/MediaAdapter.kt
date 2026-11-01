@@ -370,10 +370,8 @@ class MediaAdapter(
                             val medium = media[pos] as Medium
                             medium.path = newPath
                             medium.name = newPath.getFilenameFromPath()
-                            // Limpa caches de thumbnail pro Glide recarregar com o novo path
+                            // O path também compõe o stable ID; a Activity faz o rebind completo.
                             rotatedImagePaths.add(firstPath)
-                            notifyItemChanged(pos)
-                            // Atualiza também os caches estáticos da MediaActivity
                             updateMediaCachesAfterRename(firstPath, newPath, medium)
                         }
                         finishActMode()
@@ -392,8 +390,12 @@ class MediaAdapter(
         // Atualiza mMedia da MediaActivity via método público pra refletir o rename
         // sem precisar de um rescan completo do MediaStore.
         try {
-            val activity = activity as? MediaActivity ?: return
-            activity.updateMediaPathAfterRename(oldPath, newPath)
+            val mediaActivity = activity as? MediaActivity
+            if (mediaActivity != null) {
+                mediaActivity.updateMediaPathAfterRename(oldPath, newPath)
+            } else {
+                rebindAfterRename()
+            }
         } catch (_: Exception) {}
     }
 
@@ -876,12 +878,18 @@ class MediaAdapter(
     // Rename em massa troca path/name no MESMO objeto Medium que o DiffUtil compara,
     // entao updateMedia() conclui "nada mudou" e a celula fica com o nome antigo ate
     // ser recriada (sair e voltar na pasta). Este rebind forca o redesenho.
-    fun rebindAfterRename() {
-        // notifyItemRangeChanged quebrava aqui: cada Medium teve o path trocado NO LUGAR e
-        // este adapter usa setHasStableIds(true) com getItemId() = path.hashCode(). Com os
-        // ids alterados por baixo, o RecyclerView estourava "Inconsistency detected" e o app
-        // caia. notifyDataSetChanged reconstroi a grade sem comparar ids antigos.
+    fun rebindAfterRename(newMedia: ArrayList<ThumbnailItem>? = null) {
         try {
+            if (newMedia != null) {
+                media = newMedia.clone() as ArrayList<ThumbnailItem>
+                currentMediaHash = media.hashCode()
+            }
+            keyToPositionCache.clear()
+            media.forEachIndexed { index, item ->
+                if (item is Medium) {
+                    keyToPositionCache[item.path.hashCode()] = index
+                }
+            }
             notifyDataSetChanged()
         } catch (_: Exception) {
         }

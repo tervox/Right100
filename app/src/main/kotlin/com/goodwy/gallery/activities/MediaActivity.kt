@@ -426,6 +426,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             removeMediaImmediately(removedPaths)
         }
 
+        if (ViewPagerActivity.pendingRenamedPaths.isNotEmpty()) {
+            val renamedPaths = HashMap(ViewPagerActivity.pendingRenamedPaths)
+            ViewPagerActivity.pendingRenamedPaths.clear()
+            bulkRenameLocally(renamedPaths)
+        }
+
         if (!skipReload) {
             if (shouldSkipAuthentication()) {
                 tryLoadGallery()
@@ -905,7 +911,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         Thread({
             var mudou = 0
             videos.forEach { medium ->
-                val segundos = com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(medium.path)
+                val segundos = com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(
+                    applicationContext, medium.path, medium.mediaStoreId
+                )
                 if (segundos > 0) {
                     medium.videoDuration = segundos
                     mudou++
@@ -1625,6 +1633,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                                     }
                                 }
 
+                                if (duration <= 0 && persisted == null) {
+                                    duration = com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(
+                                        applicationContext, medium.path, medium.mediaStoreId
+                                    )
+                                }
+
                                 if (duration > 0) {
                                     Pair(medium, duration)
                                 } else {
@@ -1739,9 +1753,16 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
             novaLista.add(item)
         }
+
+        val sortPath = if (mShowAll) SHOW_ALL else mPath
+        val mediaFetcher = MediaFetcher(applicationContext)
+        val sortedMedia = ArrayList(novaLista.filterIsInstance<Medium>())
+        mediaFetcher.sortMedia(sortedMedia, config.getFolderSorting(sortPath))
+        val listaOrdenada = mediaFetcher.groupMedia(sortedMedia, sortPath)
+
         renamed.forEach { (velho, novo) -> registrarRename(velho, novo) }
         synchronized(mediaLock) {
-            mMedia = novaLista
+            mMedia = listaOrdenada
             mMediaPath = mPath
         }
         com.goodwy.gallery.extensions.Right100Diag.add(
@@ -1759,7 +1780,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             try {
                 // Sem updateMedia() aqui: ele roda DiffUtil comparando objetos que acabaram
                 // de ser alterados no lugar, e o diff sai inconsistente.
-                getMediaAdapter()?.rebindAfterRename()
+                getMediaAdapter()?.rebindAfterRename(listaOrdenada)
             } catch (_: Exception) {
             }
             binding.loadingIndicator.hide()
@@ -1768,10 +1789,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         ensureBackgroundThread {
             try {
                 synchronized(mFolderMediaCache) {
-                    mFolderMediaCache[mPath] = ArrayList(novaLista)
+                    mFolderMediaCache[mPath] = ArrayList(listaOrdenada)
                     mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
                 }
-                applicationContext.saveMediaSnapshot(mPath, novaLista)
+                applicationContext.saveMediaSnapshot(mPath, listaOrdenada)
                 mFolderMtime[mPath] = folderMtimeNow(mPath)
                 mFolderNewestFile[mPath] = newestFileInFolder(mPath)
             } catch (_: Exception) {
@@ -2468,17 +2489,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     fun updateMediaPathAfterRename(oldPath: String, newPath: String) {
-        synchronized(mediaLock) {
-            mMedia.filterIsInstance<Medium>()
-                .firstOrNull { it.path == oldPath }
-                ?.apply { path = newPath; name = newPath.getFilenameFromPath() }
-        }
-        synchronized(mFolderMediaCache) {
-            mFolderMediaCache[mPath]?.filterIsInstance<Medium>()
-                ?.firstOrNull { it.path == oldPath }
-                ?.apply { path = newPath; name = newPath.getFilenameFromPath() }
-        }
-        applicationContext.saveMediaSnapshot(mPath, mMedia)
+        bulkRenameLocally(hashMapOf(oldPath to newPath))
     }
 
     override fun refreshItems() {

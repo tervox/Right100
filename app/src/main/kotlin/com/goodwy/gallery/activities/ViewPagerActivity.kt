@@ -63,6 +63,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         // removeMediaImmediately() so the item disappears from the grid too,
         // without a full folder reload.
         val pendingRemovedPaths = ArrayList<String>()
+        val pendingRenamedPaths = LinkedHashMap<String, String>()
 
         private const val SAVED_PATH = "saved_path"
         private const val SAVED_POS = "saved_pos"
@@ -586,6 +587,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val medium = getCurrentMedium() ?: return
         val oldPath = medium.path
         RenameItemDialog(this, oldPath) { newPath ->
+            val origemOriginal = pendingRenamedPaths.entries
+                .firstOrNull { it.value == oldPath }?.key ?: oldPath
+            pendingRenamedPaths[origemOriginal] = newPath
             medium.path = newPath
             medium.name = newPath.getFilenameFromPath()
             // A lista do pager continuava com o caminho ANTIGO depois do rename. O item

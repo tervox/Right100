@@ -91,15 +91,13 @@ abstract class BaseViewerActivity : SimpleActivity() {
                 } else {
                     DISMISS_MIN_DISTANCE_DP * density
                 }
-                val maxDuration = if (mDismissAreaMode == DISMISS_AREA_STRIP) {
-                    MAX_CLOSE_DOWN_GESTURE_DURATION.toLong()
-                } else {
-                    MAX_CLOSE_DOWN_GESTURE_DURATION * 3L
-                }
+                // Na área livre, direção e distância bastam; não descarte arrasto lento.
+                // Nas faixas de brilho/volume, rapidez evita confundir ajuste com fechamento.
 
                 val verticalDominant = abs(diffY) > abs(diffX) * 1.2f
                 val farEnough = abs(diffY) > minDistance
-                val fastEnough = duration < maxDuration
+                val fastEnough = mDismissAreaMode != DISMISS_AREA_STRIP ||
+                    duration < MAX_CLOSE_DOWN_GESTURE_DURATION.toLong()
                 // Confere o zoom de novo na soltura: o usuario pode ter dado zoom no meio do gesto.
                 val stillZoomedOut = getDismissFragment()?.isZoomedOutForDismiss() == true
 
