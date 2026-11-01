@@ -872,6 +872,13 @@ class MediaAdapter(
         }
     }
 
+    // Rename em massa troca path/name no MESMO objeto Medium que o DiffUtil compara,
+    // entao updateMedia() conclui "nada mudou" e a celula fica com o nome antigo ate
+    // ser recriada (sair e voltar na pasta). Este rebind forca o redesenho.
+    fun rebindAfterRename() {
+        if (itemCount > 0) notifyItemRangeChanged(0, itemCount)
+    }
+
     private fun rebindVisibleItems() {
         if (itemCount > 0) {
             // Rebind de intervalo preserva a estrutura da lista e evita o custo de

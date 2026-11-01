@@ -1662,6 +1662,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         runOnUiThread {
             if (isDestroyed || isFinishing) return@runOnUiThread
             getMediaAdapter()?.updateMedia(novaLista)
+            getMediaAdapter()?.rebindAfterRename()
             binding.loadingIndicator.hide()
             binding.mediaRefreshLayout.isRefreshing = false
         }
@@ -2010,6 +2011,21 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var didInitialScrollToTop = false
 
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
+        // A lixeira enche em segundo plano. Entrar nela antes de a copia terminar gravava
+        // uma lista VAZIA no cache e no snapshot, e esse vazio ficava "fresco" por minutos.
+        // Resultado: ora aparecia cheia (cache expirado), ora vazia (cache fresco).
+        if (mPath == RECYCLE_BIN && isFromCache && lixeiraCacheIgnorado < 2) {
+            lixeiraCacheIgnorado++
+            synchronized(mFolderMediaCache) {
+                mFolderMediaCache.remove(RECYCLE_BIN)
+                mFolderMediaCacheUpdatedAt.remove(RECYCLE_BIN)
+            }
+            com.goodwy.gallery.extensions.Right100Diag.add("lixeira: veio do cache, varrendo de novo")
+            mIsGettingMedia = false
+            getMedia(forceRefresh = true)
+            return
+        }
+        if (mPath != RECYCLE_BIN) lixeiraCacheIgnorado = 0
         mIsGettingMedia = false
         checkLastMediaChanged()
         // Filtra itens recentemente removidos pelo usuário — impede que o MediaStore
@@ -2067,6 +2083,16 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // depois daqui; quando a varredura não trazia diferença (o caso comum agora),
             // ele nunca rodava e o vídeo ficava sem duração para sempre.
             fillMissingVideoDurations(filteredMedia)
+            // Lixeira ainda vazia agora: pode ser copia em andamento. Revarre em vez de
+            // deixar a tela vazia ate o usuario sair e voltar.
+            if (mPath == RECYCLE_BIN && filteredMedia.isEmpty() && lixeiraVaziaTentativas < 3) {
+                lixeiraVaziaTentativas++
+                binding.root.postDelayed({
+                    if (!isDestroyed && !isFinishing && mPath == RECYCLE_BIN) {
+                        getMedia(forceRefresh = true)
+                    }
+                }, 1200L)
+            }
             mMediaInvalidated = false
             mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
             runOnUiThread {
@@ -2083,12 +2109,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Registre também uma pasta vazia: sem isso, cada reentrada em uma pasta sem
         // mídias repetia toda a consulta ao banco e o scan completo.
         com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": lista final da varredura n=" + filteredMedia.size)
-        synchronized(mFolderMediaCache) {
-            mFolderMediaCache[mPath] = ArrayList(filteredMedia)
-            mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
-            mFolderMtime[mPath] = folderMtimeNow(mPath)
-        mFolderNewestFile[mPath] = newestFileInFolder(mPath)}
-        applicationContext.saveMediaSnapshot(mPath, filteredMedia)
+        // Lixeira vazia no instante da copia nao pode virar cache: isso congelava a tela
+        // vazia pelos minutos seguintes. Para a lixeira, lista vazia nunca e' guardada.
+        if (mPath != RECYCLE_BIN || filteredMedia.isNotEmpty()) {
+            synchronized(mFolderMediaCache) {
+                mFolderMediaCache[mPath] = ArrayList(filteredMedia)
+                mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
+                mFolderMtime[mPath] = folderMtimeNow(mPath)
+                mFolderNewestFile[mPath] = newestFileInFolder(mPath)
+            }
+            applicationContext.saveMediaSnapshot(mPath, filteredMedia)
+        }
 
         // Também preenche os itens que vieram do Room/cache, não apenas os que chegaram
         // pelo scan novo do MediaStore.
@@ -2632,3 +2663,6 @@ private var right100UltimoRescan: String = ""
 
 // Quantas vezes ja reabrimos a lixeira por ela estar vazia apenas no instante da copia.
 private var lixeiraVaziaTentativas: Int = 0
+
+// Quantas vezes a lixeira ja recusou uma lista vinda do cache.
+private var lixeiraCacheIgnorado: Int = 0

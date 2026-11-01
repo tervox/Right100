@@ -1451,6 +1451,20 @@ fun Context.getCachedDirectories(
             directories.removeAll { it.isRecycleBin() }
         }
 
+        // Contador da lixeira: a linha vive na tabela de pastas e so' era reescrita quando a
+        // lixeira era aberta - por isso o numero demorava, enquanto nas pastas normais era
+        // instantaneo. Um COUNT no banco custa nada e deixa o numero certo na hora.
+        try {
+            val lixeiraCnt = mediaDB.getDeletedMedia().size
+            directoryDB.updateDirectoryMediaCount(RECYCLE_BIN, lixeiraCnt)
+            for (i in directories.indices) {
+                if (directories[i].path == RECYCLE_BIN && directories[i].mediaCnt != lixeiraCnt) {
+                    directories[i] = directories[i].copy(mediaCnt = lixeiraCnt)
+                }
+            }
+        } catch (_: Exception) {
+        }
+
         val shouldShowHidden = config.shouldShowHidden || forceShowHidden
         val excludedPaths = if (config.temporarilyShowExcluded || forceShowExcluded) {
             HashSet()
@@ -2016,10 +2030,13 @@ fun Context.migrateTrashToPrivate() {
     }
 }
 
-fun Context.recoverOrphanTrashItems() {
+fun Context.recoverOrphanTrashItems(force: Boolean = false) {
     // Uma vez a cada 30 s basta: sem isso, cada abertura da lixeira varreria a pasta toda.
+    // Mas quando a lista vem VAZIA, a trava fazia a lixeira aparecer vazia mesmo com os
+    // arquivos ja copiados para o disco: o registro so voltava no proximo ciclo de 30 s.
+    // Nesse caso a varredura e' forcada.
     val agora = android.os.SystemClock.elapsedRealtime()
-    if (agora - lastTrashRecovery < TRASH_RECOVERY_INTERVAL_MS) return
+    if (!force && agora - lastTrashRecovery < TRASH_RECOVERY_INTERVAL_MS) return
     lastTrashRecovery = agora
     flattenTrashLayout()
     TrashStore.limparTemporarios(this)
@@ -2097,10 +2114,23 @@ fun Context.recoverOrphanTrashItems() {
 // remove the "recycle_bin" from the file path prefix, replace it with real bin path /data/user...
 fun Context.getUpdatedDeletedMedia(): ArrayList<Medium> {
     recoverOrphanTrashItems()
-    val media = try {
+    var media = try {
         mediaDB.getDeletedMedia() as ArrayList<Medium>
     } catch (ignored: Exception) {
         ArrayList()
+    }
+    // Vazio agora pode ser so' a copia que terminou e o registro que ainda nao voltou.
+    // Recupera do disco na hora e rele o banco, sem esperar os 30 s da trava.
+    if (media.isEmpty()) {
+        recoverOrphanTrashItems(force = true)
+        media = try {
+            mediaDB.getDeletedMedia() as ArrayList<Medium>
+        } catch (ignored: Exception) {
+            ArrayList()
+        }
+        if (media.isNotEmpty()) {
+            Right100Diag.add("lixeira: " + media.size + " item(ns) recuperado(s) sem esperar a trava de 30 s")
+        }
     }
 
     media.forEach {
