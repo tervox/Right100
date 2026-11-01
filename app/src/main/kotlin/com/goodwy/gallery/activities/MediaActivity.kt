@@ -1636,6 +1636,28 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     private fun isDirEmpty(): Boolean {
+        // mMedia vazio NÃO quer dizer pasta vazia. Depois de renomear em massa (ou de mover
+        // arquivos por fora do app, tipo Termux) o MediaStore leva alguns segundos para
+        // indexar o nome novo. A varredura feita nesse intervalo devolve zero itens e, sem
+        // esta checagem, a pasta fechava sozinha logo depois do rename.
+        if (mMedia.none { it is Medium } && config.filterMedia > 0 && mPath.startsWith("/")) {
+            val temMidiaNoDisco = try {
+                File(mPath).listFiles()?.any { it.isFile && !it.name.startsWith('.') } == true
+            } catch (_: Exception) {
+                false
+            }
+            if (temMidiaNoDisco) {
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "pasta " + mPath + ": lista vazia mas ha midia no disco, nao fechando"
+                )
+                binding.mediaGrid.postDelayed({
+                    if (!isDestroyed && !isFinishing && mPath == mMediaPath) {
+                        getMedia(forceRefresh = true)
+                    }
+                }, 1200L)
+                return false
+            }
+        }
         return if (mMedia.none { it is Medium } && config.filterMedia > 0) {
             if (mPath != FAVORITES && mPath != RECYCLE_BIN) {
                 deleteDirectoryIfEmpty()
@@ -1931,7 +1953,34 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         checkLastMediaChanged()
         // Filtra itens recentemente removidos pelo usuário — impede que o MediaStore
         // (que pode estar desatualizado) reintroduza arquivos já apagados/movidos.
-        val filteredMedia = filterRecentlyRemoved(media)
+        // Mover/renomear arquivos por fora do app (Termux, ADB, PC, outro gerenciador) nao
+        // avisa o MediaStore: a linha antiga fica no banco e a pasta continua mostrando
+        // miniatura de arquivo que ja nao existe. filterRecentlyRemoved so conhece o que foi
+        // removido PELO app. Aqui a lista e' conferida no disco antes de ir para a grade.
+        val filteredMedia = run {
+            val brutos = filterRecentlyRemoved(media)
+            val vivos = ArrayList<ThumbnailItem>(brutos.size)
+            val sumiram = ArrayList<String>()
+            brutos.forEach { item ->
+                if (item is Medium && item.deletedTS == 0L && !File(item.path).exists()) {
+                    sumiram.add(item.path)
+                } else {
+                    vivos.add(item)
+                }
+            }
+            if (sumiram.isNotEmpty()) {
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "pasta " + mPath + ": " + sumiram.size +
+                        " item(ns) do banco sem arquivo no disco, removidos da grade"
+                )
+                ensureBackgroundThread {
+                    sumiram.forEach { caminho ->
+                        try { mediaDB.deleteMediumPath(caminho) } catch (_: Exception) { }
+                    }
+                }
+            }
+            vivos
+        }
 
         // Se o conjunto de itens e' o mesmo que ja esta na tela, a varredura nao trouxe
         // nada novo. Reconstruir aqui e' o "carrega as thumbnails de novo": setupAdapter()
@@ -1950,6 +1999,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 "pasta " + mPath + ": varredura sem diferenca, grade preservada n=" +
                     filteredMedia.size
             )
+            // Duração de vídeo: este retorno antecipado era o motivo de uma pasta inteira
+            // ficar em 00:00. fillMissingVideoDurations() só era chamado no fim do método,
+            // depois daqui; quando a varredura não trazia diferença (o caso comum agora),
+            // ele nunca rodava e o vídeo ficava sem duração para sempre.
+            fillMissingVideoDurations(filteredMedia)
             mMediaInvalidated = false
             mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
             runOnUiThread {
