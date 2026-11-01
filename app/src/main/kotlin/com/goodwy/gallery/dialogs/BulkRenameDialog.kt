@@ -121,17 +121,8 @@ class BulkRenameDialog(
     private fun executeRename(skipConflicts: Boolean) {
         Thread {
             var renamed = 0
-            // Sem isso, o Android (MediaStore) continuava achando que os arquivos tinham o NOME
-            // ANTIGO — outras telas do próprio app, e outros apps, podiam mostrar miniatura
-            // quebrada ou nem achar mais o arquivo até uma nova varredura do sistema (que pode
-            // demorar ou nunca acontecer sozinha). renameTo() só mexe no arquivo, não avisa o
-            // MediaStore. rescanPathsAndUpdateLastModified (mesmo mecanismo usado no rename de
-            // um único item) resolve isso.
             val newPaths = ArrayList<String>()
             val lastModifiedMap = HashMap<String, Long>()
-            // old -> new de cada arquivo renomeado. O callback levava so a CONTAGEM, e quem
-            // chamava nao tinha como atualizar a lista local: so sobrava refreshItems(), que
-            // re-varria o MediaStore antes de ele indexar o nome novo.
             val renomeados = HashMap<String, String>()
             paths.forEachIndexed { index, path ->
                 val file = File(path)
@@ -150,14 +141,41 @@ class BulkRenameDialog(
             }
             val count = renamed
             activity.runOnUiThread {
+                // Callback PRIMEIRO: bulkRenameLocally atualiza a lista na tela antes que o
+                // MediaStore seja avisado. rescanPathsAndUpdateLastModified (usado antes) chamava
+                // rescanPaths() primeiro, o ContentObserver disparava getMedia(forceRefresh=true)
+                // concorrente com bulkRenameLocally, e a varredura voltava vazia (MediaStore ainda
+                // com o nome antigo): a pasta fechava sozinha ou o app estourava com
+                // "Inconsistency detected" do RecyclerView (ids estaveis com paths trocados).
+                activity.toast(activity.getString(R.string.bulk_rename_done, count))
+                callback(renomeados)
+
                 if (newPaths.isNotEmpty()) {
-                    activity.rescanPathsAndUpdateLastModified(newPaths, lastModifiedMap) {
-                        activity.toast(activity.getString(R.string.bulk_rename_done, count))
-                        callback(renomeados)
+                    // Scan silencioso em background: indexa no MediaStore sem disparar callback,
+                    // sem travar a UI, e sem acionar o observer enquanto o bulkRenameLocally
+                    // ainda atualiza caches. O observer vai disparar depois, quando a lista ja
+                    // esta correta e o renameGuardUntil ainda protege contra varredura vazia.
+                    com.goodwy.commons.helpers.ensureBackgroundThread {
+                        try {
+                            activity.fixDateTaken(newPaths, false)
+                            for (path in newPaths) {
+                                val lastModified = lastModifiedMap[path]
+                                if (activity.config.keepLastModified
+                                    && lastModified != null
+                                    && lastModified != 0L
+                                ) {
+                                    File(path).setLastModified(lastModified)
+                                    activity.updateLastModified(path, lastModified)
+                                }
+                            }
+                            android.media.MediaScannerConnection.scanFile(
+                                activity.applicationContext,
+                                newPaths.toTypedArray(),
+                                null
+                            ) { _, _ -> }
+                        } catch (_: Exception) {
+                        }
                     }
-                } else {
-                    activity.toast(activity.getString(R.string.bulk_rename_done, count))
-                    callback(renomeados)
                 }
             }
         }.start()
