@@ -468,7 +468,11 @@ class MediaFetcher(val context: Context) {
 
         val files = when (folder) {
             FAVORITES -> favoritePaths.filter { showHidden || !it.contains("/.") }.map { File(it) }.toMutableList() as ArrayList<File>
-            RECYCLE_BIN -> deletedMedia.map { File(it.path) }.toMutableList() as ArrayList<File>
+            // A LIXEIRA NAO DEPENDE DO BANCO.
+            // O log provou: a varredura entrega 4 itens e, um instante depois, o banco devolve 0 -
+            // as linhas estao sendo apagadas por outro caminho. Os arquivos continuam em .trash.
+            // Entao a verdade aqui e o disco; o banco so entra como atalho.
+            RECYCLE_BIN -> arquivosDaLixeira(deletedMedia)
             else -> File(folder).listFiles()?.toMutableList() ?: return media
         }
 
@@ -562,8 +566,29 @@ class MediaFetcher(val context: Context) {
             }
 
             if (isRecycleBin) {
-                deletedMedia.firstOrNull { it.path == path }?.apply {
-                    media.add(this)
+                val doBanco = deletedMedia.firstOrNull { it.path == path }
+                if (doBanco != null) {
+                    media.add(doBanco)
+                } else {
+                    // Arquivo que existe na lixeira mas cuja linha o banco perdeu: monta o item
+                    // na hora. Antes ele simplesmente nao era adicionado - a midia "sumia".
+                    val original = TrashStore.originalPathOfFlat(context, file) ?: file.absolutePath
+                    val tipo = when {
+                        isVideo -> TYPE_VIDEOS
+                        isGif -> TYPE_GIFS
+                        isRaw -> TYPE_RAWS
+                        isSvg -> TYPE_SVGS
+                        else -> TYPE_IMAGES
+                    }
+                    val tamanho = if (file.exists()) file.length() else 0L
+                    media.add(
+                        Medium(
+                            null, original.getFilenameFromPath(), file.absolutePath, RECYCLE_BIN,
+                            file.lastModified(), file.lastModified(), tamanho, tipo, 0, false,
+                            file.lastModified(), 0L
+                        )
+                    )
+                    Right100Diag.add("lixeira: item recuperado do disco " + original.getFilenameFromPath())
                 }
             } else {
                 var lastModified: Long
@@ -612,6 +637,30 @@ class MediaFetcher(val context: Context) {
         }
 
         return media
+    }
+
+    // Arquivos que existem DE FATO na lixeira, em qualquer raiz (privada, publica, antiga).
+    // O banco e atalho; o disco e a verdade.
+    private fun arquivosDaLixeira(doBanco: List<Medium>): ArrayList<File> {
+        val arquivos = ArrayList<File>()
+        val vistos = HashSet<String>()
+        doBanco.forEach { m ->
+            val f = File(m.path)
+            if (f.exists() && vistos.add(f.absolutePath)) arquivos.add(f)
+        }
+        TrashStore.rootsFor(context).forEach { raiz ->
+            try {
+                raiz.listFiles()?.forEach { f ->
+                    if (f.isFile && !f.name.startsWith('.') && !f.name.endsWith(".tmp") &&
+                        vistos.add(f.absolutePath)
+                    ) {
+                        arquivos.add(f)
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return arquivos
     }
 
     fun getAndroid11FolderMedia(
