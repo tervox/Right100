@@ -148,6 +148,18 @@ class MediaFetcher(val context: Context) {
         // Antes de entregar: se o MediaStore ainda devolve o nome antigo de um arquivo que
         // acabou de ser renomeado, entrega o nome novo. Este e o unico ponto por onde passam
         // a pasta aberta, a tela principal e as varreduras periodicas.
+        // Video sem trilha de audio chega do MediaStore com DURATION = 0 e as consultas de
+        // duracao descartam zero (so guardam > 0) - por isso ficava 00:00. Aqui o valor ja
+        // conhecido (banco ou leitura do proprio arquivo) volta para o item.
+        if (getVideoDurations) {
+            curMedia.forEach { m ->
+                if (m.isVideo() && m.videoDuration <= 0) {
+                    val d = cachedDurations[m.path] ?: 0
+                    if (d > 0) m.videoDuration = d
+                }
+            }
+        }
+
         RenomeadosRecentes.aplicar(curMedia)
         sortMedia(curMedia, context.config.getFolderSorting(curPath))
         return curMedia
@@ -606,7 +618,7 @@ class MediaFetcher(val context: Context) {
                 val videoDuration = if (getVideoDurations && isVideo) {
                     // Usa SOMENTE o cache do MediaStore/banco — nunca abre o arquivo com MediaMetadataRetriever
                     // getDuration() individual bloqueia o scan com dezenas de vídeos (cada um leva ~100ms)
-                    cachedDurations[path] ?: 0
+                    cachedDurations[path] ?: DuracaoVideos.para(path, 0)
                 } else 0
 
                 if (getProperDateTaken) {
@@ -812,7 +824,12 @@ class MediaFetcher(val context: Context) {
                     dateTaken = lastModified
                 }
 
-                val videoDuration = (cursor.getIntValue(MediaStore.MediaColumns.DURATION) / 1000.toDouble()).roundToInt()
+                var videoDuration = (cursor.getIntValue(MediaStore.MediaColumns.DURATION) / 1000.toDouble()).roundToInt()
+                if (videoDuration <= 0 && isVideo) {
+                    // MediaStore devolve 0 para mp4 sem trilha de audio e para arquivos que
+                    // acabaram de ser copiados. Usa a duracao lida do proprio arquivo.
+                    videoDuration = DuracaoVideos.para(path, 0)
+                }
                 val isFavorite = favoritePaths.contains(path)
                 val medium =
                     Medium(null, filename, path, path.getParentPath(), lastModified, dateTaken, size, type, videoDuration, isFavorite, 0L, mediaStoreId)

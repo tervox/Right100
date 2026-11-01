@@ -887,10 +887,51 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun getMediaAdapter() = binding.mediaGrid.adapter as? MediaAdapter
 
+    // Video que chega com duracao 0 (mp4 sem audio, arquivo recem-copiado) e lido do proprio
+    // arquivo aqui, em segundo plano, DEPOIS que a grade ja apareceu. Nada de travar a pasta:
+    // o scan continua usando apenas MediaStore e banco. O valor achado volta para a grade,
+    // para o cache e para o banco, entao a proxima abertura ja mostra certo.
+    private var duracaoEmAndamento = false
+
+    private fun preencherDuracoesFaltantes() {
+        if (duracaoEmAndamento) return
+        val videos = mMedia.filterIsInstance<Medium>()
+            .filter {
+                it.isVideo() && it.videoDuration <= 0 &&
+                    !com.goodwy.gallery.helpers.DuracaoVideos.jaTentou(it.path)
+            }
+        if (videos.isEmpty()) return
+        duracaoEmAndamento = true
+        Thread({
+            var mudou = 0
+            videos.forEach { medium ->
+                val segundos = com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(medium.path)
+                if (segundos > 0) {
+                    medium.videoDuration = segundos
+                    mudou++
+                    try {
+                        com.goodwy.gallery.databases.GalleryDatabase.getInstance(applicationContext)
+                            .MediumDao().updateVideoDuration(medium.path, segundos)
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+            val alterou = mudou > 0
+            runOnUiThread {
+                duracaoEmAndamento = false
+                if (alterou && !isFinishing && !isDestroyed) {
+                    (binding.mediaGrid.adapter as? MediaAdapter)?.notifyDataSetChanged()
+                }
+            }
+        }, "Right100-Duracao").apply { isDaemon = true }.start()
+    }
+
     private fun setupAdapter() {
         if (!mShowAll && isDirEmpty()) {
             return
         }
+
+        preencherDuracoesFaltantes()
 
         val currAdapter = binding.mediaGrid.adapter
         mGradeMontada = true
