@@ -641,6 +641,29 @@ class MediaFetcher(val context: Context) {
 
     // Arquivos que existem DE FATO na lixeira, em qualquer raiz (privada, publica, antiga).
     // O banco e atalho; o disco e a verdade.
+    // Diagnostico: mostra na tela o que existe de verdade na lixeira.
+    private fun diagnosticarLixeira(doBanco: List<Medium>, doDisco: List<File>) {
+        try {
+            val raizes = TrashStore.rootsFor(context)
+            Right100Diag.add(
+                "LIXEIRA-DIAG banco=" + doBanco.size + " disco=" + doDisco.size +
+                    " raizes=" + raizes.size
+            )
+            raizes.forEach { r ->
+                val n = try { r.listFiles()?.count { it.isFile } ?: -1 } catch (_: Exception) { -2 }
+                Right100Diag.add("LIXEIRA-DIAG raiz " + r.absolutePath + " existe=" + r.exists() +
+                    " arquivos=" + n + " legivel=" + r.canRead())
+            }
+            doBanco.take(5).forEach { m ->
+                Right100Diag.add("LIXEIRA-DIAG banco-path " + m.path + " existe=" + File(m.path).exists())
+            }
+            doDisco.take(5).forEach { f ->
+                Right100Diag.add("LIXEIRA-DIAG disco-file " + f.absolutePath)
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     private fun arquivosDaLixeira(doBanco: List<Medium>): ArrayList<File> {
         val arquivos = ArrayList<File>()
         val vistos = HashSet<String>()
@@ -660,6 +683,7 @@ class MediaFetcher(val context: Context) {
             } catch (_: Exception) {
             }
         }
+        diagnosticarLixeira(doBanco, arquivos)
         return arquivos
     }
 
