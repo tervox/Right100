@@ -155,19 +155,8 @@ class BulkRenameDialog(
                     // sem travar a UI, e sem acionar o observer enquanto o bulkRenameLocally
                     // ainda atualiza caches. O observer vai disparar depois, quando a lista ja
                     // esta correta e o renameGuardUntil ainda protege contra varredura vazia.
-                    com.goodwy.commons.helpers.ensureBackgroundThread {
+                    Thread {
                         try {
-                            activity.fixDateTaken(newPaths, false)
-                            for (path in newPaths) {
-                                val lastModified = lastModifiedMap[path]
-                                if (activity.config.keepLastModified
-                                    && lastModified != null
-                                    && lastModified != 0L
-                                ) {
-                                    File(path).setLastModified(lastModified)
-                                    activity.updateLastModified(path, lastModified)
-                                }
-                            }
                             android.media.MediaScannerConnection.scanFile(
                                 activity.applicationContext,
                                 newPaths.toTypedArray(),
@@ -175,7 +164,7 @@ class BulkRenameDialog(
                             ) { _, _ -> }
                         } catch (_: Exception) {
                         }
-                    }
+                    }.start()
                 }
             }
         }.start()
