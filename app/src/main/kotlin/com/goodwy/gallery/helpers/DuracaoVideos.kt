@@ -60,12 +60,88 @@ object DuracaoVideos {
                 }
             }
 
+            if (segundos <= 0) segundos = porAmostras(context, path)
+
             if (segundos > 0) {
                 synchronized(this) { cache[path] = segundos }
             }
             return segundos
         } finally {
             synchronized(this) { emAndamento.remove(path) }
+        }
+    }
+
+    // Ultimo recurso, e o unico que funciona nos MP4 que nao declaram duracao:
+    // fragmentados, ou com o campo de duracao zerado pelo aplicativo que baixou o arquivo.
+    // Esses tocam normalmente, mas todo leitor de metadados responde 0 - sao os que
+    // aparecem como 00:00, sem miniatura. Aqui percorremos as amostras reais da trilha
+    // de video ate a ultima e usamos o tempo dela.
+    private fun porAmostras(context: Context?, path: String): Int {
+        var extractor: MediaExtractor? = null
+        var descritor: android.content.res.AssetFileDescriptor? = null
+        try {
+            extractor = MediaExtractor()
+            val uri = if (path.startsWith("content://") || path.startsWith("file://")) {
+                Uri.parse(path)
+            } else {
+                null
+            }
+
+            if (uri != null) {
+                val resolver = context?.contentResolver ?: return 0
+                descritor = resolver.openAssetFileDescriptor(uri, "r") ?: return 0
+                extractor.setDataSource(
+                    descritor.fileDescriptor,
+                    descritor.startOffset,
+                    descritor.declaredLength
+                )
+            } else {
+                extractor.setDataSource(if (path.startsWith("file://")) {
+                    Uri.parse(path).path ?: path
+                } else {
+                    path
+                })
+            }
+
+            var trilha = -1
+            for (i in 0 until extractor.trackCount) {
+                val mime = try {
+                    extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)
+                } catch (_: Exception) {
+                    null
+                }
+                if (mime != null && mime.startsWith("video/")) {
+                    trilha = i
+                    break
+                }
+            }
+            if (trilha < 0 && extractor.trackCount > 0) trilha = 0
+            if (trilha < 0) return 0
+            extractor.selectTrack(trilha)
+
+            val buffer = java.nio.ByteBuffer.allocate(64 * 1024)
+            var ultimoUs = 0L
+            var amostrasLidas = 0
+            while (amostrasLidas < 500_000) {
+                val tempo = extractor.sampleTime
+                if (tempo < 0) break
+                if (tempo > ultimoUs) ultimoUs = tempo
+                if (extractor.readSampleData(buffer, 0) < 0) break
+                amostrasLidas++
+                if (!extractor.advance()) break
+            }
+
+            return if (ultimoUs > 0L) {
+                ((ultimoUs + 999_999L) / 1_000_000L)
+                    .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            } else {
+                0
+            }
+        } catch (_: Exception) {
+            return 0
+        } finally {
+            try { descritor?.close() } catch (_: Exception) {}
+            try { extractor?.release() } catch (_: Exception) {}
         }
     }
 
