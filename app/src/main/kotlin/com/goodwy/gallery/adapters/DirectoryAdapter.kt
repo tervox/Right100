@@ -921,7 +921,26 @@ class DirectoryAdapter(
     fun updateDirs(newDirs: ArrayList<Directory>) {
         // clone() copiava apenas a lista; os objetos Directory
         // continuavam compartilhados com a lista recebida.
-        val directories = ArrayList(newDirs.map { it.copy() })
+        // Pasta que nao existe mais no disco nao deve aparecer na lista. Quando as fotos sao
+        // movidas por fora do app (Termux, PC, outro gerenciador), a linha continua no banco e a
+        // pasta segue listada, com capa e contagem velhas. Favoritos e Lixeira sao virtuais.
+        val existentes = ArrayList<Directory>(newDirs.size)
+        for (d in newDirs) {
+            val existe = d.path == FAVORITES || d.path == RECYCLE_BIN || try {
+                File(d.path).exists()
+            } catch (_: Exception) {
+                true
+            }
+            if (existe) {
+                existentes.add(d)
+            }
+        }
+        if (existentes.size != newDirs.size) {
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "pastas: " + (newDirs.size - existentes.size) + " pasta(s) sem nada no disco, ocultadas da lista"
+            )
+        }
+        val directories = ArrayList(existentes.map { it.copy() })
         if (directories.hashCode() != currentDirectoriesHash) {
             val oldDirs = dirs
             currentDirectoriesHash = directories.hashCode()

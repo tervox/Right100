@@ -2031,6 +2031,34 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // pelo scan novo do MediaStore.
         fillMissingVideoDurations(filteredMedia)
 
+
+        // Arquivo criado ou movido por fora do app (Termux, PC, outro gerenciador) nao entra no
+        // MediaStore sozinho, e a lista da pasta vem do banco: ele ficaria invisivel. Aqui a pasta
+        // e' conferida no disco e, se houver arquivo que a lista nao tem, pede a indexacao e
+        // re-varre uma unica vez.
+        if (mPath.startsWith("/") && mPath != FAVORITES && mPath != RECYCLE_BIN) {
+            val naLista = filteredMedia.filterIsInstance<Medium>().map { it.path }.toHashSet()
+            val noDisco = try {
+                File(mPath).listFiles()?.filter { it.isFile && !it.name.startsWith('.') }?.map { it.absolutePath } ?: emptyList()
+            } catch (_: Exception) {
+                emptyList<String>()
+            }
+            val faltando = noDisco.filter { !naLista.contains(it) }
+            if (faltando.isNotEmpty() && right100UltimoRescan != mPath) {
+                right100UltimoRescan = mPath
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "pasta " + mPath + ": " + faltando.size + " arquivo(s) no disco fora do MediaStore, pedindo indexacao"
+                )
+                android.media.MediaScannerConnection.scanFile(applicationContext, faltando.toTypedArray(), null) { _, _ -> }
+                binding.root.postDelayed({
+                    if (!isDestroyed && !isFinishing) {
+                        getMedia(forceRefresh = true)
+                    }
+                }, 2500L)
+            } else if (faltando.isEmpty()) {
+                right100UltimoRescan = ""
+            }
+        }
         runOnUiThread {
             binding.loadingIndicator.hide()
             binding.mediaRefreshLayout.isRefreshing = false
@@ -2535,3 +2563,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 }
+
+// Ultima pasta em que ja pedimos indexacao de arquivo criado por fora do app.
+private var right100UltimoRescan: String = ""
