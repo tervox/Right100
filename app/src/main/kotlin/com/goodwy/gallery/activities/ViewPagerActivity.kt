@@ -588,6 +588,16 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         RenameItemDialog(this, oldPath) { newPath ->
             medium.path = newPath
             medium.name = newPath.getFilenameFromPath()
+            // A lista do pager continuava com o caminho ANTIGO depois do rename. O item
+            // passava a apontar para um arquivo inexistente e o gesto de puxar para baixo
+            // parava de responder - a tela nao sabia mais qual midia estava na frente.
+            mMediums.forEachIndexed { i, m ->
+                if (m.path == oldPath) {
+                    mMediums[i].path = newPath
+                    mMediums[i].name = newPath.getFilenameFromPath()
+                }
+            }
+            binding.viewPager.adapter?.notifyDataSetChanged()
             ensureBackgroundThread { updateDBMediaPath(oldPath, newPath) }
             updateTitle()
             runOnUiThread { toast(com.goodwy.commons.R.string.rename) }
