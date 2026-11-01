@@ -1936,11 +1936,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Se o conjunto de itens e' o mesmo que ja esta na tela, a varredura nao trouxe
         // nada novo. Reconstruir aqui e' o "carrega as thumbnails de novo": setupAdapter()
         // zera o RecyclerView e o Glide decodifica outra vez todas as capas ja prontas.
+        // ThumbnailItem e' uma classe VAZIA (open class ThumbnailItem): os itens reais
+        // dentro da lista sao Medium. Por isso o cast explicito antes de ler .path.
         val mesmaLista = synchronized(mediaLock) {
+            val antes = mMedia.filterIsInstance<Medium>().map { it.path }.toHashSet()
+            val agora = filteredMedia.filterIsInstance<Medium>().map { it.path }.toHashSet()
             mMediaPath == mPath &&
                 mMedia.size == filteredMedia.size &&
-                mMedia.map { it.fullPath }.toHashSet() ==
-                    filteredMedia.map { it.fullPath }.toHashSet()
+                antes == agora
         }
         if (mesmaLista) {
             com.goodwy.gallery.extensions.Right100Diag.add(
