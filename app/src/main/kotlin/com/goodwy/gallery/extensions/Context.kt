@@ -1804,8 +1804,13 @@ fun Context.getCachedMedia(
                     // Android/data - e a lixeira fica la, no mesmo volume da midia. Era esta
                     // linha que apagava o registro logo apos excluir, fazendo a midia "sumir"
                     // da lixeira. Para item da lixeira, a verdade e o proprio arquivo.
-                    val naLixeira = TrashStore.isTrashedFile(appCtx, it.path)
-                    !(if (naLixeira) File(it.path).exists() else getDoesFilePathExist(it.path, OTGPath))
+                    // A lixeira NAO entra nesta limpeza. Era aqui que as linhas eram
+                    // apagadas: bastava o caminho resolvido nao existir (arquivo movido
+                    // para o layout plano, outra raiz, ou resolucao que falhou) para o
+                    // registro ser removido do banco - a midia "sumia" da lixeira.
+                    // Na lixeira, quem decide o que sai e' o usuario: restaurar ou esvaziar.
+                    if (TrashStore.isTrashedFile(appCtx, it.path)) return@filter false
+                    !getDoesFilePathExist(it.path, OTGPath)
                 }.forEach {
                     if (TrashStore.isTrashedFile(appCtx, it.path)) {
                         // So apaga a linha da lixeira quando o arquivo nao existe em NENHUMA raiz.
@@ -1864,6 +1869,40 @@ fun Context.updateDBMediaPath(oldPath: String, newPath: String) {
     try {
         mediaDB.updateMedium(oldPath, newParentPath, newFilename, newPath)
         favoritesDB.updateFavorite(newFilename, newPath, newParentPath, oldPath)
+
+        // O updateMedium nao informa quantas linhas mudou. Quando ele nao pegava (pasta com
+        // o caminho antigo, midia fora do banco), a linha ficava apontando para um arquivo
+        // que nao existe mais: a grade mostrava o nome velho e a limpeza apagava o registro -
+        // a midia "sumia" da pasta. Aqui a linha nova e' gravada na hora, sem esperar scan.
+        val naPasta = try { mediaDB.getMediaFromPath(newParentPath) } catch (_: Exception) { ArrayList() }
+        if (naPasta.none { it.path == newPath } && File(newPath).exists()) {
+            val antigo = naPasta.firstOrNull { it.path == oldPath }
+            val tipo = antigo?.type ?: when {
+                newPath.isVideoFast() -> TYPE_VIDEOS
+                newPath.isGif() -> TYPE_GIFS
+                newPath.isRawFast() -> TYPE_RAWS
+                newPath.isSvg() -> TYPE_SVGS
+                else -> TYPE_IMAGES
+            }
+            val arquivo = File(newPath)
+            mediaDB.insert(
+                Medium(
+                    id = null,
+                    name = newFilename,
+                    path = newPath,
+                    parentPath = newParentPath,
+                    modified = arquivo.lastModified(),
+                    taken = antigo?.taken ?: arquivo.lastModified(),
+                    size = arquivo.length(),
+                    type = tipo,
+                    videoDuration = antigo?.videoDuration ?: 0,
+                    isFavorite = antigo?.isFavorite ?: false,
+                    deletedTS = 0L,
+                    mediaStoreId = antigo?.mediaStoreId ?: 0L
+                )
+            )
+            com.goodwy.gallery.extensions.Right100Diag.add("rename: linha gravada no banco " + newFilename)
+        }
     } catch (ignored: Exception) {
     }
 }
@@ -2135,11 +2174,19 @@ fun Context.getUpdatedDeletedMedia(): ArrayList<Medium> {
     }
 
     media.forEach {
-        // Procura no lugar novo e, se nao achar, na lixeira antiga: sem isso os itens
-        // excluidos antes desta correcao sumiriam da lixeira (e o getCachedMedia ainda os
-        // apagaria do banco, achando que o arquivo nao existe mais).
+        // Procura no lugar novo e, se nao achar, na lixeira antiga.
         val rel = it.path.removePrefix(RECYCLE_BIN).trimStart('/')
-        it.path = TrashStore.resolveTrashedFile(this, rel).toString()
+        val resolvido = TrashStore.resolveTrashedFile(this, rel)
+        // Se o caminho resolvido nao existe, procura o arquivo pelo NOME em cada raiz da
+        // lixeira antes de aceitar que ele sumiu. Gravar um caminho inexistente fazia o
+        // item ser descartado da grade e, pior, a limpeza apagar a linha do banco.
+        val porNome = if (resolvido.exists()) null else {
+            val nome = rel.substringAfterLast('/')
+            TrashStore.rootsFor(this).asSequence()
+                .map { File(it, nome) }
+                .firstOrNull { it.exists() }
+        }
+        it.path = (porNome ?: resolvido).toString()
     }
     return media
 }
