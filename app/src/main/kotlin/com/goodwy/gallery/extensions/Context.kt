@@ -1858,6 +1858,7 @@ fun Context.removeInvalidDBDirectories(dirs: ArrayList<Directory>? = null) {
 }
 
 fun Context.updateDBMediaPath(oldPath: String, newPath: String) {
+    com.goodwy.gallery.helpers.RenomeadosRecentes.registrar(oldPath, newPath)
     val newFilename = newPath.getFilenameFromPath()
     val newParentPath = newPath.getParentPath()
     try {

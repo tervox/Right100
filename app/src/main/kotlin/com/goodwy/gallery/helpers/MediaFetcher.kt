@@ -145,6 +145,10 @@ class MediaFetcher(val context: Context) {
             }
         }
 
+        // Antes de entregar: se o MediaStore ainda devolve o nome antigo de um arquivo que
+        // acabou de ser renomeado, entrega o nome novo. Este e o unico ponto por onde passam
+        // a pasta aberta, a tela principal e as varreduras periodicas.
+        RenomeadosRecentes.aplicar(curMedia)
         sortMedia(curMedia, context.config.getFolderSorting(curPath))
         return curMedia
     }
@@ -542,12 +546,19 @@ class MediaFetcher(val context: Context) {
                 size = newSize
             }
 
-            if ((checkProperFileSize || checkFileExistence) && size <= 0L) {
-                continue
-            }
+            // Na lixeira o arquivo NAO esta no caminho do registro: a copia fica na pasta
+            // oculta .trash, e getFolderSizes("recycle_bin") devolve um mapa vazio. Com essa
+            // checagem ligada, size ficava 0 e TODO item era descartado aqui - a lixeira
+            // aparecia vazia mesmo com os arquivos e as linhas no banco. Para a lixeira o
+            // tamanho vem do proprio registro.
+            if (!isRecycleBin) {
+                if ((checkProperFileSize || checkFileExistence) && size <= 0L) {
+                    continue
+                }
 
-            if (checkFileExistence && (!file.exists() || !file.isFile)) {
-                continue
+                if (checkFileExistence && (!file.exists() || !file.isFile)) {
+                    continue
+                }
             }
 
             if (isRecycleBin) {
