@@ -329,9 +329,21 @@ class MediaAdapter(
     private fun bulkRenameFiles() {
         val paths = getSelectedPaths()
         if (paths.isEmpty()) return
-        BulkRenameDialog(activity, paths) {
-            listener?.refreshItems()
-            finishActMode()
+        BulkRenameDialog(activity, paths) { renomeados ->
+            // Nada de refreshItems() aqui: ele re-varria a pasta pelo MediaStore no instante
+            // seguinte ao renameTo(), quando o indice ainda aponta para os nomes antigos. A
+            // varredura voltava vazia, a grade ficava sem itens e a pasta fechava (ou estourava).
+            // Os itens sao renomeados direto na lista que ja esta na tela.
+            val mediaActivity = activity as? MediaActivity
+            if (renomeados.isEmpty()) {
+                finishActMode()
+            } else if (mediaActivity != null) {
+                mediaActivity.bulkRenameLocally(renomeados)
+                finishActMode()
+            } else {
+                listener?.refreshItems()
+                finishActMode()
+            }
         }
     }
 

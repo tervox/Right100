@@ -17,7 +17,7 @@ import java.io.File
 class BulkRenameDialog(
     private val activity: BaseSimpleActivity,
     private val paths: List<String>,
-    private val callback: (renamedCount: Int) -> Unit
+    private val callback: (renamed: HashMap<String, String>) -> Unit
 ) {
     private val view: View = LayoutInflater.from(activity).inflate(R.layout.dialog_bulk_rename, null)
 
@@ -129,6 +129,10 @@ class BulkRenameDialog(
             // um único item) resolve isso.
             val newPaths = ArrayList<String>()
             val lastModifiedMap = HashMap<String, Long>()
+            // old -> new de cada arquivo renomeado. O callback levava so a CONTAGEM, e quem
+            // chamava nao tinha como atualizar a lista local: so sobrava refreshItems(), que
+            // re-varria o MediaStore antes de ele indexar o nome novo.
+            val renomeados = HashMap<String, String>()
             paths.forEachIndexed { index, path ->
                 val file = File(path)
                 val newName = buildNewName(index)
@@ -140,6 +144,7 @@ class BulkRenameDialog(
                         renamed++
                         newPaths.add(newFile.absolutePath)
                         lastModifiedMap[newFile.absolutePath] = lastModified
+                        renomeados[path] = newFile.absolutePath
                     }
                 } catch (_: Exception) {}
             }
@@ -148,11 +153,11 @@ class BulkRenameDialog(
                 if (newPaths.isNotEmpty()) {
                     activity.rescanPathsAndUpdateLastModified(newPaths, lastModifiedMap) {
                         activity.toast(activity.getString(R.string.bulk_rename_done, count))
-                        callback(count)
+                        callback(renomeados)
                     }
                 } else {
                     activity.toast(activity.getString(R.string.bulk_rename_done, count))
-                    callback(count)
+                    callback(renomeados)
                 }
             }
         }.start()

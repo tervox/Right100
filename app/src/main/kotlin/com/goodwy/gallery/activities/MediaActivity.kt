@@ -1635,6 +1635,50 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
+    // Rename em massa: troca os caminhos na lista que ja esta na tela, nos caches e no
+    // snapshot, sem varredura. Quem varre e' o MediaStore, e ele leva segundos para indexar
+    // o nome novo - varrer antes disso devolvia a pasta vazia.
+    fun bulkRenameLocally(renamed: HashMap<String, String>) {
+        if (renamed.isEmpty()) return
+        val listaAtual = synchronized(mediaLock) { ArrayList(mMedia) }
+        val novaLista = ArrayList<ThumbnailItem>(listaAtual.size)
+        listaAtual.forEach { item ->
+            if (item is Medium) {
+                val novo = renamed[item.path]
+                if (novo != null) {
+                    item.path = novo
+                    item.name = novo.getFilenameFromPath()
+                }
+            }
+            novaLista.add(item)
+        }
+        synchronized(mediaLock) {
+            mMedia = novaLista
+            mMediaPath = mPath
+        }
+        com.goodwy.gallery.extensions.Right100Diag.add(
+            "rename em massa: " + renamed.size + " item(ns) atualizados na tela sem revarredura"
+        )
+        runOnUiThread {
+            if (isDestroyed || isFinishing) return@runOnUiThread
+            getMediaAdapter()?.updateMedia(novaLista)
+            binding.loadingIndicator.hide()
+            binding.mediaRefreshLayout.isRefreshing = false
+        }
+        ensureBackgroundThread {
+            try {
+                synchronized(mFolderMediaCache) {
+                    mFolderMediaCache[mPath] = ArrayList(novaLista)
+                    mFolderMediaCacheUpdatedAt[mPath] = System.currentTimeMillis()
+                }
+                applicationContext.saveMediaSnapshot(mPath, novaLista)
+                mFolderMtime[mPath] = folderMtimeNow(mPath)
+                mFolderNewestFile[mPath] = newestFileInFolder(mPath)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     private fun isDirEmpty(): Boolean {
         // mMedia vazio NÃO quer dizer pasta vazia. Depois de renomear em massa (ou de mover
         // arquivos por fora do app, tipo Termux) o MediaStore leva alguns segundos para
@@ -1658,6 +1702,23 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 return false
             }
         }
+
+        // A lixeira enche em segundo plano: a copia para a .trash privada termina DEPOIS de o
+        // usuario ja ter voltado para a tela. Chamar finish() aqui fazia a lixeira fechar
+        // sozinha e "sumir e voltar". Antes de concluir que esta vazia, tenta de novo.
+        if (mPath == RECYCLE_BIN && lixeiraVaziaTentativas < 3) {
+            lixeiraVaziaTentativas++
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "lixeira: lista vazia, tentativa " + lixeiraVaziaTentativas + " de 3"
+            )
+            binding.root.postDelayed({
+                if (!isDestroyed && !isFinishing && mPath == RECYCLE_BIN) {
+                    getMedia(forceRefresh = true)
+                }
+            }, 1200L)
+            return false
+        }
+
         return if (mMedia.none { it is Medium } && config.filterMedia > 0) {
             if (mPath != FAVORITES && mPath != RECYCLE_BIN) {
                 deleteDirectoryIfEmpty()
@@ -1981,6 +2042,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
             vivos
         }
+
+        if (filteredMedia.isNotEmpty()) lixeiraVaziaTentativas = 0
 
         // Se o conjunto de itens e' o mesmo que ja esta na tela, a varredura nao trouxe
         // nada novo. Reconstruir aqui e' o "carrega as thumbnails de novo": setupAdapter()
@@ -2566,3 +2629,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
 // Ultima pasta em que ja pedimos indexacao de arquivo criado por fora do app.
 private var right100UltimoRescan: String = ""
+
+// Quantas vezes ja reabrimos a lixeira por ela estar vazia apenas no instante da copia.
+private var lixeiraVaziaTentativas: Int = 0
