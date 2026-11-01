@@ -1201,6 +1201,28 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mMediaInvalidated = true
         }
 
+        // A LIXEIRA NAO USA CACHE (nem memoria, nem snapshot, nem Room).
+        // RECYCLE_BIN e' uma pasta VIRTUAL: folderChangedOnDisk() nao consegue ver mudanca
+        // nela, entao qualquer lista guardada era considerada "fresca" para sempre. Entrar na
+        // lixeira reusava a lista antiga (ou vazia) e nunca revarria - a contagem ficava
+        // congelada e midia nova nao aparecia. O diagnostico provou que banco e disco estavam
+        // certos (banco=4 disco=4); o erro era esta camada. Aqui a lixeira vai sempre ao
+        // disco, que e' a fonte da verdade (MediaFetcher.arquivosDaLixeira).
+        if (mPath == RECYCLE_BIN) {
+            synchronized(mFolderMediaCache) {
+                mFolderMediaCache.remove(RECYCLE_BIN)
+                mFolderMediaCacheUpdatedAt.remove(RECYCLE_BIN)
+                mFolderMtime.remove(RECYCLE_BIN)
+                mFolderNewestFile.remove(RECYCLE_BIN)
+            }
+            mIsGettingMedia = false
+            mMediaInvalidated = false
+            com.goodwy.gallery.extensions.Right100Diag.add("lixeira: cache ignorado, varrendo o disco")
+            startAsyncTask()
+            mLoadedInitialPhotos = true
+            return
+        }
+
         val now = System.currentTimeMillis()
         // O teste de tempo saiu desta condicao: ele derrubava uma lista que estava na
         // memoria so porque o relogio andou. Agora vale enquanto o conteudo da pasta
@@ -1736,6 +1758,32 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // A lixeira enche em segundo plano: a copia para a .trash privada termina DEPOIS de o
         // usuario ja ter voltado para a tela. Chamar finish() aqui fazia a lixeira fechar
         // sozinha e "sumir e voltar". Antes de concluir que esta vazia, tenta de novo.
+        if (mPath == RECYCLE_BIN) {
+            // Antes, depois de 3 tentativas, o codigo seguia adiante e chamava finish(): a
+            // lixeira FECHAVA sozinha. Se ainda existir arquivo nas raizes da lixeira, ela
+            // nao pode fechar nem desistir - so revarre.
+            val temArquivoNaLixeira = try {
+                com.goodwy.gallery.helpers.TrashStore.rootsFor(applicationContext).any { raiz ->
+                    raiz.listFiles()?.any { it.isFile && !it.name.endsWith(".tmp") } == true
+                }
+            } catch (_: Exception) {
+                false
+            }
+            if (temArquivoNaLixeira) {
+                lixeiraVaziaTentativas++
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "lixeira: vazia na tela mas com arquivo no disco, revarrendo (" +
+                        lixeiraVaziaTentativas + ")"
+                )
+                binding.root.postDelayed({
+                    if (!isDestroyed && !isFinishing && mPath == RECYCLE_BIN) {
+                        getMedia(forceRefresh = true)
+                    }
+                }, 1200L)
+                return false
+            }
+        }
+
         if (mPath == RECYCLE_BIN && lixeiraVaziaTentativas < 3) {
             lixeiraVaziaTentativas++
             com.goodwy.gallery.extensions.Right100Diag.add(
@@ -2043,7 +2091,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // A lixeira enche em segundo plano. Entrar nela antes de a copia terminar gravava
         // uma lista VAZIA no cache e no snapshot, e esse vazio ficava "fresco" por minutos.
         // Resultado: ora aparecia cheia (cache expirado), ora vazia (cache fresco).
-        if (mPath == RECYCLE_BIN && isFromCache && lixeiraCacheIgnorado < 2) {
+        if (mPath == RECYCLE_BIN && isFromCache) {
             lixeiraCacheIgnorado++
             synchronized(mFolderMediaCache) {
                 mFolderMediaCache.remove(RECYCLE_BIN)
