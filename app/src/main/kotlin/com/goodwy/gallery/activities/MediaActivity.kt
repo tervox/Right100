@@ -1431,7 +1431,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         oldMedia
                             .asSequence()
                             .filterIsInstance<Medium>()
-                            .filter { it.path !in newPaths }
+                            // Na lixeira e durante um rename, o que "nao veio" na varredura
+                            // nao foi excluido: a lixeira simplesmente nao e' devolvida pelo
+                            // scan, e o rename ainda nao foi indexado. Apagar aqui esvaziava
+                            // a lixeira no banco - a segunda entrada em diante vinha vazia.
+                            .filter {
+                                it.path !in newPaths &&
+                                    mPath != RECYCLE_BIN &&
+                                    System.currentTimeMillis() > renameGuardUntil
+                            }
                             .forEach {
                                 if (mPath == FAVORITES && getDoesFilePathExist(it.path)) {
                                     favoritesDB.deleteFavoritePath(it.path)
@@ -1659,10 +1667,21 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         com.goodwy.gallery.extensions.Right100Diag.add(
             "rename em massa: " + renamed.size + " item(ns) atualizados na tela sem revarredura"
         )
+        // Durante alguns segundos o MediaStore continua devolvendo os nomes ANTIGOS. Se uma
+        // varredura rodar nesse intervalo, o filtro de fantasmas descarta esses itens, a
+        // lista chega vazia e a pasta fecha sozinha. Com esta janela, gotMedia ignora
+        // resultado vazio e a grade que esta na tela permanece.
+        renameGuardUntil = System.currentTimeMillis() + 30000L
+        mMediaInvalidated = false
+        mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
         runOnUiThread {
             if (isDestroyed || isFinishing) return@runOnUiThread
-            getMediaAdapter()?.updateMedia(novaLista)
-            getMediaAdapter()?.rebindAfterRename()
+            try {
+                // Sem updateMedia() aqui: ele roda DiffUtil comparando objetos que acabaram
+                // de ser alterados no lugar, e o diff sai inconsistente.
+                getMediaAdapter()?.rebindAfterRename()
+            } catch (_: Exception) {
+            }
             binding.loadingIndicator.hide()
             binding.mediaRefreshLayout.isRefreshing = false
         }
@@ -2050,16 +2069,30 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     "pasta " + mPath + ": " + sumiram.size +
                         " item(ns) do banco sem arquivo no disco, removidos da grade"
                 )
-                ensureBackgroundThread {
-                    sumiram.forEach { caminho ->
-                        try { mediaDB.deleteMediumPath(caminho) } catch (_: Exception) { }
-                    }
-                }
+                // NAO apaga a linha do banco aqui. O caminho pode estar diferente apenas
+                // porque o arquivo foi renomeado (pelo app ou por fora) e o MediaStore ainda
+                // nao indexou o nome novo: apagar a linha perdia o item de vez. A linha e
+                // corrigida pela proxima varredura do sistema; ate la, o item so fica oculto.
             }
             vivos
         }
 
         if (filteredMedia.isNotEmpty()) lixeiraVaziaTentativas = 0
+
+        // Depois de renomear (em massa ou um so), o MediaStore ainda devolve os nomes antigos
+        // por alguns segundos. A varredura chega vazia ou so com fantasmas, e trocar a lista
+        // por isso fazia a pasta parecer vazia - e fechar sozinha. Nessa janela, mantem.
+        if (filteredMedia.isEmpty() && renameGuardUntil > System.currentTimeMillis() &&
+            synchronized(mediaLock) { mMedia.any { it is Medium } }
+        ) {
+            com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": varredura vazia durante rename, lista mantida")
+            mMediaInvalidated = false
+            runOnUiThread {
+                binding.loadingIndicator.hide()
+                binding.mediaRefreshLayout.isRefreshing = false
+            }
+            return
+        }
 
         // Se o conjunto de itens e' o mesmo que ja esta na tela, a varredura nao trouxe
         // nada novo. Reconstruir aqui e' o "carrega as thumbnails de novo": setupAdapter()
@@ -2666,3 +2699,6 @@ private var lixeiraVaziaTentativas: Int = 0
 
 // Quantas vezes a lixeira ja recusou uma lista vinda do cache.
 private var lixeiraCacheIgnorado: Int = 0
+
+// Ate quando uma varredura vazia deve ser ignorada (rename aguardando indexacao).
+private var renameGuardUntil: Long = 0L

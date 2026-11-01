@@ -876,7 +876,14 @@ class MediaAdapter(
     // entao updateMedia() conclui "nada mudou" e a celula fica com o nome antigo ate
     // ser recriada (sair e voltar na pasta). Este rebind forca o redesenho.
     fun rebindAfterRename() {
-        if (itemCount > 0) notifyItemRangeChanged(0, itemCount)
+        // notifyItemRangeChanged quebrava aqui: cada Medium teve o path trocado NO LUGAR e
+        // este adapter usa setHasStableIds(true) com getItemId() = path.hashCode(). Com os
+        // ids alterados por baixo, o RecyclerView estourava "Inconsistency detected" e o app
+        // caia. notifyDataSetChanged reconstroi a grade sem comparar ids antigos.
+        try {
+            notifyDataSetChanged()
+        } catch (_: Exception) {
+        }
     }
 
     private fun rebindVisibleItems() {
