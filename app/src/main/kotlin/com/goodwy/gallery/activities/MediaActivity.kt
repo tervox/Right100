@@ -1939,8 +1939,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val mesmaLista = synchronized(mediaLock) {
             mMediaPath == mPath &&
                 mMedia.size == filteredMedia.size &&
-                mMedia.map { it.getKey() }.toHashSet() ==
-                    filteredMedia.map { it.getKey() }.toHashSet()
+                mMedia.map { it.fullPath }.toHashSet() ==
+                    filteredMedia.map { it.fullPath }.toHashSet()
         }
         if (mesmaLista) {
             com.goodwy.gallery.extensions.Right100Diag.add(
