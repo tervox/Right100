@@ -68,6 +68,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mAllowPickingMultiple = false
     private var mShowAll = false
     private var mLoadedInitialPhotos = false
+    // mMedia e' ESTATICO (companion object): sobrevive a fechar e abrir outra MediaActivity.
+    // Ja a grade (adapter) e' de CADA Activity. Sem esta flag, a tela nova achava que a lista
+    // era "a mesma de antes" e pulava setupAdapter() - a lista tinha 4 itens na memoria e a
+    // grade ficava vazia. So aparecia de novo depois de visitar outra pasta, porque ai mMedia
+    // mudava e o fluxo completo rodava.
+    @Volatile private var mGradeMontada = false
     private var mShowLoadingIndicator = true
     private var mWasFullscreenViewOpen = false
     private var mTabsHideListenerAdded = false
@@ -887,6 +893,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         val currAdapter = binding.mediaGrid.adapter
+        mGradeMontada = true
         if (currAdapter == null) {
             initZoomListener()
             setupGlideScrollPause()
@@ -1758,18 +1765,24 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // A lixeira enche em segundo plano: a copia para a .trash privada termina DEPOIS de o
         // usuario ja ter voltado para a tela. Chamar finish() aqui fazia a lixeira fechar
         // sozinha e "sumir e voltar". Antes de concluir que esta vazia, tenta de novo.
-        if (mPath == RECYCLE_BIN) {
+        if (mPath == RECYCLE_BIN && mMedia.none { it is Medium }) {
             // Antes, depois de 3 tentativas, o codigo seguia adiante e chamava finish(): a
-            // lixeira FECHAVA sozinha. Se ainda existir arquivo nas raizes da lixeira, ela
+            // lixeira FECHAVA sozinha. Se ainda existir midia nas raizes da lixeira, ela
             // nao pode fechar nem desistir - so revarre.
+            // Duas correcoes: (1) so roda quando a lista esta mesmo vazia - antes olhava o
+            // disco toda vez e revarria sem necessidade; (2) conta SO arquivo de midia.
+            // O diagnostico mostrou "arquivos=6" com "disco=4": os dois extras (nome com
+            // ponto no inicio ou .tmp) faziam esta checagem achar midia para sempre.
             val temArquivoNaLixeira = try {
                 com.goodwy.gallery.extensions.TrashStore.rootsFor(applicationContext).any { raiz ->
-                    raiz.listFiles()?.any { it.isFile && !it.name.endsWith(".tmp") } == true
+                    raiz.listFiles()?.any {
+                        it.isFile && !it.name.startsWith('.') && !it.name.endsWith(".tmp")
+                    } == true
                 }
             } catch (_: Exception) {
                 false
             }
-            if (temArquivoNaLixeira) {
+            if (temArquivoNaLixeira && lixeiraVaziaTentativas < 6) {
                 lixeiraVaziaTentativas++
                 com.goodwy.gallery.extensions.Right100Diag.add(
                     "lixeira: vazia na tela mas com arquivo no disco, revarrendo (" +
@@ -2177,7 +2190,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             val agora = filteredMedia.filterIsInstance<Medium>().map { it.path }.toHashSet()
             mMediaPath == mPath &&
                 mMedia.size == filteredMedia.size &&
-                antes == agora
+                antes == agora &&
+                // A comparacao acima olha o mMedia ESTATICO. Se esta Activity ainda nao
+                // montou a grade, lista igual nao serve para nada: e' preciso descer ate
+                // setupAdapter() para criar o adapter do RecyclerView.
+                mGradeMontada
         }
         if (mesmaLista) {
             com.goodwy.gallery.extensions.Right100Diag.add(
