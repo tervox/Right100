@@ -1159,6 +1159,15 @@ class MediaAdapter(
                                             null
                                         }
                                     }
+
+                                    // Todos os caminhos acima dependem de metadados que estes
+                                    // MP4 nao tem (loadThumbnail usa a duracao indexada,
+                                    // ThumbnailUtils usa MediaMetadataRetriever). Como o video
+                                    // toca, decodificar a primeira amostra funciona.
+                                    if (bmp == null) {
+                                        bmp = com.goodwy.gallery.helpers.QuadroDeVideo
+                                            .primeiroQuadro(medium.path)
+                                    }
                                 } catch (_: Exception) {
                                     // O callback de UI abaixo mostra o placeholder se falhar.
                                 }

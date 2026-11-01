@@ -601,7 +601,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                     mMediums[i].name = newPath.getFilenameFromPath()
                 }
             }
-            binding.viewPager.adapter?.notifyDataSetChanged()
+            val posAtual = binding.viewPager.currentItem
+            binding.viewPager.adapter = MyPagerAdapter(this@ViewPagerActivity, supportFragmentManager, mMediums)
+            binding.viewPager.post { binding.viewPager.setCurrentItem(posAtual, false) }
             ensureBackgroundThread { updateDBMediaPath(oldPath, newPath) }
             updateTitle()
             runOnUiThread { toast(com.goodwy.commons.R.string.rename) }
