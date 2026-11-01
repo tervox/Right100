@@ -19,23 +19,43 @@ object DuracaoVideos {
     @Synchronized
     fun jaTentou(path: String): Boolean = tentados.contains(path)
 
+    // Permite nova tentativa (usado quando o usuario troca de pasta ou reentra).
+    @Synchronized
+    fun esquecerTentativas() {
+        tentados.clear()
+    }
+
     fun duracaoReal(path: String): Int {
         synchronized(this) {
             cache[path]?.let { return it }
             if (!tentados.add(path)) return 0
         }
-        if (!File(path).exists()) return 0
+        val arquivo = File(path)
+        if (!arquivo.exists()) {
+            com.goodwy.gallery.extensions.Right100Diag.add("duracao: arquivo ausente " + arquivo.name)
+            return 0
+        }
         var retriever: MediaMetadataRetriever? = null
         return try {
             retriever = MediaMetadataRetriever()
             retriever.setDataSource(path)
-            val ms = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val texto = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            val ms = texto?.toLongOrNull() ?: 0L
             val segundos = (ms / 1000.0).roundToInt()
             if (segundos > 0) {
                 synchronized(this) { cache[path] = segundos }
             }
+            // Diagnostico: mostra exatamente o que o proprio arquivo informa. Se aqui vier
+            // ms=null ou ms=0, o problema NAO e o app - e o arquivo nao tem duracao no
+            // cabecalho e nenhum player consegue mostrar tempo.
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "duracao: " + arquivo.name + " ms=" + texto + " -> " + segundos + "s"
+            )
             segundos
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "duracao: erro " + arquivo.name + " " + e.javaClass.simpleName
+            )
             0
         } finally {
             try { retriever?.release() } catch (_: Exception) {}
