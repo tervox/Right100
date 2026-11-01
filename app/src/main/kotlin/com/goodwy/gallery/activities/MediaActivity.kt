@@ -1646,6 +1646,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     // Rename em massa: troca os caminhos na lista que ja esta na tela, nos caches e no
     // snapshot, sem varredura. Quem varre e' o MediaStore, e ele leva segundos para indexar
     // o nome novo - varrer antes disso devolvia a pasta vazia.
+    // Guarda old -> new de cada rename ate o MediaStore indexar o nome novo. Enquanto a
+    // varredura devolver o nome antigo, gotMedia() mostra o novo no lugar.
+    fun registrarRename(oldPath: String, newPath: String) {
+        if (oldPath.isNotEmpty() && newPath.isNotEmpty() && oldPath != newPath) {
+            renomeadosRecentes[oldPath] = newPath
+            renameGuardUntil = System.currentTimeMillis() + 30000L
+        }
+    }
+
     fun bulkRenameLocally(renamed: HashMap<String, String>) {
         if (renamed.isEmpty()) return
         val listaAtual = synchronized(mediaLock) { ArrayList(mMedia) }
@@ -1660,6 +1669,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
             novaLista.add(item)
         }
+        renamed.forEach { (velho, novo) -> registrarRename(velho, novo) }
         synchronized(mediaLock) {
             mMedia = novaLista
             mMediaPath = mPath
@@ -2059,10 +2069,25 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             val sumiram = ArrayList<String>()
             brutos.forEach { item ->
                 if (item is Medium && item.deletedTS == 0L && !File(item.path).exists()) {
-                    sumiram.add(item.path)
+                    // Pode nao ser arquivo apagado: pode ser um item que ACABOU de ser
+                    // renomeado e que o MediaStore ainda devolve com o nome antigo. Nesse
+                    // caso, mostra o nome novo em vez de descartar (era isso que fazia a
+                    // pasta voltar aos nomes velhos ou esvaziar depois do rename).
+                    val novo = renomeadosRecentes[item.path]
+                    if (novo != null && File(novo).exists()) {
+                        item.path = novo
+                        item.name = novo.getFilenameFromPath()
+                        vivos.add(item)
+                    } else {
+                        sumiram.add(item.path)
+                    }
                 } else {
                     vivos.add(item)
                 }
+            }
+            if (renomeadosRecentes.isNotEmpty()) {
+                val jaIndexados = vivos.filterIsInstance<Medium>().map { it.path }.toHashSet()
+                renomeadosRecentes.values.removeAll(jaIndexados)
             }
             if (sumiram.isNotEmpty()) {
                 com.goodwy.gallery.extensions.Right100Diag.add(
@@ -2702,3 +2727,6 @@ private var lixeiraCacheIgnorado: Int = 0
 
 // Ate quando uma varredura vazia deve ser ignorada (rename aguardando indexacao).
 private var renameGuardUntil: Long = 0L
+
+// Renames ainda nao indexados pelo MediaStore: caminho antigo -> caminho novo.
+private val renomeadosRecentes = HashMap<String, String>()

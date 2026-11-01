@@ -361,6 +361,7 @@ class MediaAdapter(
             RenameItemDialog(activity, firstPath) { newPath ->
                 ensureBackgroundThread {
                     activity.updateDBMediaPath(firstPath, newPath)
+                    (activity as? MediaActivity)?.registrarRename(firstPath, newPath)
 
                     activity.runOnUiThread {
                         // Atualiza o Medium na lista local instantaneamente — sem rescan.
