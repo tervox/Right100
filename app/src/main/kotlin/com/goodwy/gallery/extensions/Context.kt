@@ -1519,7 +1519,11 @@ fun Context.getCachedDirectories(
 }
 
 private const val MEDIA_SNAPSHOT_PREFS = "media_folder_snapshots_v1"
-private const val MEDIA_SNAPSHOT_MAX_ITEMS = 3000
+// Sem teto. Era 3000: pasta maior que isso era gravada CORTADA e a checagem
+// "count >= MEDIA_SNAPSHOT_MAX_ITEMS" devolvia invalido, entao a pasta era varrida
+// inteira em toda entrada. A pasta Memes (~4957 itens) era a mais usada e a que
+// nunca aproveitava cache por causa desse corte.
+private const val MEDIA_SNAPSHOT_MAX_ITEMS = Int.MAX_VALUE
 
 private fun mediaSnapshotKey(path: String): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray())

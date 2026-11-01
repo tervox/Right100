@@ -165,10 +165,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // mMediaPath virou B ao visitar B), caindo sempre na consulta ao banco de novo. Este
         // mapa guarda as últimas quatro pastas visitadas (LRU) para reaproveitar navegação
         // recente sem manter uma cópia grande da biblioteca inteira em memória.
-        private const val FOLDER_CACHE_MAX_SIZE = 60
+        // Sem teto. Era 60: ao abrir a 61a pasta a mais antiga saia da memoria e era
+        // relida do zero na volta. Com o cache servindo de fonte principal, teto so cria
+        // releitura. Quem ainda limpa e' o proprio Android sob pressao de memoria.
+        private const val FOLDER_CACHE_MAX_SIZE = Int.MAX_VALUE
         // A lista em memória permanece válida por alguns minutos; alterações reais são
         // detectadas pelo checkLastMediaChanged e ações explícitas usam forceRefresh.
-        private const val MEDIA_CACHE_TTL_MS = 5 * 60_000L
+        // Sem prazo de validade. Ja foram 5 minutos: passado o prazo a lista em memoria
+        // era descartada e o banco consultado de novo sem nenhum arquivo ter mudado.
+        // Quem decide se a lista serve e' folderChangedOnDisk() (data da pasta + arquivo
+        // mais novo), nao o relogio.
+        private const val MEDIA_CACHE_TTL_MS = Long.MAX_VALUE
         val mFolderMediaCacheUpdatedAt = HashMap<String, Long>()
         // Data de modificacao da pasta no momento em que a lista foi guardada. Se mudou, entrou ou saiu
         // arquivo (mover, restaurar da lixeira, outro app) e a lista guardada esta velha.
@@ -1195,9 +1202,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
 
         val now = System.currentTimeMillis()
+        // O teste de tempo saiu desta condicao: ele derrubava uma lista que estava na
+        // memoria so porque o relogio andou. Agora vale enquanto o conteudo da pasta
+        // nao mudar no disco.
         val hasFreshCurrentMedia = mMediaPath == mPath
             && !mMediaInvalidated
-            && now - mLastSuccessfulMediaLoadAt < MEDIA_CACHE_TTL_MS
             && !folderChangedOnDisk(mPath)
         if (hasFreshCurrentMedia) {
             // A lista e os requests do Glide já estão vivos; não reinicie o scanner
@@ -1279,7 +1288,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                             mFolderMediaCacheUpdatedAt[requestedPath] = System.currentTimeMillis()
                             mFolderMtime[requestedPath] = folderMtimeNow(requestedPath)
                         mFolderNewestFile[requestedPath] = newestFileInFolder(requestedPath)}
-                        mMediaInvalidated = true
+                        // Falso: snapshot fresco E' a pasta (assinatura igual a do disco).
+                        // Com true aqui a proxima getMedia() considerava a lista invalida
+                        // e varria a pasta inteira de novo, sem nada ter mudado.
+                        mMediaInvalidated = false
                         mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
                         // A grade com snapshot é exibida imediatamente - nada bloqueia
                         // a pintura aqui. mLatestMediaId/mLatestMediaDateId (usados só
@@ -1920,6 +1932,30 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Filtra itens recentemente removidos pelo usuário — impede que o MediaStore
         // (que pode estar desatualizado) reintroduza arquivos já apagados/movidos.
         val filteredMedia = filterRecentlyRemoved(media)
+
+        // Se o conjunto de itens e' o mesmo que ja esta na tela, a varredura nao trouxe
+        // nada novo. Reconstruir aqui e' o "carrega as thumbnails de novo": setupAdapter()
+        // zera o RecyclerView e o Glide decodifica outra vez todas as capas ja prontas.
+        val mesmaLista = synchronized(mediaLock) {
+            mMediaPath == mPath &&
+                mMedia.size == filteredMedia.size &&
+                mMedia.map { it.getKey() }.toHashSet() ==
+                    filteredMedia.map { it.getKey() }.toHashSet()
+        }
+        if (mesmaLista) {
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "pasta " + mPath + ": varredura sem diferenca, grade preservada n=" +
+                    filteredMedia.size
+            )
+            mMediaInvalidated = false
+            mLastSuccessfulMediaLoadAt = System.currentTimeMillis()
+            runOnUiThread {
+                binding.loadingIndicator.hide()
+                binding.mediaRefreshLayout.isRefreshing = false
+            }
+            return
+        }
+
         synchronized(mediaLock) {
             mMedia = filteredMedia
             mMediaPath = mPath
