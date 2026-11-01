@@ -1763,7 +1763,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             // lixeira FECHAVA sozinha. Se ainda existir arquivo nas raizes da lixeira, ela
             // nao pode fechar nem desistir - so revarre.
             val temArquivoNaLixeira = try {
-                com.goodwy.gallery.helpers.TrashStore.rootsFor(applicationContext).any { raiz ->
+                com.goodwy.gallery.extensions.TrashStore.rootsFor(applicationContext).any { raiz ->
                     raiz.listFiles()?.any { it.isFile && !it.name.endsWith(".tmp") } == true
                 }
             } catch (_: Exception) {
