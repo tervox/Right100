@@ -1,0 +1,1370 @@
+package com.goodwy.gallery.adapters
+
+import android.annotation.SuppressLint
+import android.content.ContentUris
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.RecyclerView
+import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.Color
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.Icon
+import android.view.Menu
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.view.allViews
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.bumptech.glide.Glide
+import com.bumptech.glide.signature.ObjectKey
+import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
+import com.goodwy.commons.activities.BaseSimpleActivity
+import com.goodwy.commons.adapters.MyRecyclerViewAdapter
+import com.goodwy.commons.dialogs.PropertiesDialog
+import com.goodwy.commons.dialogs.RenameDialog
+import com.goodwy.commons.dialogs.RenameItemDialog
+import com.goodwy.commons.extensions.*
+import com.goodwy.commons.helpers.*
+import com.goodwy.commons.interfaces.ItemTouchHelperContract
+import com.goodwy.commons.models.FileDirItem
+import com.goodwy.commons.views.MyRecyclerView
+import com.goodwy.gallery.R
+import com.goodwy.gallery.activities.MediaActivity
+import com.goodwy.gallery.activities.ViewPagerActivity
+import com.goodwy.gallery.databinding.*
+import com.goodwy.gallery.dialogs.BulkRenameDialog
+import com.goodwy.gallery.dialogs.DeleteWithRememberDialog
+import com.goodwy.gallery.extensions.*
+import com.goodwy.gallery.helpers.*
+import com.goodwy.gallery.interfaces.MediaOperationsListener
+import com.goodwy.gallery.models.Medium
+import com.goodwy.gallery.models.ThumbnailItem
+import com.goodwy.gallery.models.ThumbnailSection
+
+class MediaAdapter(
+    activity: BaseSimpleActivity,
+    var media: ArrayList<ThumbnailItem>,
+    val listener: MediaOperationsListener?,
+    val isAGetIntent: Boolean,
+    val allowMultiplePicks: Boolean,
+    val path: String,
+    recyclerView: MyRecyclerView,
+    val swipeRefreshLayout: SwipeRefreshLayout? = null,
+    itemClick: (Any) -> Unit
+) : MyRecyclerViewAdapter(activity, recyclerView, itemClick), ItemTouchHelperContract,
+    RecyclerViewFastScroller.OnPopupTextUpdate {
+
+    private val ITEM_SECTION = 0
+    private val ITEM_MEDIUM_VIDEO_PORTRAIT = 1
+    private val ITEM_MEDIUM_PHOTO = 2
+
+    private val config = activity.config
+    private val attachedRecyclerView = recyclerView
+    private val viewType = config.getFolderViewType(if (config.showAll) SHOW_ALL else path)
+    private val isListViewType = viewType == VIEW_TYPE_LIST
+    private val rotatedImagePaths = HashSet<String>()
+
+    // Fallback de quadro preto ja resolvido por caminho (bitmap do MEIO do video). O
+    // Glide continua devolvendo do cache dele o quadro preto a cada rebind da celula;
+    // sem esta memoria, cada rebind redecodificava o meio do video de novo.
+    private val quadroPretoResolvido = HashMap<String, android.graphics.Bitmap>()
+    private var currentMediaHash = media.hashCode()
+    private val hasOTGConnected = activity.hasOTGConnected()
+
+    private var scrollHorizontally = config.scrollHorizontally
+    private var animateGifs = config.animateGifs
+    private var cropThumbnails = config.cropThumbnails
+    private var displayFilenames = config.displayFileNames
+    private var showFileTypes = config.showThumbnailFileTypes
+
+
+    var sorting = config.getFolderSorting(if (config.showAll) SHOW_ALL else path)
+    var dateFormat = config.dateFormat
+    var timeFormat = activity.getTimeFormat()
+    var actModeCallbacks = actModeCallback
+
+    private val keyToPositionCache = mutableMapOf<Int, Int>()
+
+    init {
+        setupDragListener(true)
+        setHasStableIds(true)
+        attachedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                setVisibleAnimatablesRunning(newState == RecyclerView.SCROLL_STATE_IDLE)
+            }
+        })
+    }
+
+    private fun setVisibleAnimatablesRunning(running: Boolean) {
+        for (i in 0 until attachedRecyclerView.childCount) {
+            val child = attachedRecyclerView.getChildAt(i) ?: continue
+            val drawable = child.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable ?: continue
+
+            try {
+                if (running) {
+                    if (!drawable.isRunning) drawable.start()
+                } else if (drawable.isRunning) {
+                    drawable.stop()
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    override fun getActionMenuId() = R.menu.cab_media
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = if (viewType == ITEM_SECTION) {
+            ThumbnailSectionBinding.inflate(layoutInflater, parent, false)
+        } else {
+            if (isListViewType) {
+                if (viewType == ITEM_MEDIUM_PHOTO) {
+                    PhotoItemListBinding.inflate(layoutInflater, parent, false)
+                } else {
+                    VideoItemListBinding.inflate(layoutInflater, parent, false)
+                }
+            } else {
+                if (viewType == ITEM_MEDIUM_PHOTO) {
+                    PhotoItemGridBinding.inflate(layoutInflater, parent, false)
+                } else {
+                    VideoItemGridBinding.inflate(layoutInflater, parent, false)
+                }
+            }
+        }
+        return createViewHolder(binding.root)
+    }
+
+    override fun onBindViewHolder(holder: MyRecyclerViewAdapter.ViewHolder, position: Int) {
+        val tmbItem = media.getOrNull(position) ?: return
+        val allowLongPress = (!isAGetIntent || allowMultiplePicks) && tmbItem is Medium
+        holder.bindView(tmbItem, tmbItem is Medium, allowLongPress) { itemView, adapterPosition ->
+            if (tmbItem is Medium) {
+                setupThumbnail(itemView, tmbItem)
+            } else {
+                setupSection(itemView, tmbItem as ThumbnailSection, position)
+            }
+        }
+        bindViewHolder(holder)
+    }
+
+    override fun getItemCount() = media.size
+
+    override fun getItemId(position: Int): Long {
+        return when (val item = media.getOrNull(position)) {
+            is Medium -> item.path.hashCode().toLong()
+            is ThumbnailSection -> item.title.hashCode().toLong()
+            else -> position.toLong()
+        }
+    }
+
+    override fun getItemViewType(position: Int): Int {
+        val tmbItem = media[position]
+        return when {
+            tmbItem is ThumbnailSection -> ITEM_SECTION
+            (tmbItem as Medium).isVideo() || tmbItem.isPortrait() -> ITEM_MEDIUM_VIDEO_PORTRAIT
+            else -> ITEM_MEDIUM_PHOTO
+        }
+    }
+
+    override fun prepareActionMode(menu: Menu) {
+        val selectedItems = getSelectedItems()
+        if (selectedItems.isEmpty()) {
+            return
+        }
+
+        val isOneItemSelected = isOneItemSelected()
+        val selectedPaths = selectedItems.map { it.path } as ArrayList<String>
+        val isInRecycleBin = selectedItems.firstOrNull()?.getIsInRecycleBin() == true
+        menu.apply {
+            findItem(R.id.cab_rename).isVisible = !isInRecycleBin
+            findItem(R.id.cab_bulk_rename).isVisible = !isInRecycleBin && !isOneItemSelected
+            findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin
+            findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin
+            findItem(R.id.cab_move_to).isVisible = !isInRecycleBin
+            findItem(R.id.cab_open_with).isVisible = isOneItemSelected
+            findItem(R.id.cab_edit).isVisible = isOneItemSelected
+            findItem(R.id.cab_set_as).isVisible = isOneItemSelected
+            findItem(R.id.cab_resize).isVisible = canResize(selectedItems)
+            findItem(R.id.cab_confirm_selection).isVisible = isAGetIntent && allowMultiplePicks && selectedKeys.isNotEmpty()
+            findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { activity.isInTrashPath(it) }
+            findItem(R.id.cab_create_shortcut).isVisible = isOneItemSelected
+
+            checkHideBtnVisibility(this, selectedItems)
+            checkFavoriteBtnVisibility(this, selectedItems)
+        }
+    }
+
+    override fun actionItemPressed(id: Int) {
+        if (selectedKeys.isEmpty()) {
+            return
+        }
+
+        when (id) {
+            R.id.cab_confirm_selection -> confirmSelection()
+            R.id.cab_properties -> showProperties()
+            R.id.cab_rename -> checkMediaManagementAndRename()
+            R.id.cab_bulk_rename -> checkMediaManagementAndBulkRename()
+            R.id.cab_edit -> editFile()
+            R.id.cab_hide -> toggleFileVisibility(true)
+            R.id.cab_unhide -> toggleFileVisibility(false)
+            R.id.cab_add_to_favorites -> toggleFavorites(true)
+            R.id.cab_remove_from_favorites -> toggleFavorites(false)
+            R.id.cab_restore_recycle_bin_files -> restoreFiles()
+            R.id.cab_share -> shareMedia()
+            R.id.cab_rotate_right -> rotateSelection(90)
+            R.id.cab_rotate_left -> rotateSelection(270)
+            R.id.cab_rotate_one_eighty -> rotateSelection(180)
+            R.id.cab_copy_to -> checkMediaManagementAndCopy(true)
+            R.id.cab_move_to -> moveFilesTo()
+            R.id.cab_create_shortcut -> createShortcut()
+            R.id.cab_select_all -> selectAll()
+            R.id.cab_open_with -> openPath()
+            R.id.cab_fix_date_taken -> fixDateTaken()
+            R.id.cab_set_as -> setAs()
+            R.id.cab_resize -> resize()
+            R.id.cab_delete -> checkDeleteConfirmation()
+        }
+    }
+
+    override fun getSelectableItemCount() = media.filter { it is Medium }.size
+
+    override fun getIsItemSelectable(position: Int) = !isASectionTitle(position)
+
+    override fun getItemSelectionKey(position: Int) = (media.getOrNull(position) as? Medium)?.path?.hashCode()
+
+//    override fun getItemKeyPosition(key: Int) = media.indexOfFirst { (it as? Medium)?.path?.hashCode() == key }
+    override fun getItemKeyPosition(key: Int): Int {
+        return keyToPositionCache[key] ?: media.indexOfFirst { (it as? Medium)?.path?.hashCode() == key }
+    }
+
+    override fun onActionModeCreated() {
+        swipeRefreshLayout?.isRefreshing = false
+        swipeRefreshLayout?.isEnabled = false
+        (activity as? MediaActivity)?.showSelectionActions(true)
+    }
+
+    override fun onActionModeDestroyed() {
+        swipeRefreshLayout?.isEnabled = activity.config.enablePullToRefresh
+        (activity as? MediaActivity)?.showSelectionActions(false)
+    }
+
+    override fun onViewAttachedToWindow(holder: ViewHolder) {
+        super.onViewAttachedToWindow(holder)
+
+        if (attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+            setVisibleAnimatablesRunning(true)
+        }
+    }
+
+    override fun onViewDetachedFromWindow(holder: ViewHolder) {
+        (holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail)?.drawable as? Animatable)?.let {
+            try { if (it.isRunning) it.stop() } catch (_: Exception) {}
+        }
+        super.onViewDetachedFromWindow(holder)
+    }
+
+    override fun onViewRecycled(holder: ViewHolder) {
+        super.onViewRecycled(holder)
+        if (!activity.isDestroyed) {
+            val thumbnail = holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail)
+            if (thumbnail != null) {
+                (thumbnail.drawable as? Animatable)?.let {
+                    try { if (it.isRunning) it.stop() } catch (_: Exception) {}
+                }
+                thumbnail.tag = null
+                Glide.with(thumbnail).clear(thumbnail)
+                thumbnail.setImageDrawable(null)
+            }
+        }
+    }
+
+    fun selectAllItems() {
+        if (selectedKeys.isEmpty()) activity.startActionMode(actModeCallback)
+        selectAll()
+    }
+
+    fun isASectionTitle(position: Int) = media.getOrNull(position) is ThumbnailSection
+
+    private fun checkHideBtnVisibility(menu: Menu, selectedItems: ArrayList<Medium>) {
+        val isInRecycleBin = selectedItems.firstOrNull()?.getIsInRecycleBin() == true
+        menu.findItem(R.id.cab_hide).isVisible = (!isRPlus() || isExternalStorageManager()) && !isInRecycleBin && selectedItems.any { !it.isHidden() }
+        menu.findItem(R.id.cab_unhide).isVisible = (!isRPlus() || isExternalStorageManager()) && !isInRecycleBin && selectedItems.any { it.isHidden() }
+    }
+
+    private fun checkFavoriteBtnVisibility(menu: Menu, selectedItems: ArrayList<Medium>) {
+        menu.findItem(R.id.cab_add_to_favorites).isVisible = selectedItems.none { it.getIsInRecycleBin() } && selectedItems.any { !it.isFavorite }
+        menu.findItem(R.id.cab_remove_from_favorites).isVisible = selectedItems.none { it.getIsInRecycleBin() } && selectedItems.any { it.isFavorite }
+    }
+
+    private fun confirmSelection() {
+        listener?.selectedPaths(getSelectedPaths())
+    }
+
+    private fun showProperties() {
+        activity.safeRun("Propriedades") {
+            if (selectedKeys.size <= 1) {
+                val path = getFirstSelectedItemPath() ?: return@safeRun
+                PropertiesDialog(activity, path, config.shouldShowHidden)
+            } else {
+                val paths = getSelectedPaths()
+                PropertiesDialog(activity, paths, config.shouldShowHidden)
+            }
+        }
+    }
+
+    private fun checkMediaManagementAndRename() {
+        activity.handleMediaManagementPrompt {
+            renameFile()
+        }
+    }
+
+    private fun checkMediaManagementAndBulkRename() {
+        activity.handleMediaManagementPrompt {
+            bulkRenameFiles()
+        }
+    }
+
+    private fun bulkRenameFiles() {
+        val paths = getSelectedPaths()
+        if (paths.isEmpty()) return
+        BulkRenameDialog(activity, paths) { renomeados ->
+            // Nada de refreshItems() aqui: ele re-varria a pasta pelo MediaStore no instante
+            // seguinte ao renameTo(), quando o indice ainda aponta para os nomes antigos. A
+            // varredura voltava vazia, a grade ficava sem itens e a pasta fechava (ou estourava).
+            // Os itens sao renomeados direto na lista que ja esta na tela.
+            val mediaActivity = activity as? MediaActivity
+            if (renomeados.isEmpty()) {
+                finishActMode()
+            } else if (mediaActivity != null) {
+                mediaActivity.bulkRenameLocally(renomeados)
+                finishActMode()
+            } else {
+                listener?.refreshItems()
+                finishActMode()
+            }
+        }
+    }
+
+    private fun renameFile() {
+        val firstPath = getFirstSelectedItemPath() ?: return
+
+        val isSDOrOtgRootFolder = activity.isAStorageRootFolder(firstPath.getParentPath()) && !firstPath.startsWith(activity.internalStoragePath)
+        if (isRPlus() && isSDOrOtgRootFolder && !isExternalStorageManager()) {
+            activity.toast(com.goodwy.commons.R.string.rename_in_sd_card_system_restriction, Toast.LENGTH_LONG)
+            finishActMode()
+            return
+        }
+
+        if (selectedKeys.size == 1) {
+            RenameItemDialog(activity, firstPath) { newPath ->
+                ensureBackgroundThread {
+                    activity.updateDBMediaPath(firstPath, newPath)
+                    (activity as? MediaActivity)?.registrarRename(firstPath, newPath)
+
+                    activity.runOnUiThread {
+                        // Atualiza o Medium na lista local instantaneamente — sem rescan.
+                        val pos = media.indexOfFirst { it is Medium && it.path == firstPath }
+                        if (pos >= 0) {
+                            val medium = media[pos] as Medium
+                            medium.path = newPath
+                            medium.name = newPath.getFilenameFromPath()
+                            // O path também compõe o stable ID; a Activity faz o rebind completo.
+                            rotatedImagePaths.add(firstPath)
+                            updateMediaCachesAfterRename(firstPath, newPath, medium)
+                        }
+                        finishActMode()
+                    }
+                }
+            }
+        } else {
+            RenameDialog(activity, getSelectedPaths(), true) {
+                listener?.refreshItems()
+                finishActMode()
+            }
+        }
+    }
+
+    private fun updateMediaCachesAfterRename(oldPath: String, newPath: String, medium: Medium) {
+        // Atualiza mMedia da MediaActivity via método público pra refletir o rename
+        // sem precisar de um rescan completo do MediaStore.
+        try {
+            val mediaActivity = activity as? MediaActivity
+            if (mediaActivity != null) {
+                mediaActivity.updateMediaPathAfterRename(oldPath, newPath)
+            } else {
+                rebindAfterRename()
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun editFile() {
+        val path = getFirstSelectedItemPath() ?: return
+        activity.openEditor(path)
+    }
+
+    private fun openPath() {
+        val path = getFirstSelectedItemPath() ?: return
+        activity.openPath(path, true)
+    }
+
+    private fun setAs() {
+        val path = getFirstSelectedItemPath() ?: return
+        activity.setAs(path)
+    }
+
+    private fun resize() {
+        val paths = getSelectedItems().filter { it.isImage() }.map { it.path }
+        if (isOneItemSelected()) {
+            val path = paths.first()
+            activity.launchResizeImageDialog(path) {
+                finishActMode()
+                listener?.refreshItems()
+            }
+        } else {
+            activity.launchResizeMultipleImagesDialog(paths) {
+                finishActMode()
+                listener?.refreshItems()
+            }
+        }
+    }
+
+    private fun canResize(selectedItems: ArrayList<Medium>): Boolean {
+        val selectionContainsImages = selectedItems.any { it.isImage() }
+        if (!selectionContainsImages) {
+            return false
+        }
+
+        val parentPath = selectedItems.first { it.isImage() }.parentPath
+        val isCommonParent = selectedItems.all { parentPath == it.parentPath }
+        val isRestrictedDir = activity.isRestrictedWithSAFSdk30(parentPath)
+        return isExternalStorageManager() || (isCommonParent && !isRestrictedDir)
+    }
+
+    private fun toggleFileVisibility(hide: Boolean) {
+        ensureBackgroundThread {
+            getSelectedItems().forEach {
+                activity.toggleFileVisibility(it.path, hide)
+            }
+            activity.runOnUiThread {
+                listener?.refreshItems()
+                finishActMode()
+            }
+        }
+    }
+
+    private fun toggleFavorites(add: Boolean) {
+        ensureBackgroundThread {
+            getSelectedItems().forEach {
+                it.isFavorite = add
+                activity.updateFavorite(it.path, add)
+            }
+            activity.runOnUiThread {
+                listener?.refreshItems()
+                finishActMode()
+            }
+        }
+    }
+
+    private fun restoreFiles() {
+        val paths = getSelectedPaths()
+        if (paths.size > 1) {
+            activity.showRestoreConfirmationDialog(paths.size) {
+                doRestoreFiles(paths)
+            }
+        } else {
+            doRestoreFiles(paths)
+        }
+    }
+
+    private fun doRestoreFiles(paths: ArrayList<String>) {
+        // Some da lixeira na hora. Restaurar COPIA de volta para a pasta original (outra
+        // montagem), e num video grande isso leva segundos; antes a lista so atualizava
+        // depois que a copia terminava.
+        listener?.removeMediaImmediately(paths)
+        activity.restoreRecycleBinPaths(paths) { success ->
+            if (!success) {
+                MediaActivity.unmarkRecentlyRemoved(paths)
+                listener?.refreshItems()
+            }
+            finishActMode()
+        }
+    }
+
+    private fun shareMedia() {
+        if (selectedKeys.size == 1 && selectedKeys.first() != -1) {
+            activity.shareMediumPath(getSelectedItems().first().path)
+        } else if (selectedKeys.size > 1) {
+            activity.shareMediaPaths(getSelectedPaths())
+        }
+    }
+
+    private fun handleRotate(paths: List<String>, degrees: Int) {
+        var fileCnt = paths.size
+        rotatedImagePaths.clear()
+        activity.toast(com.goodwy.commons.R.string.saving)
+        ensureBackgroundThread {
+            paths.forEach {
+                rotatedImagePaths.add(it)
+                activity.saveRotatedImageToFile(it, it, degrees, true) {
+                    fileCnt--
+                    if (fileCnt == 0) {
+                        activity.runOnUiThread {
+                            listener?.refreshItems()
+                            finishActMode()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun rotateSelection(degrees: Int) {
+        val paths = getSelectedPaths().filter { it.isImageFast() }
+
+        if (paths.any { activity.needsStupidWritePermissions(it) }) {
+            activity.handleSAFDialog(paths.first { activity.needsStupidWritePermissions(it) }) {
+                if (it) {
+                    handleRotate(paths, degrees)
+                }
+            }
+        } else {
+            handleRotate(paths, degrees)
+        }
+    }
+
+    // Pontos de entrada dos atalhos flutuantes novos (MediaActivity.showSelectionActions).
+    internal fun fabCopy() {
+        if (selectedKeys.isEmpty()) return
+        checkMediaManagementAndCopy(true)
+    }
+
+    internal fun fabMove() {
+        if (selectedKeys.isEmpty()) return
+        moveFilesTo()
+    }
+
+    // Atalho Lixeira. Antes seguia as opcoes globais "lembradas" (que podiam ter ficado em
+    // "excluir sem perguntar"), entao excluia de vez sem avisar. Agora tem a propria escolha:
+    // perguntar (com "lembrar"), sempre lixeira ou sempre excluir de vez; mudavel em Configuracoes.
+    internal fun fabTrash() {
+        if (selectedKeys.isEmpty()) return
+        val firstPath = getFirstSelectedItemPath() ?: return
+        if (activity.isInTrashPath(firstPath)) {
+            // Dentro da lixeira so existe excluir de vez: fluxo padrao (confirmacao, senha).
+            checkDeleteConfirmation()
+            return
+        }
+        // Escolha fixa (Configuracoes) > lembrada ate o app fechar > perguntar.
+        val action = if (config.fabTrashAction != FAB_TRASH_ASK) config.fabTrashAction else SessionChoices.fabTrash
+        when (action) {
+            FAB_TRASH_BIN -> fabDelete(skipRecycleBin = false)
+            FAB_TRASH_DELETE -> fabDelete(skipRecycleBin = true)
+            else -> askFabTrash()
+        }
+    }
+
+    private fun askFabTrash() {
+        val itemsCnt = selectedKeys.size
+        val what = if (itemsCnt == 1) {
+            "\"" + (getFirstSelectedItemPath()?.getFilenameFromPath() ?: "") + "\""
+        } else {
+            resources.getQuantityString(com.goodwy.commons.R.plurals.delete_items, itemsCnt, itemsCnt)
+        }
+        activity.showChoiceDialog(
+            "O que fazer com $what?", null, "Lembrar escolha até fechar o app",
+            "Mover para a lixeira", "Excluir de vez", "Cancelar"
+        ) { choice, _, remember ->
+            when (choice) {
+                1 -> {
+                    if (remember) SessionChoices.fabTrash = FAB_TRASH_BIN
+                    fabDelete(skipRecycleBin = false)
+                }
+
+                2 -> {
+                    if (remember) SessionChoices.fabTrash = FAB_TRASH_DELETE
+                    fabDelete(skipRecycleBin = true)
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    private fun fabDelete(skipRecycleBin: Boolean) {
+        activity.handleMediaManagementPrompt {
+            val proceed = {
+                if (!skipRecycleBin && !config.useRecycleBin) {
+                    // A lixeira estava desligada nas configuracoes: ligar para o item nao sumir.
+                    config.useRecycleBin = true
+                }
+                deleteFiles(skipRecycleBin)
+            }
+            if (config.isDeletePasswordProtectionOn) {
+                activity.handleDeletePasswordProtection { proceed() }
+            } else {
+                proceed()
+            }
+        }
+    }
+
+    internal fun moveFilesTo() {
+        activity.handleDeletePasswordProtection {
+            checkMediaManagementAndCopy(false)
+        }
+    }
+
+    internal fun checkMediaManagementAndCopy(isCopyOperation: Boolean) {
+        activity.handleMediaManagementPrompt {
+            copyMoveTo(isCopyOperation)
+        }
+    }
+
+    private fun copyMoveTo(isCopyOperation: Boolean) {
+        val paths = getSelectedPaths()
+
+        val trashRootPath = activity.trashRootPath
+        val fileDirItems = paths.asSequence().filter { isCopyOperation || !activity.isInTrashPath(it) }.map {
+            FileDirItem(it, it.getFilenameFromPath())
+        }.toMutableList() as ArrayList
+
+        if (!isCopyOperation && paths.any { activity.isInTrashPath(it) }) {
+            activity.toast(com.goodwy.commons.R.string.moving_recycle_bin_items_disabled, Toast.LENGTH_LONG)
+        }
+
+        if (fileDirItems.isEmpty()) {
+            return
+        }
+
+        activity.tryCopyMoveFilesTo(fileDirItems, isCopyOperation) {
+            val destinationPath = it
+            val sourcePath = fileDirItems.first().getParentPath()
+            config.tempFolderPath = ""
+
+            (activity as? MediaActivity)?.invalidateMediaFolderCaches(
+                listOf(destinationPath, sourcePath)
+            )
+
+            rescanFolderMediaWithRetries(destinationPath)
+            rescanFolderMediaWithRetries(sourcePath)
+
+            val newPaths = fileDirItems.map { "$destinationPath/${it.name}" }.toMutableList() as ArrayList<String>
+
+            if (!isCopyOperation) {
+                val movedPaths = fileDirItems.map { it.path }
+                activity.runOnUiThread { listener?.removeMediaImmediately(movedPaths) }
+                activity.updateFavoritePaths(fileDirItems, destinationPath)
+            }
+
+            // O destino nao pode continuar na lista de removidos: quem foi marcado la foi
+            // o path de ORIGEM. Se o arquivo voltar pra ela depois (restauro, mover de
+            // volta), o filtro esconderia ele — midia sumindo e aparecendo.
+            MediaActivity.unmarkRecentlyRemoved(newPaths)
+
+            activity.rescanPaths(newPaths) {
+                activity.fixDateTaken(newPaths, false)
+                // Não recarregar tudo - removeMediaImmediately já atualizou a UI
+                // refreshItems() aqui causava flicker e reaparecimento do item
+            }
+        }
+    }
+
+    private fun rescanFolderMediaWithRetries(
+        path: String,
+        attempt: Int = 0
+    ) {
+        if (path.isEmpty()) return
+
+        activity.applicationContext.rescanFolderMedia(path) {
+            (activity as? MediaActivity)?.invalidateMediaFolderCaches(
+                listOf(path)
+            )
+
+            // O MediaStore indexa arquivos novos de forma assincrona e pode levar
+            // alguns segundos. Com 2 tentativas de 450ms a reconta saia antes da
+            // indexacao e gravava no banco uma contagem incompleta (620 de 640),
+            // que so se corrigia com refresh ou mais tempo. Agora tenta 8 vezes com
+            // espera crescente; se ja indexou, a proxima tentativa traz certo.
+            if (attempt < 8) {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    rescanFolderMediaWithRetries(path, attempt + 1)
+                }, 400L + attempt * 500L)
+            }
+        }
+    }
+
+    private fun createShortcut() {
+        val manager = activity.getSystemService(ShortcutManager::class.java)
+        if (manager.isRequestPinShortcutSupported) {
+            val path = getSelectedPaths().first()
+            val drawable = resources.getDrawable(R.drawable.shortcut_image).mutate()
+            activity.getShortcutImage(path, drawable) {
+                val intent = Intent(activity, ViewPagerActivity::class.java).apply {
+                    putExtra(PATH, path)
+                    putExtra(SHOW_ALL, config.showAll)
+                    putExtra(SHOW_FAVORITES, path == FAVORITES)
+                    putExtra(SHOW_RECYCLE_BIN, path == RECYCLE_BIN)
+                    action = Intent.ACTION_VIEW
+                    flags = flags or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+
+                val shortcut = ShortcutInfo.Builder(activity, path)
+                    .setShortLabel(path.getFilenameFromPath())
+                    .setIcon(Icon.createWithBitmap(drawable.convertToBitmap()))
+                    .setIntent(intent)
+                    .build()
+
+                manager.requestPinShortcut(shortcut, null)
+            }
+        }
+    }
+
+    private fun fixDateTaken() {
+        ensureBackgroundThread {
+            activity.fixDateTaken(getSelectedPaths(), true) {
+                listener?.refreshItems()
+                finishActMode()
+            }
+        }
+    }
+
+    private fun checkDeleteConfirmation() {
+        activity.handleMediaManagementPrompt {
+            if (config.isDeletePasswordProtectionOn) {
+                activity.handleDeletePasswordProtection {
+                    deleteFiles(config.tempSkipRecycleBin)
+                }
+            } else if (config.tempSkipDeleteConfirmation || config.skipDeleteConfirmation) {
+                deleteFiles(config.tempSkipRecycleBin)
+            } else {
+                askConfirmDelete()
+            }
+        }
+    }
+
+    internal fun askConfirmDelete() {
+        val itemsCnt = selectedKeys.size
+        val selectedMedia = getSelectedItems()
+        val firstPath = selectedMedia.first().path
+        val fileDirItem = selectedMedia.first().toFileDirItem()
+        val size = fileDirItem.getProperSize(activity, countHidden = true).formatSize()
+        val itemsAndSize = if (itemsCnt == 1) {
+            fileDirItem.mediaStoreId = selectedMedia.first().mediaStoreId
+            "\"${firstPath.getFilenameFromPath()}\" ($size)"
+        } else {
+            val fileDirItems = ArrayList<FileDirItem>(selectedMedia.size)
+            selectedMedia.forEach { medium ->
+                val curFileDirItem = medium.toFileDirItem()
+                fileDirItems.add(curFileDirItem)
+            }
+            val fileSize = fileDirItems.sumByLong { it.getProperSize(activity, countHidden = true) }.formatSize()
+            val deleteItemsString = resources.getQuantityString(com.goodwy.commons.R.plurals.delete_items, itemsCnt, itemsCnt)
+            "$deleteItemsString ($fileSize)"
+        }
+
+        val isRecycleBin = activity.isInTrashPath(firstPath)
+        val baseString =
+            if (config.useRecycleBin && !config.tempSkipRecycleBin && !isRecycleBin) com.goodwy.commons.R.string.move_to_recycle_bin_confirmation else com.goodwy.commons.R.string.deletion_confirmation
+        val question = String.format(resources.getString(baseString), itemsAndSize)
+        val showSkipRecycleBinOption = config.useRecycleBin && !isRecycleBin
+
+        DeleteWithRememberDialog(activity, question, showSkipRecycleBinOption) { remember, skipRecycleBin ->
+            if (remember) {
+                config.tempSkipRecycleBin = skipRecycleBin
+                // "Lembrar" vale so ate o app fechar (flag temporaria, limpa ao abrir/fechar o app).
+                // Antes gravava a opcao PERMANENTE das Configuracoes sem o usuario saber.
+                config.tempSkipDeleteConfirmation = true
+            }
+
+            deleteFiles(skipRecycleBin)
+        }
+    }
+
+    private fun deleteFiles(skipRecycleBin: Boolean) {
+        if (selectedKeys.isEmpty()) {
+            return
+        }
+
+        val selectedItems = getSelectedItems()
+        val selectedPaths = selectedItems.map { it.path } as ArrayList<String>
+        val SAFPath = selectedPaths.firstOrNull { activity.needsStupidWritePermissions(it) } ?: getFirstSelectedItemPath() ?: return
+        activity.handleSAFDialog(SAFPath) {
+            if (!it) {
+                return@handleSAFDialog
+            }
+
+            val sdk30SAFPath = selectedPaths.firstOrNull { activity.isAccessibleWithSAFSdk30(it) } ?: getFirstSelectedItemPath() ?: return@handleSAFDialog
+            activity.checkManageMediaOrHandleSAFDialogSdk30(sdk30SAFPath) {
+                if (!it) {
+                    return@checkManageMediaOrHandleSAFDialogSdk30
+                }
+
+                val fileDirItems = ArrayList<FileDirItem>(selectedKeys.size)
+
+                selectedItems.forEach { medium ->
+                    fileDirItems.add(medium.toFileDirItem())
+                }
+
+                // Só atualiza a lista depois que a operação confirma sucesso.
+                listener?.tryDeleteFiles(fileDirItems, skipRecycleBin)
+                finishActMode()
+            }
+        }
+    }
+
+    private fun getSelectedItems() = selectedKeys.mapNotNull { getItemWithKey(it) } as ArrayList<Medium>
+
+    private fun getSelectedPaths() = getSelectedItems().map { it.path } as ArrayList<String>
+
+    private fun getFirstSelectedItemPath() = getItemWithKey(selectedKeys.first())?.path
+
+//    private fun getItemWithKey(key: Int): Medium? = media.firstOrNull { (it as? Medium)?.path?.hashCode() == key } as? Medium
+    // Fix: at kotlin.collections.CollectionsKt___CollectionsKt.firstOrNull (CollectionsKt___Collections.kt:295)
+    private fun getItemWithKey(key: Int): Medium? {
+        return media.asSequence()
+            .filterIsInstance<Medium>()
+            .firstOrNull { it.path.hashCode() == key }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    fun updateMedia(newMedia: ArrayList<ThumbnailItem>) {
+        val thumbnailItems = newMedia.clone() as ArrayList<ThumbnailItem>
+        if (thumbnailItems.hashCode() != currentMediaHash) {
+            currentMediaHash = thumbnailItems.hashCode()
+            val oldMedia = media
+            media = thumbnailItems
+
+            val diffResult = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = oldMedia.size
+                override fun getNewListSize() = thumbnailItems.size
+                override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean {
+                    val old = oldMedia.getOrNull(oldPos)
+                    val new = thumbnailItems.getOrNull(newPos)
+                    return when {
+                        old is Medium && new is Medium -> old.path == new.path
+                        old is ThumbnailSection && new is ThumbnailSection -> old.title == new.title
+                        else -> false
+                    }
+                }
+                override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
+                    val old = oldMedia.getOrNull(oldPos)
+                    val new = thumbnailItems.getOrNull(newPos)
+                    return when {
+                        old is Medium && new is Medium ->
+                            old.name == new.name &&
+                            old.type == new.type &&
+                            old.videoDuration == new.videoDuration &&
+                            old.size == new.size &&
+                            old.modified == new.modified &&
+                            old.taken == new.taken &&
+                            old.isFavorite == new.isFavorite &&
+                            old.deletedTS == new.deletedTS
+                        else -> old == new
+                    }
+                }
+            })
+            diffResult.dispatchUpdatesTo(this)
+            finishActMode()
+        }
+        keyToPositionCache.clear()
+        newMedia.forEachIndexed { index, item ->
+            if (item is Medium) {
+                keyToPositionCache[item.path.hashCode()] = index
+            }
+        }
+    }
+
+    // Rename em massa troca path/name no MESMO objeto Medium que o DiffUtil compara,
+    // entao updateMedia() conclui "nada mudou" e a celula fica com o nome antigo ate
+    // ser recriada (sair e voltar na pasta). Este rebind forca o redesenho.
+    fun rebindAfterRename(newMedia: ArrayList<ThumbnailItem>? = null) {
+        try {
+            if (newMedia != null) {
+                media = newMedia.clone() as ArrayList<ThumbnailItem>
+                currentMediaHash = media.hashCode()
+            }
+            keyToPositionCache.clear()
+            media.forEachIndexed { index, item ->
+                if (item is Medium) {
+                    keyToPositionCache[item.path.hashCode()] = index
+                }
+            }
+            notifyDataSetChanged()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun rebindVisibleItems() {
+        if (itemCount > 0) {
+            // Rebind de intervalo preserva a estrutura da lista e evita o custo de
+            // notifyDataSetChanged(), que invalida todo o RecyclerView.
+            notifyItemRangeChanged(0, itemCount)
+        }
+    }
+
+    fun updateDisplayFilenames(displayFilenames: Boolean) {
+        this.displayFilenames = displayFilenames
+        rebindVisibleItems()
+    }
+
+    fun updateAnimateGifs(animateGifs: Boolean) {
+        this.animateGifs = animateGifs
+        rebindVisibleItems()
+    }
+
+    fun updateCropThumbnails(cropThumbnails: Boolean) {
+        this.cropThumbnails = cropThumbnails
+        rebindVisibleItems()
+    }
+
+    fun updateShowFileTypes(showFileTypes: Boolean) {
+        this.showFileTypes = showFileTypes
+        rebindVisibleItems()
+    }
+
+    fun updateVideoDuration(path: String, duration: Int) {
+        val position = media.indexOfFirst { it is Medium && it.path == path }
+        if (position < 0) return
+        val item = media[position] as? Medium ?: return
+        // Sem este early return: fillMissingVideoDurations ja grava medium.videoDuration
+        // no MESMO objeto (a lista do adapter e um clone raso de mMedia) antes de
+        // chamar aqui, entao a comparacao dava sempre igual e a celula visivel nunca
+        // era atualizada - a duracao so aparecia ao recriar a celula.
+        if (item.videoDuration == duration) {
+            item.videoDuration = duration
+            return
+        }
+        item.videoDuration = duration
+
+        // Atualize somente o texto visível. notifyItemChanged() rebinda a célula
+        // inteira e dispara Glide novamente para cada vídeo resolvido em background,
+        // criando picos de trabalho justamente durante a rolagem.
+        attachedRecyclerView.findViewHolderForAdapterPosition(position)?.itemView
+            ?.findViewById<TextView>(R.id.video_duration)?.apply {
+                text = duration.getFormattedDuration()
+            }
+    }
+
+    private fun setupThumbnail(view: View, medium: Medium) {
+        val isSelected = selectedKeys.contains(medium.path.hashCode())
+        bindItem(view, medium).apply {
+            val padding = if (config.thumbnailSpacing <= 1) {
+                config.thumbnailSpacing
+            } else {
+                0
+            }
+
+            if (!isListViewType) mediaItemHolder.setPadding(padding, padding, padding, padding)
+
+            favorite.beVisibleIf(medium.isFavorite && config.markFavoriteItems)
+            favorite.applyColorFilter(Color.WHITE)
+
+            playPortraitOutline?.beVisibleIf(medium.isVideo() || medium.isPortrait())
+            if (medium.isVideo()) {
+                playPortraitOutline?.setImageResource(
+                    if (isListViewType) {
+                        R.drawable.ic_play_outline_vector
+                    } else {
+                        R.drawable.ic_play_vector
+                    }
+                )
+                playPortraitOutline?.beVisible()
+            } else if (medium.isPortrait()) {
+                playPortraitOutline?.setImageResource(R.drawable.ic_portrait_photo_vector)
+                playPortraitOutline?.beVisibleIf(showFileTypes)
+            }
+
+            if (showFileTypes && (medium.isGIF() || medium.isRaw() || medium.isSVG())) {
+                fileType?.setText(
+                    when (medium.type) {
+                        TYPE_GIFS -> R.string.gif
+                        TYPE_RAWS -> R.string.raw
+                        else -> R.string.svg
+                    }
+                )
+                fileType?.beVisible()
+            } else {
+                fileType?.beGone()
+            }
+
+            mediumName.beVisibleIf(displayFilenames || isListViewType)
+            mediumName.text = medium.name
+            mediumName.tag = medium.path
+
+            val showVideoDuration = medium.isVideo() && config.showThumbnailVideoDuration
+            if (showVideoDuration) {
+                // Mostra um estado definido enquanto o MediaStore/retriever ainda resolve
+                // a duração. Deixar a View invisível parecia um erro de thumbnail e fazia
+                // o usuário pensar que o vídeo não tinha duração.
+                videoDuration?.text = if (medium.videoDuration > 0) {
+                    medium.videoDuration.getFormattedDuration()
+                } else {
+                    0.getFormattedDuration()
+                }
+                if (isListViewType) videoDuration?.setTextColor(textColor)
+            }
+            videoDuration?.beVisibleIf(showVideoDuration)
+            if (isListViewType) {
+                videoDuration?.setTextColor(textColor)
+            }
+
+            mediumCheck.beVisibleIf(isSelected)
+            if (isSelected) {
+                mediumCheck.background?.applyColorFilter(properPrimaryColor)
+                mediumCheck.applyColorFilter(contrastColor)
+            }
+
+            if (isListViewType) {
+                mediaItemHolder.isSelected = isSelected
+            }
+
+            var path = medium.path
+            if (hasOTGConnected && root.context.isPathOnOTG(path)) {
+                path = path.getOTGPublicPath(root.context)
+            }
+            // Em Android 11+ o DATA path pode existir no banco, mas não ser aberto pelo
+            // processo por causa do scoped storage. O ID persistido na consulta MediaStore
+            // permite ao Glide abrir o mesmo item por content URI, inclusive para vídeos,
+            // HEIC e arquivos cujo decoder físico falhava.
+            val thumbnailPath = if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                medium.mediaStoreId > 0L &&
+                !path.startsWith("content://") &&
+                !root.context.isPathOnOTG(path) &&
+                  !Environment.isExternalStorageManager()
+            ) {
+                ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), medium.mediaStoreId).toString()
+            } else {
+                path
+            }
+
+            val roundedCorners = when {
+                isListViewType -> ROUNDED_CORNERS_SMALL
+                config.fileRoundedCorners -> ROUNDED_CORNERS_BIG
+                else -> ROUNDED_CORNERS_NONE
+            }
+
+            mediumThumbnail.setBackgroundResource(
+                when (roundedCorners) {
+                    ROUNDED_CORNERS_SMALL -> R.drawable.placeholder_rounded_small
+                    ROUNDED_CORNERS_BIG -> R.drawable.placeholder_rounded_big
+                    else -> R.drawable.placeholder_square
+                }
+            )
+            // A ViewHolder pode ser reciclado antes do callback de Glide/Picasso. A tag
+            // permite ignorar callbacks antigos que não pertencem mais a esta célula.
+            mediumThumbnail.tag = thumbnailPath
+
+            activity.loadImage(
+                type = medium.type,
+                path = thumbnailPath,
+                target = mediumThumbnail,
+                horizontalScroll = scrollHorizontally,
+                animateGifs = animateGifs,
+                cropThumbnails = cropThumbnails,
+                roundCorners = roundedCorners,
+                // Nova assinatura força a remoção lógica de thumbnails antigas
+                // que foram armazenadas em baixa resolução nas rodadas anteriores.
+                signature = ObjectKey("thumbnail-v12-${medium.getKey()}"),
+                skipMemoryCacheAtPaths = rotatedImagePaths,
+                columnCount = config.mediaColumnCnt,
+                fallbackPath = medium.path.takeIf { it != thumbnailPath },
+                // O Glide pode "conseguir" decodificar o primeiro quadro de um video que
+                // comeca em preto (fade-in, GIF convertido, video do X). Sem esta flag o
+                // bitmap preto era aceito como sucesso e o onError abaixo - com toda a
+                // cadeia de fallback de video - nunca rodava.
+                detectarQuadroPreto = true,
+                onError = {
+                    if (mediumThumbnail.tag == thumbnailPath) {
+                        var fallbackLoaded = false
+                        
+                        if (medium.type == TYPE_VIDEOS) {
+                            // Consultas ao MediaStore e decodificação de vídeo
+                            // não devem bloquear a thread que atualiza a interface.
+                            val targetTag = thumbnailPath
+                            fallbackLoaded = true
+
+                            ensureBackgroundThread {
+                                // Este arquivo ja passou pelo fallback antes: reaproveita
+                                // o bitmap guardado, sem redecodificar o video.
+                                val memo = quadroPretoResolvido[medium.path]
+                                if (memo != null && !memo.isRecycled) {
+                                    activity.runOnUiThread {
+                                        if (mediumThumbnail.tag == targetTag) {
+                                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                            mediumThumbnail.setImageBitmap(memo)
+                                        }
+                                    }
+                                    return@ensureBackgroundThread
+                                }
+
+                                var bmp: android.graphics.Bitmap? = null
+
+                                try {
+                                    fun loadViaUri(uri: android.net.Uri?): android.graphics.Bitmap? {
+                                        if (uri == null ||
+                                            android.os.Build.VERSION.SDK_INT < 29
+                                        ) return null
+
+                                        return try {
+                                            activity.contentResolver.loadThumbnail(
+                                                uri,
+                                                android.util.Size(320, 320),
+                                                null
+                                            )
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                    }
+
+                                    val mediaId = medium.mediaStoreId
+
+                                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                                        bmp = if (medium.path.startsWith("content://")) {
+                                            loadViaUri(android.net.Uri.parse(medium.path))
+                                        } else {
+                                            loadViaUri(
+                                                if (mediaId > 0L) {
+                                                    android.content.ContentUris.withAppendedId(
+                                                        android.provider.MediaStore.Files.getContentUri("external"),
+                                                        mediaId
+                                                    )
+                                                } else null
+                                            )
+                                        }
+                                    }
+
+                                    // Se o ID guardado ficou obsoleto, consulta o ID atual.
+                                    if (bmp == null &&
+                                        !medium.path.startsWith("content://")
+                                    ) {
+                                        val freshId = try {
+                                            activity.contentResolver.query(
+                                                android.provider.MediaStore.Files.getContentUri("external"),
+                                                arrayOf(android.provider.MediaStore.MediaColumns._ID),
+                                                "${android.provider.MediaStore.MediaColumns.DATA} = ?",
+                                                arrayOf(medium.path),
+                                                null
+                                            )?.use {
+                                                if (it.moveToFirst()) it.getLong(0) else -1L
+                                            } ?: -1L
+                                        } catch (_: Exception) {
+                                            -1L
+                                        }
+
+                                        if (freshId > 0L && freshId != mediaId) {
+                                            bmp = loadViaUri(
+                                                android.content.ContentUris.withAppendedId(
+                                                    android.provider.MediaStore.Files.getContentUri("external"),
+                                                    freshId
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    if (bmp == null &&
+                                        !medium.path.startsWith("content://") &&
+                                        android.os.Build.VERSION.SDK_INT >= 29
+                                    ) {
+                                        bmp = try {
+                                            android.media.ThumbnailUtils.createVideoThumbnail(
+                                                java.io.File(medium.path),
+                                                android.util.Size(320, 320),
+                                                null
+                                            )
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                    }
+
+                                    // Todos os caminhos acima dependem de metadados que estes
+                                    // MP4 nao tem (loadThumbnail usa a duracao indexada,
+                                    // ThumbnailUtils usa MediaMetadataRetriever). Como o video
+                                    // toca, decodificar a primeira amostra funciona.
+                                    if (bmp == null) {
+                                        bmp = com.goodwy.gallery.helpers.QuadroDeVideo
+                                            .primeiroQuadro(medium.path)
+                                    }
+
+                                    // Bitmap "valido" porem QUASE PRETO: e' o quadro de
+                                    // abertura de videos que comecam em fade-in (X/Twitter,
+                                    // GIF convertido). Tenta o quadro do MEIO usando a
+                                    // duracao ja resolvida - inclusive aquecendo o cache do
+                                    // DuracaoVideos, que a etiqueta de duracao tambem usa.
+                                    // Video escuro "de verdade" tem o meio igualmente
+                                    // escuro: mantem o primeiro quadro.
+                                    if (bmp != null &&
+                                        com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bmp)
+                                    ) {
+                                        val duracaoSeg = medium.videoDuration.takeIf { it > 0 }
+                                            ?: com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(
+                                                activity, medium.path, medium.mediaStoreId
+                                            )
+                                        if (duracaoSeg > 0) {
+                                            val doMeio = com.goodwy.gallery.helpers.QuadroDeVideo
+                                                .quadroNoMeio(medium.path, duracaoSeg)
+                                            if (doMeio != null &&
+                                                !com.goodwy.gallery.helpers.QuadroDeVideo
+                                                    .ehQuasePreto(doMeio)
+                                            ) {
+                                                bmp = doMeio
+                                            }
+                                        }
+                                    }
+                                } catch (_: Exception) {
+                                    // O callback de UI abaixo mostra o placeholder se falhar.
+                                }
+
+                                // Guarda o bitmap resolvido: nos rebinds seguintes o Glide
+                                // devolve o quadro preto do cache dele e cai aqui de novo.
+                                if (bmp != null) {
+                                    if (quadroPretoResolvido.size > 40) {
+                                        quadroPretoResolvido.clear()
+                                    }
+                                    quadroPretoResolvido[medium.path] = bmp
+                                }
+
+                                val finalBmp = bmp
+                                activity.runOnUiThread {
+                                    if (mediumThumbnail.tag == targetTag) {
+                                        if (finalBmp != null) {
+                                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                            mediumThumbnail.setImageBitmap(finalBmp)
+                                        } else {
+                                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                            mediumThumbnail.setImageDrawable(
+                                                AppCompatResources.getDrawable(
+                                                    activity,
+                                                    R.drawable.ic_vector_warning_colored
+                                                )
+                                            )
+                                        }
+                                    } else {
+                                        // A célula já foi reciclada para outro arquivo.
+                                        finalBmp?.recycle()
+                                    }
+                                }
+                            }
+                        }
+                        if (!fallbackLoaded) {
+                            if (medium.type == TYPE_VIDEOS) {
+                                mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                            } else {
+                                // Glide falhou em imagem: decodifica direto do arquivo
+                                val targetTag = thumbnailPath
+                                ensureBackgroundThread {
+                                    var bmp: android.graphics.Bitmap? = null
+                                    try {
+                                        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                                        bmp = if (medium.path.startsWith("content://")) {
+                                            activity.contentResolver
+                                                .openInputStream(android.net.Uri.parse(medium.path))
+                                                ?.use {
+                                                    android.graphics.BitmapFactory.decodeStream(
+                                                        it,
+                                                        null,
+                                                        opts
+                                                    )
+                                                }
+                                        } else {
+                                            android.graphics.BitmapFactory.decodeFile(
+                                                medium.path,
+                                                opts
+                                            )
+                                        }
+                                    } catch (_: Exception) { }
+                                    val finalBmp = bmp
+                                    activity.runOnUiThread {
+                                        if (mediumThumbnail.tag == targetTag) {
+                                            if (finalBmp != null) {
+                                                mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                                mediumThumbnail.setImageBitmap(finalBmp)
+                                            } else {
+                                                mediumThumbnail.scaleType = ImageView.ScaleType.CENTER
+                                                mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                                            }
+                                        } else {
+                                            finalBmp?.recycle()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+
+            if (isListViewType) {
+                mediumName.setTextColor(textColor)
+                playPortraitOutline?.applyColorFilter(textColor)
+            }
+        }
+    }
+
+    private fun setupSection(view: View, section: ThumbnailSection, position: Int) {
+        ThumbnailSectionBinding.bind(view).apply {
+            thumbnailSection.text = section.title
+            thumbnailSection.setTextColor(textColor)
+
+            thumbnailSection.setOnClickListener {
+                if (selectedKeys.isEmpty()) activity.startActionMode(actModeCallback)
+                val positions = LinkedHashSet<Int>()
+                for (i in position+1..position+section.size) {
+                    positions.add(i)
+                }
+                val sizeSelectedInGroup = getSelectedItemPositions().intersect(positions).size
+                for (i in position+1..position+section.size) {
+                    //val isSelected = selectedKeys.contains(getItemSelectionKey(i))
+                    toggleItemSelection(sizeSelectedInGroup != section.size , i, true)
+                }
+            }
+        }
+    }
+
+    override fun onRowMoved(fromPosition: Int, toPosition: Int) {}
+
+    override fun onRowSelected(myViewHolder: ViewHolder?) {
+        swipeRefreshLayout?.isEnabled = false
+    }
+
+    override fun onRowClear(myViewHolder: ViewHolder?) {
+        swipeRefreshLayout?.isEnabled = activity.config.enablePullToRefresh
+    }
+
+    override fun onChange(position: Int): String {
+        var realIndex = position
+        if (isASectionTitle(position)) {
+            realIndex++
+        }
+
+        return if (realIndex >= 0 && realIndex < media.size) (media[realIndex] as? Medium)?.getBubbleText(sorting, activity, dateFormat, timeFormat) ?: ""
+        else ""
+    }
+
+    private fun bindItem(view: View, medium: Medium): MediaItemBinding {
+        return if (isListViewType) {
+            if (!medium.isVideo() && !medium.isPortrait()) {
+                PhotoItemListBinding.bind(view).toMediaItemBinding()
+            } else {
+                VideoItemListBinding.bind(view).toMediaItemBinding()
+            }
+        } else {
+            if (!medium.isVideo() && !medium.isPortrait()) {
+                PhotoItemGridBinding.bind(view).toMediaItemBinding()
+            } else {
+                VideoItemGridBinding.bind(view).toMediaItemBinding()
+            }
+        }
+    }
+
+    fun finishActionMode() {
+        finishActMode()
+    }
+}
