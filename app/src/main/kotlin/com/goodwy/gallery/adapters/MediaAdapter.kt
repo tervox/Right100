@@ -78,6 +78,7 @@ class MediaAdapter(
     private val thumbnailCache = HashMap<String, android.graphics.Bitmap>()
     private var currentMediaHash = media.hashCode()
     private val hasOTGConnected = activity.hasOTGConnected()
+    private var mPreloadedThumbnails = false
 
     private var scrollHorizontally = config.scrollHorizontally
     private var animateGifs = config.animateGifs
@@ -153,6 +154,26 @@ class MediaAdapter(
             }
         }
         bindViewHolder(holder)
+
+        // Pré-carregar thumbnails de TODOS os itens em background ao entrar na pasta
+        if (position == 0 && !mPreloadedThumbnails) {
+            mPreloadedThumbnails = true
+            ensureBackgroundThread {
+                media.filterIsInstance<Medium>().forEach { medium ->
+                    // Carrega thumbnail em cache sem bloquear a UI
+                    if (thumbnailCache[medium.path] == null && quadroPretoResolvido[medium.path] == null) {
+                        val targetTag = medium.path
+                        var bmp: android.graphics.Bitmap? = null
+                        try {
+                            bmp = com.goodwy.gallery.helpers.QuadroDeVideo.primeiroQuadro(medium.path)
+                            if (bmp != null && !com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bmp)) {
+                                thumbnailCache[medium.path] = bmp
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+        }
     }
 
     override fun getItemCount() = media.size
