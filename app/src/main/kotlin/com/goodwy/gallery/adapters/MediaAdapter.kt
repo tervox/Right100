@@ -1256,6 +1256,10 @@ class MediaAdapter(
                                 if (bmp != null &&
                                     !com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bmp)
                                 ) {
+                                    if (thumbnailCache.size > 100) {
+                                        thumbnailCache.clear()
+                                    }
+                                    thumbnailCache[medium.path] = bmp
                                     if (quadroPretoResolvido.size > 40) {
                                         quadroPretoResolvido.clear()
                                     }
