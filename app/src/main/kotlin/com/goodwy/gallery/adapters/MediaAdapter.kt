@@ -152,9 +152,6 @@ class MediaAdapter(
             }
         }
         bindViewHolder(holder)
-
-        // Pré-carregar thumbnails de TODOS os itens em background ao entrar na pasta
-        }
     }
 
     override fun getItemCount() = media.size
@@ -939,10 +936,10 @@ class MediaAdapter(
         // no MESMO objeto (a lista do adapter e um clone raso de mMedia) antes de
         // chamar aqui, entao a comparacao dava sempre igual e a celula visivel nunca
         // era atualizada - a duracao so aparecia ao recriar a celula.
-        if (item.videoDuration == duration) {
-            item.videoDuration = duration
-            return
-        }
+        // Grava e atualiza o rotulo SEMPRE: fillMissingVideoDurations ja escreve a
+        // duracao no MESMO objeto Medium antes de chamar este metodo, entao a
+        // comparacao dava sempre igual, o return saia e a celula visivel continuava
+        // em 00:00 ate ser recriada.
         item.videoDuration = duration
 
         // Atualize somente o texto visível. notifyItemChanged() rebinda a célula
@@ -1108,9 +1105,6 @@ class MediaAdapter(
                                 }
 
                                 var bmp: android.graphics.Bitmap? = null
-                                if (bmp == null) {
-                                    bmp = null
-                                }
 
                                 try {
                                     fun loadViaUri(uri: android.net.Uri?): android.graphics.Bitmap? {
