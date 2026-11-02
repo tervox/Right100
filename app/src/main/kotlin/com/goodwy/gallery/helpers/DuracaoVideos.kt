@@ -64,6 +64,17 @@ object DuracaoVideos {
 
             if (segundos > 0) {
                 synchronized(this) { cache[path] = segundos }
+            } else {
+                // Diagnostico: antes um 0 voltava em silencio e nao dava para saber em
+                // que estagio a cadeia morreu (retriever -> trilha de video -> amostras).
+                // Com esta linha, o relatorio do Right100Diag aponta o arquivo exato
+                // que ficou em 00:00 mesmo depois de todas as vias.
+                try {
+                    com.goodwy.gallery.extensions.Right100Diag.add(
+                        "duracao: nenhuma via resolveu " + path
+                    )
+                } catch (_: Exception) {
+                }
             }
             return segundos
         } finally {

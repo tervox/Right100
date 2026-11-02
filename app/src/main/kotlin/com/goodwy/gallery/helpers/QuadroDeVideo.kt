@@ -2,6 +2,7 @@ package com.goodwy.gallery.helpers
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
@@ -24,6 +25,14 @@ import java.io.File
 object QuadroDeVideo {
 
     fun primeiroQuadro(caminho: String): Bitmap? {
+        return quadroEm(caminho, -1L)
+    }
+
+    // Mesma decodificacao do primeiro quadro, mas podendo pedir um INSTANTE do video.
+    // Existe por causa dos videos que comecam com quadro PRETO (fade-in, GIF convertido,
+    // video do X/Twitter): o primeiro quadro existe e decodifica, so que e' preto.
+    // microssegundos < 0 significa "sem seek" = primeiro quadro do arquivo.
+    fun quadroEm(caminho: String, microssegundos: Long): Bitmap? {
         if (caminho.startsWith("content://")) return null
         val arquivo = if (caminho.startsWith("file://")) {
             android.net.Uri.parse(caminho).path ?: caminho
@@ -53,6 +62,14 @@ object QuadroDeVideo {
             val mime = formato.getString(MediaFormat.KEY_MIME) ?: return null
 
             extractor.selectTrack(trilha)
+
+            if (microssegundos >= 0L) {
+                try {
+                    extractor.seekTo(microssegundos, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+                } catch (_: Exception) {
+                    // Arquivo sem indice para seek: segue de onde o extractor estiver.
+                }
+            }
             val decodificador = MediaCodec.createDecoderByType(mime)
             codec = decodificador
             decodificador.configure(formato, null, null, 0)
@@ -165,6 +182,47 @@ object QuadroDeVideo {
             return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
         } catch (_: Exception) {
             return null
+        }
+    }
+
+    // Amostra a luminancia media do bitmap (1/32 dos pixels em cada eixo). Um quadro
+    // inteiro preto (fade-in) da media proxima de zero. Videos escuros "de verdade"
+    // (luma media acima de 12) NAO sao considerados pretos.
+    fun ehQuasePreto(bitmap: Bitmap): Boolean {
+        val largura = bitmap.width
+        val altura = bitmap.height
+        if (largura <= 0 || altura <= 0) return false
+        val passoX = maxOf(1, largura / 32)
+        val passoY = maxOf(1, altura / 32)
+        var somaLuma = 0L
+        var amostras = 0
+        var y = 0
+        while (y < altura) {
+            var x = 0
+            while (x < largura) {
+                val cor = bitmap.getPixel(x, y)
+                val luma = (Color.red(cor) * 299 +
+                    Color.green(cor) * 587 +
+                    Color.blue(cor) * 114) / 1000
+                somaLuma += luma
+                amostras++
+                x += passoX
+            }
+            y += passoY
+        }
+        if (amostras == 0) return false
+        return (somaLuma / amostras) < 12L
+    }
+
+    // Quadro do MEIO do video (metade da duracao, no sync sample mais proximo). E' o
+    // que acerta quando o primeiro quadro e' preto: o meio normalmente ja e' conteudo.
+    fun quadroNoMeio(caminho: String, duracaoSegundos: Int): Bitmap? {
+        if (duracaoSegundos <= 0) return null
+        val meioMicros = duracaoSegundos * 1_000_000L / 2L
+        return try {
+            quadroEm(caminho, meioMicros)
+        } catch (_: Exception) {
+            null
         }
     }
 }

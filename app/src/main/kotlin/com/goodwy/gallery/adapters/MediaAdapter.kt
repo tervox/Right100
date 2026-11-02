@@ -70,6 +70,11 @@ class MediaAdapter(
     private val viewType = config.getFolderViewType(if (config.showAll) SHOW_ALL else path)
     private val isListViewType = viewType == VIEW_TYPE_LIST
     private val rotatedImagePaths = HashSet<String>()
+
+    // Fallback de quadro preto ja resolvido por caminho (bitmap do MEIO do video). O
+    // Glide continua devolvendo do cache dele o quadro preto a cada rebind da celula;
+    // sem esta memoria, cada rebind redecodificava o meio do video de novo.
+    private val quadroPretoResolvido = HashMap<String, android.graphics.Bitmap>()
     private var currentMediaHash = media.hashCode()
     private val hasOTGConnected = activity.hasOTGConnected()
 
@@ -1066,10 +1071,15 @@ class MediaAdapter(
                 roundCorners = roundedCorners,
                 // Nova assinatura força a remoção lógica de thumbnails antigas
                 // que foram armazenadas em baixa resolução nas rodadas anteriores.
-                signature = ObjectKey("thumbnail-v11-${medium.getKey()}"),
+                signature = ObjectKey("thumbnail-v12-${medium.getKey()}"),
                 skipMemoryCacheAtPaths = rotatedImagePaths,
                 columnCount = config.mediaColumnCnt,
                 fallbackPath = medium.path.takeIf { it != thumbnailPath },
+                // O Glide pode "conseguir" decodificar o primeiro quadro de um video que
+                // comeca em preto (fade-in, GIF convertido, video do X). Sem esta flag o
+                // bitmap preto era aceito como sucesso e o onError abaixo - com toda a
+                // cadeia de fallback de video - nunca rodava.
+                detectarQuadroPreto = true,
                 onError = {
                     if (mediumThumbnail.tag == thumbnailPath) {
                         var fallbackLoaded = false
@@ -1081,6 +1091,19 @@ class MediaAdapter(
                             fallbackLoaded = true
 
                             ensureBackgroundThread {
+                                // Este arquivo ja passou pelo fallback antes: reaproveita
+                                // o bitmap guardado, sem redecodificar o video.
+                                val memo = quadroPretoResolvido[medium.path]
+                                if (memo != null && !memo.isRecycled) {
+                                    activity.runOnUiThread {
+                                        if (mediumThumbnail.tag == targetTag) {
+                                            mediumThumbnail.scaleType = ImageView.ScaleType.CENTER_CROP
+                                            mediumThumbnail.setImageBitmap(memo)
+                                        }
+                                    }
+                                    return@ensureBackgroundThread
+                                }
+
                                 var bmp: android.graphics.Bitmap? = null
 
                                 try {
@@ -1168,8 +1191,62 @@ class MediaAdapter(
                                         bmp = com.goodwy.gallery.helpers.QuadroDeVideo
                                             .primeiroQuadro(medium.path)
                                     }
+
+                                    // Bitmap "valido" porem QUASE PRETO: e' o quadro de
+                                    // abertura de videos que comecam em fade-in (X/Twitter,
+                                    // GIF convertido). Tenta o quadro do MEIO usando a
+                                    // duracao ja resolvida - inclusive aquecendo o cache do
+                                    // DuracaoVideos, que a etiqueta de duracao tambem usa.
+                                    // Video escuro "de verdade" tem o meio igualmente
+                                    // escuro: mantem o primeiro quadro.
+                                    if (bmp != null &&
+                                        com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bmp)
+                                    ) {
+                                        val duracaoSeg = medium.videoDuration.takeIf { it > 0 }
+                                            ?: com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(
+                                                activity, medium.path, medium.mediaStoreId
+                                            )
+                                        if (duracaoSeg > 0) {
+                                            val doMeio = com.goodwy.gallery.helpers.QuadroDeVideo
+                                                .quadroNoMeio(medium.path, duracaoSeg)
+                                            if (doMeio != null &&
+                                                !com.goodwy.gallery.helpers.QuadroDeVideo
+                                                    .ehQuasePreto(doMeio)
+                                            ) {
+                                                bmp = doMeio
+                                            }
+                                        } else {
+                                            // Duracao 0 aqui so' acontece na janela em que
+                                            // outra thread ja esta resolvendo o MESMO arquivo
+                                            // (o preenchimento de duracoes da pasta). O bitmap
+                                            // preto NAO e' memoizado (ver abaixo), entao o
+                                            // rebind seguinte refaz o fallback e pega a
+                                            // duracao que ja estara no cache. Uma linha so',
+                                            // apenas quando falha - nada de log no caminho
+                                            // feliz.
+                                            try {
+                                                com.goodwy.gallery.extensions.Right100Diag.add(
+                                                    "thumb: duracao 0 no fallback " + medium.path
+                                                )
+                                            } catch (_: Exception) {
+                                            }
+                                        }
+                                    }
                                 } catch (_: Exception) {
                                     // O callback de UI abaixo mostra o placeholder se falhar.
+                                }
+
+                                // Guarda o bitmap resolvido: nos rebinds seguintes o Glide
+                                // devolve o quadro preto do cache dele e cai aqui de novo.
+                                // QUASE PRETO nao e' "resolvido": memoizar o quadro preto
+                                // travaria a celula no preto para sempre.
+                                if (bmp != null &&
+                                    !com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bmp)
+                                ) {
+                                    if (quadroPretoResolvido.size > 40) {
+                                        quadroPretoResolvido.clear()
+                                    }
+                                    quadroPretoResolvido[medium.path] = bmp
                                 }
 
                                 val finalBmp = bmp

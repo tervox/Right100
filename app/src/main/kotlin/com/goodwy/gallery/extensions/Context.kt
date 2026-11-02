@@ -868,7 +868,12 @@ fun Context.loadImage(
     // em vez de um valor fixo — ver loadImageBase().
     columnCount: Int = 3,
     fallbackPath: String? = null,
-    onError: (() -> Unit)? = null
+    onError: (() -> Unit)? = null,
+    // So o grid de midia usa: trata um bitmap de video QUASE PRETO como falha (o Glide
+    // "consegue" decodificar o primeiro quadro de um fade-in, o load nao falha, e o
+    // onError com toda a cadeia de fallback de video nunca rodava). Capas de pasta e
+    // outros chamadores continuam com o comportamento antigo (default false).
+    detectarQuadroPreto: Boolean = false
 ) {
     target.isHorizontalScrolling = horizontalScroll
     if (type == TYPE_SVGS) {
@@ -895,7 +900,8 @@ fun Context.loadImage(
             isGif = type == TYPE_GIFS,
             columnCount = columnCount,
             fallbackPath = fallbackPath,
-            onError = onError
+            onError = onError,
+            detectarQuadroPreto = detectarQuadroPreto
         )
     }
 }
@@ -968,6 +974,7 @@ fun Context.loadImageBase(
     fallbackPath: String? = null,
     allowMediaStoreFallback: Boolean = true,
     onError: (() -> Unit)? = null,
+    detectarQuadroPreto: Boolean = false,
     retryCount: Int = 0
 ) {
     val requestToken = target.tag
@@ -1227,7 +1234,29 @@ fun Context.loadImageBase(
             targetBitmap: Target<Drawable>,
             dataSource: DataSource,
             isFirstResource: Boolean,
-        ) = false
+        ): Boolean {
+            // Video "quase GIF" (X/Twitter, GIF convertido) costuma comecar com um quadro
+            // PRETO. O Glide decodifica esse quadro com "sucesso" - o load nao falha, e a
+            // cadeia de fallback do MediaAdapter (loadThumbnail, ThumbnailUtils,
+            // QuadroDeVideo) nunca rodava: a celula exibia o quadro preto para sempre.
+            // Um bitmap de video quase todo preto e' tratado aqui como falha: o resultado
+            // e' consumido (return true - o quadro preto nunca chega na View) e o onError
+            // e' disparado, caindo no fallback que sabe tentar o quadro do MEIO do video.
+            if (isVideo && detectarQuadroPreto) {
+                val bitmap = (resource as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                if (bitmap != null &&
+                    com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bitmap)
+                ) {
+                    target.post {
+                        if (target.tag == requestToken && !isDestroyedActivity()) {
+                            onError?.invoke()
+                        }
+                    }
+                    return true
+                }
+            }
+            return false
+        }
     })
 
     builder.into(target)
