@@ -3,6 +3,7 @@ package com.goodwy.gallery.helpers
 import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.media.ThumbnailUtils
 import android.net.Uri
@@ -183,6 +184,12 @@ object FilaMiniaturas {
                     }
                     temArquivo = MiniaturaPermanente.existente(contexto, par.first) != null
                 }
+                // Fundo desfocado do visualizador: gerado aqui, em thread de prioridade
+                // minima, a partir do WebP de 320 px. Antes o desfoque rodava na thread
+                // principal a cada pagina criada do pager e travava a troca de foto.
+                if (temArquivo && MiniaturaPermanente.existenteFundo(contexto, par.first) == null) {
+                    gerarFundoDoArquivo(contexto, par.first)
+                }
             } catch (_: Throwable) {
                 temArquivo = false
             }
@@ -252,6 +259,33 @@ object FilaMiniaturas {
                 MiniaturaPermanente.limparOrfas(contexto)
             } catch (_: Throwable) {
             }
+        }
+    }
+
+    private fun larguraDoFundo(contexto: Context): Int =
+        (contexto.resources.displayMetrics.widthPixels / 8).coerceAtLeast(96)
+
+    /**
+     * Gera o fundo a partir do arquivo da miniatura ja' gravado. Serve para as midias que
+     * ja' tinham miniatura antes desta versao: nao precisa decodificar o original de novo.
+     */
+    private fun gerarFundoDoArquivo(contexto: Context, caminho: String) {
+        val miniatura = try {
+            MiniaturaPermanente.existente(contexto, caminho)
+        } catch (_: Throwable) {
+            null
+        } ?: return
+
+        var bmp: Bitmap? = null
+        try {
+            val opcoes = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
+            bmp = BitmapFactory.decodeFile(miniatura.absolutePath, opcoes)
+            if (bmp != null) {
+                MiniaturaPermanente.guardarFundo(contexto, caminho, bmp, larguraDoFundo(contexto))
+            }
+        } catch (_: Throwable) {
+        } finally {
+            try { bmp?.recycle() } catch (_: Throwable) {}
         }
     }
 

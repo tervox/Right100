@@ -26,6 +26,8 @@ object MiniaturaPermanente {
 
     private const val VERSAO = "v1"
     private const val QUALIDADE = 80
+    private const val QUALIDADE_FUNDO = 70
+    private const val SUFIXO_FUNDO = ".fundo"
 
     private fun raiz(context: Context): File =
         File(context.filesDir, "miniaturas/" + VERSAO).apply { if (!isDirectory) mkdirs() }
@@ -54,6 +56,143 @@ object MiniaturaPermanente {
         return if (f.isFile && f.length() > 0L) f else null
     }
 
+    // ------------------------------------------------------- fundo desfocado
+
+    private fun arquivoFundo(context: Context, mediaPath: String, mtime: Long): File {
+        val base = arquivoPara(context, mediaPath, mtime)
+        return File(base.parentFile, base.name.removeSuffix(".webp") + SUFIXO_FUNDO + ".webp")
+    }
+
+    /** Fundo desfocado ja' gravado, ou null se ainda nao existe (ou a midia mudou). */
+    fun existenteFundo(context: Context, mediaPath: String): File? {
+        if (mediaPath.startsWith("content://")) return null
+        val mtime = mtimeDe(mediaPath)
+        if (mtime <= 0L) return null
+        val f = arquivoFundo(context, mediaPath, mtime)
+        return if (f.isFile && f.length() > 0L) f else null
+    }
+
+    /**
+     * Gera e grava o fundo desfocado a partir da miniatura. Sempre chamado pela
+     * FilaMiniaturas, em thread de prioridade minima: nunca na thread principal e nunca
+     * no visualizador. E' isso que tira o desfoque do caminho da troca de foto.
+     */
+    fun guardarFundo(context: Context, mediaPath: String, fonte: Bitmap, larguraAlvo: Int): Boolean {
+        if (mediaPath.startsWith("content://") || fonte.isRecycled) return false
+        if (fonte.width <= 0 || fonte.height <= 0) return false
+        val mtime = mtimeDe(mediaPath)
+        if (mtime <= 0L) return false
+
+        val destino = arquivoFundo(context, mediaPath, mtime)
+        if (destino.isFile && destino.length() > 0L) return true
+
+        var pequeno: Bitmap? = null
+        var borrado: Bitmap? = null
+        try {
+            val largura = larguraAlvo.coerceIn(64, 320)
+            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceIn(64, 640)
+            pequeno = Bitmap.createScaledBitmap(fonte, largura, altura, true)
+            borrado = desfocar(pequeno, (largura / 9).coerceAtLeast(5))
+            if (gravarArquivo(destino, borrado, QUALIDADE_FUNDO)) {
+                apagarFundosAntigos(destino)
+                return true
+            }
+        } catch (_: Throwable) {
+        } finally {
+            try { if (borrado != null && borrado != pequeno) borrado.recycle() } catch (_: Throwable) {}
+            try { if (pequeno != null && pequeno != fonte) pequeno.recycle() } catch (_: Throwable) {}
+        }
+        return false
+    }
+
+    private fun apagarFundosAntigos(destino: File) {
+        try {
+            val base = destino.name.substringBeforeLast('@')
+            destino.parentFile?.listFiles()?.forEach { irmao ->
+                if (irmao != destino && irmao.name.startsWith(base + "@") && irmao.name.endsWith(SUFIXO_FUNDO + ".webp")) {
+                    irmao.delete()
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * Media de caixa em duas passadas por eixo. Nao usa RenderScript, nao usa biblioteca
+     * externa e nao exige bitmap mutavel (le os pixels, calcula, devolve um bitmap novo).
+     */
+    private fun desfocar(origem: Bitmap, raio: Int): Bitmap {
+        val largura = origem.width
+        val altura = origem.height
+        val total = largura * altura
+        val pixels = IntArray(total)
+        origem.getPixels(pixels, 0, largura, 0, 0, largura, altura)
+
+        val r = raio.coerceIn(1, (minOf(largura, altura) / 2).coerceAtLeast(1))
+        val temporario = IntArray(total)
+
+        desfocarEixo(pixels, temporario, largura, altura, r, true)
+        desfocarEixo(temporario, pixels, largura, altura, r, false)
+        desfocarEixo(pixels, temporario, largura, altura, r, true)
+        desfocarEixo(temporario, pixels, largura, altura, r, false)
+
+        val saida = Bitmap.createBitmap(largura, altura, Bitmap.Config.ARGB_8888)
+        saida.setPixels(pixels, 0, largura, 0, 0, largura, altura)
+        return saida
+    }
+
+    private fun desfocarEixo(entrada: IntArray, saida: IntArray, largura: Int, altura: Int, raio: Int, horizontal: Boolean) {
+        val janela = raio * 2 + 1
+        if (horizontal) {
+            for (y in 0 until altura) {
+                val base = y * largura
+                var a = 0
+                var r = 0
+                var g = 0
+                var b = 0
+                for (i in -raio..raio) {
+                    val c = entrada[base + i.coerceIn(0, largura - 1)]
+                    a += (c ushr 24) and 0xFF
+                    r += (c ushr 16) and 0xFF
+                    g += (c ushr 8) and 0xFF
+                    b += c and 0xFF
+                }
+                for (x in 0 until largura) {
+                    saida[base + x] = ((a / janela) shl 24) or ((r / janela) shl 16) or ((g / janela) shl 8) or (b / janela)
+                    val sai = entrada[base + (x - raio).coerceIn(0, largura - 1)]
+                    val entra = entrada[base + (x + raio + 1).coerceIn(0, largura - 1)]
+                    a += ((entra ushr 24) and 0xFF) - ((sai ushr 24) and 0xFF)
+                    r += ((entra ushr 16) and 0xFF) - ((sai ushr 16) and 0xFF)
+                    g += ((entra ushr 8) and 0xFF) - ((sai ushr 8) and 0xFF)
+                    b += (entra and 0xFF) - (sai and 0xFF)
+                }
+            }
+        } else {
+            for (x in 0 until largura) {
+                var a = 0
+                var r = 0
+                var g = 0
+                var b = 0
+                for (i in -raio..raio) {
+                    val c = entrada[i.coerceIn(0, altura - 1) * largura + x]
+                    a += (c ushr 24) and 0xFF
+                    r += (c ushr 16) and 0xFF
+                    g += (c ushr 8) and 0xFF
+                    b += c and 0xFF
+                }
+                for (y in 0 until altura) {
+                    saida[y * largura + x] = ((a / janela) shl 24) or ((r / janela) shl 16) or ((g / janela) shl 8) or (b / janela)
+                    val sai = entrada[(y - raio).coerceIn(0, altura - 1) * largura + x]
+                    val entra = entrada[(y + raio + 1).coerceIn(0, altura - 1) * largura + x]
+                    a += ((entra ushr 24) and 0xFF) - ((sai ushr 24) and 0xFF)
+                    r += ((entra ushr 16) and 0xFF) - ((sai ushr 16) and 0xFF)
+                    g += ((entra ushr 8) and 0xFF) - ((sai ushr 8) and 0xFF)
+                    b += (entra and 0xFF) - (sai and 0xFF)
+                }
+            }
+        }
+    }
+
     fun guardar(context: Context, mediaPath: String, bmp: Bitmap): Boolean {
         if (mediaPath.startsWith("content://") || bmp.isRecycled) return false
         val mtime = mtimeDe(mediaPath)
@@ -62,28 +201,37 @@ object MiniaturaPermanente {
         val destino = arquivoPara(context, mediaPath, mtime)
         if (destino.isFile && destino.length() > 0L) return true
 
-        try {
-            // .tmp e so' depois renomeia: se o app morrer no meio da escrita, nunca fica um
-            // arquivo truncado sendo servido como valido.
-            val tmp = File(destino.parentFile, destino.name + ".tmp")
-            FileOutputStream(tmp).use { saida -> comprimir(bmp, saida) }
-            if (tmp.length() > 0L && tmp.renameTo(destino)) {
-                apagarVersoesAntigas(destino)
-                return true
-            }
-            tmp.delete()
-        } catch (_: Exception) {
-            try { File(destino.parentFile, destino.name + ".tmp").delete() } catch (_: Exception) {}
+        if (gravarArquivo(destino, bmp, QUALIDADE)) {
+            apagarVersoesAntigas(destino)
+            return true
         }
         return false
     }
 
-    private fun comprimir(bmp: Bitmap, saida: FileOutputStream) {
+    private fun gravarArquivo(destino: File, bmp: Bitmap, qualidade: Int): Boolean {
+        return try {
+            // .tmp e so' depois renomeia: se o app morrer no meio da escrita, nunca fica um
+            // arquivo truncado sendo servido como valido.
+            val tmp = File(destino.parentFile, destino.name + ".tmp")
+            FileOutputStream(tmp).use { saida -> comprimir(bmp, saida, qualidade) }
+            if (tmp.length() > 0L && tmp.renameTo(destino)) {
+                true
+            } else {
+                tmp.delete()
+                false
+            }
+        } catch (_: Exception) {
+            try { File(destino.parentFile, destino.name + ".tmp").delete() } catch (_: Exception) {}
+            false
+        }
+    }
+
+    private fun comprimir(bmp: Bitmap, saida: FileOutputStream, qualidade: Int) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            bmp.compress(Bitmap.CompressFormat.WEBP_LOSSY, QUALIDADE, saida)
+            bmp.compress(Bitmap.CompressFormat.WEBP_LOSSY, qualidade, saida)
         } else {
             @Suppress("DEPRECATION")
-            bmp.compress(Bitmap.CompressFormat.WEBP, QUALIDADE, saida)
+            bmp.compress(Bitmap.CompressFormat.WEBP, qualidade, saida)
         }
     }
 
@@ -91,7 +239,10 @@ object MiniaturaPermanente {
         try {
             val base = destino.name.substringBeforeLast('@')
             destino.parentFile?.listFiles()?.forEach { irmao ->
-                if (irmao != destino && irmao.name.startsWith(base + "@")) irmao.delete()
+                // Nao mexe no fundo: ele tem a mesma base e seria apagado junto. Quem
+                // remove fundo velho e' o apagarFundosAntigos / o limparOrfas.
+                val ehFundo = irmao.name.endsWith(SUFIXO_FUNDO + ".webp")
+                if (irmao != destino && !ehFundo && irmao.name.startsWith(base + "@")) irmao.delete()
             }
         } catch (_: Exception) {
         }
@@ -126,7 +277,11 @@ object MiniaturaPermanente {
                 if (!f.name.endsWith(".webp")) continue
 
                 checados++
-                val semExtensao = f.name.removeSuffix(".webp")
+                // O fundo fica ao lado da miniatura com o sufixo ".fundo":
+                //   a.jpg@1730.webp   e   a.jpg@1730.fundo.webp
+                // Sem tirar o sufixo antes de procurar o "@", o nome nao seria reconhecido
+                // como pertencente a uma midia e o fundo seria apagado como orfao.
+                val semExtensao = f.name.removeSuffix(".webp").removeSuffix(SUFIXO_FUNDO)
                 val corte = semExtensao.lastIndexOf('@')
                 if (corte <= 0) {
                     f.delete()

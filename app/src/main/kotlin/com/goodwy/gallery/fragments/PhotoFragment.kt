@@ -498,6 +498,25 @@ class PhotoFragment : ViewPagerFragment() {
         // O resultado visual e' praticamente o mesmo: raio 60 sobre uma base de ~360 px
         // equivale, proporcionalmente, a raio 25 sobre 135 px - e depois esticado para a
         // tela ninguem distingue. O custo cai de 3 x 288 mil pixels para 1 x 40 mil.
+        // 1) Caminho normal: o fundo ja' esta' pronto no disco, gravado pela FilaMiniaturas
+        //    ao lado da miniatura (WebP de ~10 KB). Aqui nao ha' desfoque NENHUM - so'
+        //    abrir um arquivo pequeno. E' isso que faz a troca de foto nao custar nada.
+        val fundo = try {
+            MiniaturaPermanente.existenteFundo(ctx, mMedium.path)
+        } catch (_: Exception) {
+            null
+        }
+
+        if (fundo != null) {
+            Glide.with(ctx)
+                .load(fundo)
+                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE))
+                .into(binding.photoBlurBg)
+            return
+        }
+
+        // 2) Ainda nao existe (foto nova, ou pasta que nunca foi aberta na grade):
+        //    desfoque na hora, como antes.
         val larguraBase = (mScreenWidth / 8).coerceAtLeast(96)
         val alturaBase = (mScreenHeight / 8).coerceAtLeast(96)
 
