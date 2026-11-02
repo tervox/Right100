@@ -484,10 +484,35 @@ class PhotoFragment : ViewPagerFragment() {
         }
         binding.photoBlurBg.beVisible()
         binding.photoBlurOverlay.beVisible()
+        // ANTES: Glide carregava o ARQUIVO ORIGINAL de novo (segundo decode completo da
+        // mesma foto, com chave de cache diferente da imagem principal), sem override de
+        // tamanho, e aplicava BlurTransformation(60, 3) - raio 60 em TRES passadas, o
+        // desfoque mais caro da biblioteca. Como cada pagina do pager chama este metodo no
+        // onCreateView, e com offscreenPageLimit = 1 o pager cria 1 a 2 paginas por troca,
+        // cada troca pagava 1 a 2 decodes completos extras + 1 a 2 desfoques triplos, na
+        // mesma CPU que decodifica a proxima foto. Era a causa real da troca lenta - e o
+        // motivo de desligar o blur nas configuracoes deixar a troca rapida.
+        //
+        // AGORA: o fundo vem da miniatura permanente (320 px, ja' gravada no disco pelo
+        // MiniaturasPermanente), decodificada em 1/8 da tela, com UMA passada de raio 25.
+        // O resultado visual e' praticamente o mesmo: raio 60 sobre uma base de ~360 px
+        // equivale, proporcionalmente, a raio 25 sobre 135 px - e depois esticado para a
+        // tela ninguem distingue. O custo cai de 3 x 288 mil pixels para 1 x 40 mil.
+        val larguraBase = (mScreenWidth / 8).coerceAtLeast(96)
+        val alturaBase = (mScreenHeight / 8).coerceAtLeast(96)
+
+        val fonte = try {
+            MiniaturaPermanente.existente(ctx, mMedium.path)
+        } catch (_: Exception) {
+            null
+        } ?: File(mMedium.path)
+
         Glide.with(ctx)
-            .load(mMedium.path)
-            .thumbnail(0.2f)
-            .transform(MultiTransformation(CenterCrop(), BlurTransformation(60, 3)))
+            .load(fonte)
+            .apply(RequestOptions()
+                .override(larguraBase, alturaBase)
+                .diskCacheStrategy(DiskCacheStrategy.RESOURCE))
+            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 1)))
             .into(binding.photoBlurBg)
     }
 
