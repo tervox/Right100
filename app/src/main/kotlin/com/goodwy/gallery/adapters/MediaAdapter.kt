@@ -1095,17 +1095,30 @@ class MediaAdapter(
             // permite ignorar callbacks antigos que não pertencem mais a esta célula.
             mediumThumbnail.tag = thumbnailPath
 
-            val miniaturaPermanente = com.goodwy.gallery.helpers.MiniaturaPermanente.existente(activity, medium.path)
+            // Miniatura permanente - so' foto e video. GIF e SVG precisam do arquivo
+            // original: GIF pela animacao, SVG porque a miniatura gravada seria o vetor
+            // rasterizado. Midia rotacionada agora tem o arquivo guardado desatualizado,
+            // entao tambem cai no original (a limpeza troca a miniatura depois).
+            val miniaturaPermanente = if (
+                rotatedImagePaths.contains(medium.path) ||
+                medium.isGIF() || medium.isSVG()
+            ) {
+                null
+            } else {
+                com.goodwy.gallery.helpers.MiniaturaPermanente.existente(activity, medium.path)
+            }
             activity.loadImage(
                 type = if (miniaturaPermanente != null) com.goodwy.gallery.helpers.TYPE_IMAGES else medium.type,
-                path = thumbnailPath,
+                // AQUI estava o erro: o `path` e' o que o Glide abre. Ficava sempre
+                // thumbnailPath (a midia original), entao a miniatura gravada nunca era
+                // usada e a grade redecodificava o video/foto a cada rebind.
+                path = miniaturaPermanente?.absolutePath ?: thumbnailPath,
                 target = mediumThumbnail,
                 horizontalScroll = scrollHorizontally,
-                animateGifs = animateGifs,
+                // Miniatura permanente e' imagem estatica: animar nao se aplica.
+                animateGifs = if (miniaturaPermanente != null) false else animateGifs,
                 cropThumbnails = cropThumbnails,
                 roundCorners = roundedCorners,
-                // Nova assinatura força a remoção lógica de thumbnails antigas
-                // que foram armazenadas em baixa resolução nas rodadas anteriores.
                 signature = if (miniaturaPermanente != null) {
                     ObjectKey("perm-v1-" + miniaturaPermanente.name)
                 } else {
@@ -1113,12 +1126,13 @@ class MediaAdapter(
                 },
                 skipMemoryCacheAtPaths = rotatedImagePaths,
                 columnCount = config.mediaColumnCnt,
-                fallbackPath = medium.path.takeIf { it != thumbnailPath },
+                // Se o arquivo da miniatura estiver corrompido, volta para a midia.
+                fallbackPath = if (miniaturaPermanente != null) thumbnailPath else medium.path.takeIf { it != thumbnailPath },
                 // O Glide pode "conseguir" decodificar o primeiro quadro de um video que
                 // comeca em preto (fade-in, GIF convertido, video do X). Sem esta flag o
                 // bitmap preto era aceito como sucesso e o onError abaixo - com toda a
                 // cadeia de fallback de video - nunca rodava.
-                detectarQuadroPreto = true,
+                detectarQuadroPreto = miniaturaPermanente == null,
                 onError = {
                     if (mediumThumbnail.tag == thumbnailPath) {
                         var fallbackLoaded = false

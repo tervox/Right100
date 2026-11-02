@@ -79,38 +79,71 @@ object FilaMiniaturas {
     }
 
     private fun decodificar(contexto: Context, item: Medium): Bitmap? {
+        var bmp: Bitmap? = null
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             uriDe(item)?.let { uri ->
                 try {
-                    contexto.contentResolver.loadThumbnail(uri, Size(LADO_PX, LADO_PX), null)?.let { return it }
+                    bmp = contexto.contentResolver.loadThumbnail(uri, Size(LADO_PX, LADO_PX), null)
                 } catch (_: Exception) {
                 }
             }
         }
 
-        if (!item.path.startsWith("content://") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (bmp == null && !item.path.startsWith("content://") && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
-                val bmp = if (item.isVideo()) {
+                bmp = if (item.isVideo()) {
                     ThumbnailUtils.createVideoThumbnail(File(item.path), Size(LADO_PX, LADO_PX), null)
                 } else {
                     ThumbnailUtils.createImageThumbnail(File(item.path), Size(LADO_PX, LADO_PX), null)
                 }
-                if (bmp != null) return bmp
             } catch (_: Exception) {
             }
         }
 
         if (item.isVideo() && !item.path.startsWith("content://")) {
-            val mmr = MediaMetadataRetriever()
-            try {
-                mmr.setDataSource(item.path)
-                mmr.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { return it }
-            } catch (_: Exception) {
-            } finally {
-                try { mmr.release() } catch (_: Exception) {}
+            if (bmp == null) {
+                try {
+                    bmp = QuadroDeVideo.primeiroQuadro(item.path)
+                } catch (_: Exception) {
+                }
+            }
+            // Video que comeca em fade-in (X/Twitter, GIF convertido) entrega um quadro
+            // quase preto. Gravar isso colocaria a celula em preto para sempre, porque a
+            // grade passaria a abrir o arquivo direto, sem a cadeia de fallback. Aqui a
+            // fila tenta o quadro do MEIO; se nem ele servir, nao grava nada e a celula
+            // continua usando a midia original com o fallback de sempre.
+            if (bmp != null && QuadroDeVideo.ehQuasePreto(bmp)) {
+                val doMeio = try {
+                    val ms = duracaoMs(item.path)
+                    if (ms > 0L) QuadroDeVideo.quadroNoMeio(item.path, (ms / 2000L).toInt()) else null
+                } catch (_: Exception) {
+                    null
+                }
+                if (doMeio != null && !QuadroDeVideo.ehQuasePreto(doMeio)) {
+                    if (bmp != doMeio) bmp.recycle()
+                    bmp = doMeio
+                } else {
+                    doMeio?.recycle()
+                    bmp?.recycle()
+                    return null
+                }
             }
         }
-        return null
+
+        return bmp
+    }
+
+    private fun duracaoMs(path: String): Long {
+        val mmr = MediaMetadataRetriever()
+        return try {
+            mmr.setDataSource(path)
+            mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        } catch (_: Exception) {
+            0L
+        } finally {
+            try { mmr.release() } catch (_: Exception) {}
+        }
     }
 
     fun esquecerTudo() {

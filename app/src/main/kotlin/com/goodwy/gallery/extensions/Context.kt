@@ -1020,7 +1020,13 @@ fun Context.loadImageBase(
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
         .priority(Priority.NORMAL)
-        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+        .diskCacheStrategy(
+            // A miniatura permanente JA' e' a imagem pronta, num arquivo de 320 px em
+            // filesDir. Deixar o Glide cachear de novo guardava uma segunda copia da
+            // mesma imagem (ate 250 MB de cache) sem ganho: abrir um arquivo local de
+            // 320 px e' imediato. Todo o resto continua com o comportamento antigo.
+            if (path.contains("/miniaturas/v1/")) DiskCacheStrategy.NONE else DiskCacheStrategy.AUTOMATIC
+        )
         // ARGB_8888 evita imagens pretas em arquivos com alfa, perfis de cor ou
         // transformações que não funcionam corretamente em RGB_565. GIFs recebem RGB_565
         // explicitamente abaixo, onde a economia de memória é mais importante.
