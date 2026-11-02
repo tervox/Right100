@@ -1095,8 +1095,9 @@ class MediaAdapter(
             // permite ignorar callbacks antigos que não pertencem mais a esta célula.
             mediumThumbnail.tag = thumbnailPath
 
+            val miniaturaPermanente = com.goodwy.gallery.helpers.MiniaturaPermanente.existente(activity, medium.path)
             activity.loadImage(
-                type = medium.type,
+                type = if (miniaturaPermanente != null) com.goodwy.gallery.helpers.TYPE_IMAGES else medium.type,
                 path = thumbnailPath,
                 target = mediumThumbnail,
                 horizontalScroll = scrollHorizontally,
@@ -1105,7 +1106,11 @@ class MediaAdapter(
                 roundCorners = roundedCorners,
                 // Nova assinatura força a remoção lógica de thumbnails antigas
                 // que foram armazenadas em baixa resolução nas rodadas anteriores.
-                signature = ObjectKey("thumbnail-v12-${medium.getKey()}"),
+                signature = if (miniaturaPermanente != null) {
+                    ObjectKey("perm-v1-" + miniaturaPermanente.name)
+                } else {
+                    ObjectKey("thumbnail-v12-${medium.getKey()}")
+                },
                 skipMemoryCacheAtPaths = rotatedImagePaths,
                 columnCount = config.mediaColumnCnt,
                 fallbackPath = medium.path.takeIf { it != thumbnailPath },

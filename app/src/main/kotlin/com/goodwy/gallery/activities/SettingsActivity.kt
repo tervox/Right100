@@ -1246,7 +1246,7 @@ class SettingsActivity : SimpleActivity() {
 
     private fun setupClearCache() {
         ensureBackgroundThread {
-            val size = cacheDir.getProperSize(true).formatSize()
+            val size = (cacheDir.getProperSize(true) + com.goodwy.gallery.helpers.MiniaturaPermanente.tamanhoBytes(this@SettingsActivity)).formatSize()
             runOnUiThread {
                 binding.settingsClearCacheSize.text = size
             }
@@ -1255,8 +1255,10 @@ class SettingsActivity : SimpleActivity() {
         binding.settingsClearCacheHolder.setOnClickListener {
             ensureBackgroundThread {
                 cacheDir.deleteRecursively()
+                com.goodwy.gallery.helpers.MiniaturaPermanente.limparTudo(this@SettingsActivity)
+                com.goodwy.gallery.helpers.FilaMiniaturas.esquecerTudo()
                 runOnUiThread {
-                    binding.settingsClearCacheSize.text = cacheDir.getProperSize(true).formatSize()
+                    binding.settingsClearCacheSize.text = (cacheDir.getProperSize(true) + com.goodwy.gallery.helpers.MiniaturaPermanente.tamanhoBytes(this@SettingsActivity)).formatSize()
                 }
             }
         }
