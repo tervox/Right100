@@ -1107,6 +1107,13 @@ class MediaAdapter(
             } else {
                 com.goodwy.gallery.helpers.MiniaturaPermanente.existente(activity, medium.path)
             }
+            // O que esta na tela passa na frente da fila: sem isso a fila andava na
+            // ordem da pasta a partir do item 0 e o meio da pasta parecia travado.
+            if (miniaturaPermanente == null) {
+                com.goodwy.gallery.helpers.FilaMiniaturas.priorizar(
+                    activity.applicationContext, listOf(medium)
+                )
+            }
             activity.loadImage(
                 type = if (miniaturaPermanente != null) com.goodwy.gallery.helpers.TYPE_IMAGES else medium.type,
                 // AQUI estava o erro: o `path` e' o que o Glide abre. Ficava sempre
