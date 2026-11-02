@@ -1216,19 +1216,28 @@ class MediaAdapter(
                                                 bmp = doMeio
                                             }
                                         } else {
-                                            // Duracao 0 aqui so' acontece na janela em que
-                                            // outra thread ja esta resolvendo o MESMO arquivo
-                                            // (o preenchimento de duracoes da pasta). O bitmap
-                                            // preto NAO e' memoizado (ver abaixo), entao o
-                                            // rebind seguinte refaz o fallback e pega a
-                                            // duracao que ja estara no cache. Uma linha so',
-                                            // apenas quando falha - nada de log no caminho
-                                            // feliz.
-                                            try {
-                                                com.goodwy.gallery.extensions.Right100Diag.add(
-                                                    "thumb: duracao 0 no fallback " + medium.path
-                                                )
-                                            } catch (_: Exception) {
+                                            // Sem duracao (outra thread ainda resolvendo, ou
+                                            // arquivo que nao declara duracao em lugar nenhum
+                                            // - nesses nem a via porAmostras resolve). O
+                                            // quadroNoMeio com duracao 0 pede o ULTIMO sync
+                                            // sample: o fim do video e' sempre conteudo, o
+                                            // preto e' so' na abertura. Se a duracao resolver
+                                            // depois, o rebind seguinte entrega o meio. Log
+                                            // apenas se ate' o fim falhar.
+                                            val doFim = com.goodwy.gallery.helpers.QuadroDeVideo
+                                                .quadroNoMeio(medium.path, 0)
+                                            if (doFim != null &&
+                                                !com.goodwy.gallery.helpers.QuadroDeVideo
+                                                    .ehQuasePreto(doFim)
+                                            ) {
+                                                bmp = doFim
+                                            } else {
+                                                try {
+                                                    com.goodwy.gallery.extensions.Right100Diag.add(
+                                                        "thumb: fim do video nulo/preto " + medium.path
+                                                    )
+                                                } catch (_: Exception) {
+                                                }
                                             }
                                         }
                                     }

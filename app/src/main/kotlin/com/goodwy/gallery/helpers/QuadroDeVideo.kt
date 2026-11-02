@@ -217,10 +217,18 @@ object QuadroDeVideo {
     // Quadro do MEIO do video (metade da duracao, no sync sample mais proximo). E' o
     // que acerta quando o primeiro quadro e' preto: o meio normalmente ja e' conteudo.
     fun quadroNoMeio(caminho: String, duracaoSegundos: Int): Bitmap? {
-        if (duracaoSegundos <= 0) return null
-        val meioMicros = duracaoSegundos * 1_000_000L / 2L
+        // Duracao desconhecida (0) nao e' mais desistencia: com 0 pedimos um
+        // instante MUITO alem do fim e o SEEK_TO_CLOSEST_SYNC entrega o ULTIMO
+        // sync sample do video. Nos MP4 "quase GIF" do X - que nao declaram
+        // duracao em metadado NENHUM - o fim e' sempre conteudo; o preto e'
+        // so' na abertura. Com duracao conhecida segue sendo o quadro do meio.
+        val micros = if (duracaoSegundos > 0) {
+            duracaoSegundos * 1_000_000L / 2L
+        } else {
+            24L * 60L * 60L * 1_000_000L
+        }
         return try {
-            quadroEm(caminho, meioMicros)
+            quadroEm(caminho, micros)
         } catch (_: Exception) {
             null
         }
