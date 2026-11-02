@@ -75,6 +75,7 @@ class MediaAdapter(
     // Glide continua devolvendo do cache dele o quadro preto a cada rebind da celula;
     // sem esta memoria, cada rebind redecodificava o meio do video de novo.
     private val quadroPretoResolvido = HashMap<String, android.graphics.Bitmap>()
+    private val thumbnailCache = HashMap<String, android.graphics.Bitmap>()
     private var currentMediaHash = media.hashCode()
     private val hasOTGConnected = activity.hasOTGConnected()
 
@@ -1104,7 +1105,10 @@ class MediaAdapter(
                                     return@ensureBackgroundThread
                                 }
 
-                                var bmp: android.graphics.Bitmap? = null
+                                var bmp: android.graphics.Bitmap? = thumbnailCache[medium.path]
+                                if (bmp == null) {
+                                    bmp = null
+                                }
 
                                 try {
                                     fun loadViaUri(uri: android.net.Uri?): android.graphics.Bitmap? {
