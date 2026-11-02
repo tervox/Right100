@@ -78,7 +78,7 @@ object QuadroDeVideo {
             val info = MediaCodec.BufferInfo()
             var enviando = true
             var voltas = 0
-            while (voltas < 300) {
+            while (voltas < 1000) {
                 voltas++
 
                 if (enviando) {
@@ -225,7 +225,7 @@ object QuadroDeVideo {
         val micros = if (duracaoSegundos > 0) {
             duracaoSegundos * 1_000_000L / 2L
         } else {
-            24L * 60L * 60L * 1_000_000L
+            10L * 60L * 1_000_000L
         }
         return try {
             quadroEm(caminho, micros)
