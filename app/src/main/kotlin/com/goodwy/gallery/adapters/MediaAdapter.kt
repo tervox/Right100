@@ -154,23 +154,6 @@ class MediaAdapter(
         bindViewHolder(holder)
 
         // Pré-carregar thumbnails de TODOS os itens em background ao entrar na pasta
-        if (position == 0 && !mPreloadedThumbnails) {
-            mPreloadedThumbnails = true
-            ensureBackgroundThread {
-                media.filterIsInstance<Medium>().forEach { medium ->
-                    // Carrega thumbnail em cache sem bloquear a UI
-                    if (thumbnailCache[medium.path] == null && quadroPretoResolvido[medium.path] == null) {
-                        val targetTag = medium.path
-                        var bmp: android.graphics.Bitmap? = null
-                        try {
-                            bmp = com.goodwy.gallery.helpers.QuadroDeVideo.primeiroQuadro(medium.path)
-                            if (bmp != null && !com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bmp)) {
-                                thumbnailCache[medium.path] = bmp
-                            }
-                        } catch (_: Exception) {}
-                    }
-                }
-            }
         }
     }
 
@@ -1124,7 +1107,7 @@ class MediaAdapter(
                                     return@ensureBackgroundThread
                                 }
 
-                                var bmp: android.graphics.Bitmap? = thumbnailCache[medium.path]
+                                var bmp: android.graphics.Bitmap? = null
                                 if (bmp == null) {
                                     bmp = null
                                 }
@@ -1275,10 +1258,6 @@ class MediaAdapter(
                                 if (bmp != null &&
                                     !com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(bmp)
                                 ) {
-                                    if (thumbnailCache.size > 100) {
-                                        thumbnailCache.clear()
-                                    }
-                                    thumbnailCache[medium.path] = bmp
                                     if (quadroPretoResolvido.size > 40) {
                                         quadroPretoResolvido.clear()
                                     }
