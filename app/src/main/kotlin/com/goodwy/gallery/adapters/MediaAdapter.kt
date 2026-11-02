@@ -59,7 +59,7 @@ class MediaAdapter(
     val swipeRefreshLayout: SwipeRefreshLayout? = null,
     itemClick: (Any) -> Unit
 ) : MyRecyclerViewAdapter(activity, recyclerView, itemClick), ItemTouchHelperContract,
-    RecyclerViewFastScroller.OnPopupTextUpdate {
+    RecyclerViewFastScroller.OnPopupTextUpdate, FilaMiniaturas.AvisoDeMiniatura {
 
     private val ITEM_SECTION = 0
     private val ITEM_MEDIUM_VIDEO_PORTRAIT = 1
@@ -95,11 +95,32 @@ class MediaAdapter(
     init {
         setupDragListener(true)
         setHasStableIds(true)
+        FilaMiniaturas.registrarAviso(this)
         attachedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 setVisibleAnimatablesRunning(newState == RecyclerView.SCROLL_STATE_IDLE)
             }
         })
+    }
+
+    /**
+     * A fila gerou a miniatura de uma celula que esta na tela: redesenha so' aquela
+     * celula, e so' com a grade parada. Sem isto, quem ficava parado num ponto continuava
+     * vendo o placeholder mesmo depois de o arquivo existir - ele so' aparecia ao sair e
+     * voltar na pasta, que rebinda tudo.
+     */
+    override fun miniaturaPronta(caminho: String) {
+        val posicao = keyToPositionCache[caminho.hashCode()]
+            ?: media.indexOfFirst { (it as? Medium)?.path == caminho }.takeIf { it >= 0 }
+            ?: return
+        attachedRecyclerView.post {
+            try {
+                if (attachedRecyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) return@post
+                if (attachedRecyclerView.findViewHolderForAdapterPosition(posicao) == null) return@post
+                notifyItemChanged(posicao)
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun setVisibleAnimatablesRunning(running: Boolean) {

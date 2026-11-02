@@ -11,40 +11,71 @@ import android.provider.MediaStore
 import android.util.Size
 import com.goodwy.gallery.models.Medium
 import java.io.File
+import java.lang.ref.WeakReference
+import java.util.concurrent.Callable
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
- * Fila de miniaturas do processo inteiro: uma thread de prioridade minima que grava o
- * WebP permanente de cada midia (foto e video) em MiniaturaPermanente.
+ * Fila de miniaturas do processo inteiro. Grava o WebP permanente de cada midia em
+ * MiniaturaPermanente (filesDir, sem teto).
  *
- * Duas filas:
- *  - urgentes: as celulas que o usuario esta vendo AGORA. MediaAdapter.setupThumbnail
- *    chama priorizar() a cada bind. Antes existia so' a fila da pasta inteira, na ordem
- *    do indice: se o usuario estava no meio da pasta, a fila consumia os primeiros itens
- *    (que ninguem estava olhando) e o que estava na tela parecia nao carregar.
- *  - pendentes: o resto da pasta, enfileirado uma vez quando a pasta abre.
+ * Tres filas, nesta ordem de atendimento:
+ *   1. urgentes - celulas que o usuario esta vendo AGORA (MediaAdapter.priorizar)
+ *   2. fotos    - resto da pasta, fotos primeiro porque decodificam em milissegundos
+ *   3. videos   - por ultimo, porque cada um custa dezenas a centenas de milissegundos
  *
- * Sem teto de tamanho. Roda enquanto o processo do app estiver vivo: se o Android matar
- * o app ou o usuario fechar pelas recentes, a fila para e retoma na proxima abertura.
- * Nao e' servico em primeiro plano - de proposito, para nao ficar notificacao fixa.
+ * Cada decode roda com PRAZO. Antes a fila era uma thread so' e sem prazo: um video
+ * corrompido ou muito pesado travava a thread e TODA a geracao parava junto, em silencio -
+ * a tela ficava sem miniatura e o diagnostico nao mostrava nada.
+ *
+ * Quando a miniatura fica pronta, a fila avisa a grade (AvisoDeMiniatura) para redesenhar
+ * so' aquela celula. Sem isso, quem parava num ponto continuava vendo o placeholder mesmo
+ * depois do arquivo existir - ele so' aparecia ao sair e voltar na pasta.
+ *
+ * Roda enquanto o processo do app estiver vivo. Se o Android matar o app, a fila para e
+ * retoma na proxima abertura. Nao e' servico em primeiro plano, de proposito.
  */
 object FilaMiniaturas {
 
-    private const val INTERVALO_MS = 25L
+    interface AvisoDeMiniatura {
+        fun miniaturaPronta(caminho: String)
+    }
+
+    private const val INTERVALO_MS = 20L
     private const val LADO_PX = 320
     private const val DIAG_CADA = 20
+    private const val PRAZO_MS = 6000L
+    private const val TENTATIVAS_MAX = 2
 
-    private val lock = java.lang.Object()
+    private val lock = Any()
+
     private val urgentes = LinkedHashMap<String, Medium>()
-    private val pendentes = LinkedHashMap<String, Medium>()
+    private val fotos = LinkedHashMap<String, Medium>()
+    private val videos = LinkedHashMap<String, Medium>()
     private val prontas = HashSet<String>()
+    private val tentativas = HashMap<String, Int>()
+
     private var app: Context? = null
+    private var aviso: WeakReference<AvisoDeMiniatura>? = null
     private var geradas = 0L
+    private var desistencias = 0L
     private var tempoTotal = 0L
     private var rodando = false
 
     private val executor = Executors.newSingleThreadExecutor { alvo ->
         Thread(alvo, "Right100-fila-miniaturas").apply { priority = Thread.MIN_PRIORITY }
+    }
+
+    private val decodificador = Executors.newCachedThreadPool { alvo ->
+        Thread(alvo, "Right100-decode-miniatura").apply { priority = Thread.MIN_PRIORITY }
+    }
+
+    fun registrarAviso(destino: AvisoDeMiniatura?) {
+        synchronized(lock) {
+            aviso = if (destino == null) null else WeakReference(destino)
+        }
     }
 
     fun enfileirar(
@@ -60,22 +91,22 @@ object FilaMiniaturas {
             if (app == null) app = contexto.applicationContext
             for (item in itens) {
                 val caminho = item.path
-                if (prontas.contains(caminho) || pendentes.containsKey(caminho) || urgentes.containsKey(caminho)) continue
+                if (prontas.contains(caminho) || jaNaFila(caminho)) continue
                 if (item.isGIF() || item.isSVG()) {
                     prontas.add(caminho)
                     continue
                 }
-                pendentes[caminho] = item
+                if (item.isVideo()) videos[caminho] = item else fotos[caminho] = item
                 novas++
             }
             if (novas > 0) garantirThread()
         }
         if (novas > 0) {
-            diag("miniaturas: pasta n=" + itens.size + " novas=" + novas + " naFila=" + tamanho())
+            diag("miniaturas: pasta n=" + itens.size + " novas=" + novas + " fila=" + tamanho())
         }
     }
 
-    /** Chamado a cada celula desenhada: o que esta na tela passa na frente. */
+    /** Chamado a cada celula desenhada: o que esta na tela passa na frente de tudo. */
     fun priorizar(contexto: Context, itens: List<Medium>) {
         if (itens.isEmpty()) return
         synchronized(lock) {
@@ -83,7 +114,8 @@ object FilaMiniaturas {
             for (item in itens) {
                 val caminho = item.path
                 if (prontas.contains(caminho) || item.isGIF() || item.isSVG()) continue
-                pendentes.remove(caminho)
+                fotos.remove(caminho)
+                videos.remove(caminho)
                 urgentes[caminho] = item
             }
             garantirThread()
@@ -93,12 +125,17 @@ object FilaMiniaturas {
     fun esquecerTudo() {
         synchronized(lock) {
             prontas.clear()
-            pendentes.clear()
+            tentativas.clear()
+            fotos.clear()
+            videos.clear()
             urgentes.clear()
         }
     }
 
-    private fun tamanho(): Int = synchronized(lock) { urgentes.size + pendentes.size }
+    private fun jaNaFila(caminho: String): Boolean =
+        urgentes.containsKey(caminho) || fotos.containsKey(caminho) || videos.containsKey(caminho)
+
+    private fun tamanho(): Int = synchronized(lock) { urgentes.size + fotos.size + videos.size }
 
     private fun garantirThread() {
         if (rodando) return
@@ -109,59 +146,89 @@ object FilaMiniaturas {
             } finally {
                 synchronized(lock) {
                     rodando = false
-                    if (urgentes.isNotEmpty() || pendentes.isNotEmpty()) garantirThread()
+                    if (urgentes.isNotEmpty() || fotos.isNotEmpty() || videos.isNotEmpty()) garantirThread()
                 }
             }
         }
     }
 
+    private fun proximo(): Pair<String, Medium>? = synchronized(lock) {
+        val filas = arrayOf(urgentes, fotos, videos)
+        for (fila in filas) {
+            val entrada = fila.entries.firstOrNull()
+            if (entrada != null) {
+                fila.remove(entrada.key)
+                return Pair(entrada.key, entrada.value)
+            }
+        }
+        return null
+    }
+
     private fun laco() {
         var marcadorDiag = 0L
         while (true) {
-            val par = synchronized(lock) {
-                val primeiro = urgentes.entries.firstOrNull()
-                if (primeiro != null) {
-                    urgentes.remove(primeiro.key)
-                    Pair(primeiro.key, primeiro.value)
-                } else {
-                    val seguinte = pendentes.entries.firstOrNull()
-                    if (seguinte == null) {
-                        null
-                    } else {
-                        pendentes.remove(seguinte.key)
-                        Pair(seguinte.key, seguinte.value)
-                    }
-                }
-            } ?: break
-
+            val par = proximo() ?: break
             val contexto = app ?: break
             val inicioMs = System.currentTimeMillis()
+
+            var temArquivo = false
             try {
-                if (MiniaturaPermanente.existente(contexto, par.first) == null) {
-                    val bmp = decodificar(contexto, par.second)
+                if (MiniaturaPermanente.existente(contexto, par.first) != null) {
+                    temArquivo = true
+                } else {
+                    val bmp = decodificarComPrazo(contexto, par.second)
                     if (bmp != null) {
                         MiniaturaPermanente.guardar(contexto, par.first, bmp)
                         bmp.recycle()
                     }
+                    temArquivo = MiniaturaPermanente.existente(contexto, par.first) != null
                 }
             } catch (_: Throwable) {
+                temArquivo = false
             }
 
             val gastoMs = System.currentTimeMillis() - inicioMs
-            val total: Long
+            var total = 0L
             synchronized(lock) {
-                prontas.add(par.first)
-                geradas++
+                if (temArquivo) {
+                    prontas.add(par.first)
+                    tentativas.remove(par.first)
+                    geradas++
+                } else {
+                    val tentativa = (tentativas[par.first] ?: 0) + 1
+                    if (tentativa >= TENTATIVAS_MAX) {
+                        // Desistiu de verdade: nao fica tentando para sempre, mas avisa.
+                        prontas.add(par.first)
+                        tentativas.remove(par.first)
+                        desistencias++
+                        diag("miniaturas: DESISTI " + par.first.substringAfterLast('/') + " tentativas=" + tentativa)
+                    } else {
+                        // Devolve para o fim da fila: o travamento pode ter sido pontual.
+                        tentativas[par.first] = tentativa
+                        if (!jaNaFila(par.first)) {
+                            if (par.second.isVideo()) videos[par.first] = par.second else fotos[par.first] = par.second
+                        }
+                    }
+                }
                 tempoTotal += gastoMs
                 total = geradas
             }
+
+            if (temArquivo) {
+                val destino = synchronized(lock) { aviso?.get() }
+                try {
+                    destino?.miniaturaPronta(par.first)
+                } catch (_: Throwable) {
+                }
+            }
+
             if (total - marcadorDiag >= DIAG_CADA) {
                 marcadorDiag = total
+                var media = 0L
+                synchronized(lock) { if (geradas > 0) media = tempoTotal / geradas }
                 diag(
-                    "miniaturas: geradas=" + total +
-                        " naFila=" + tamanho() +
-                        " ms/med=" + (tempoTotal / total) +
-                        " ultima=" + gastoMs + "ms"
+                    "miniaturas: geradas=" + total + " fila=" + tamanho() +
+                        " ms/med=" + media + " ultima=" + gastoMs + "ms desistencias=" + desistencias
                 )
             }
 
@@ -175,14 +242,33 @@ object FilaMiniaturas {
         val contexto = app
         if (contexto != null) {
             var media = 0L
+            var total = 0L
             synchronized(lock) {
+                total = geradas
                 if (geradas > 0) media = tempoTotal / geradas
             }
-            diag("miniaturas: fila vazia geradas=" + geradas + " ms/med=" + media)
+            diag("miniaturas: fila vazia geradas=" + total + " ms/med=" + media + " desistencias=" + desistencias)
             try {
                 MiniaturaPermanente.limparOrfas(contexto)
             } catch (_: Throwable) {
             }
+        }
+    }
+
+    private fun decodificarComPrazo(contexto: Context, item: Medium): Bitmap? {
+        val tarefa = try {
+            decodificador.submit(Callable<Bitmap?> { decodificar(contexto, item) })
+        } catch (_: Throwable) {
+            return null
+        }
+        return try {
+            tarefa.get(PRAZO_MS, TimeUnit.MILLISECONDS)
+        } catch (_: TimeoutException) {
+            tarefa.cancel(true)
+            diag("miniaturas: PRAZO estourado em " + item.path.substringAfterLast('/'))
+            null
+        } catch (_: Throwable) {
+            null
         }
     }
 
@@ -233,7 +319,6 @@ object FilaMiniaturas {
             }
             // Video que comeca em fade-in entrega quadro quase preto. Gravar isso deixaria
             // a celula preta para sempre, porque a grade passaria a abrir o arquivo direto.
-            // Tenta o quadro do MEIO; se nem ele servir, nao grava nada.
             if (bmp != null && QuadroDeVideo.ehQuasePreto(bmp)) {
                 val doMeio = try {
                     val ms = duracaoMs(item.path)
