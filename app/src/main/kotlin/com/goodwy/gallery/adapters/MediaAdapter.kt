@@ -951,7 +951,130 @@ class MediaAdapter(
             }
     }
 
+    // ==================== pre-carregamento em segundo plano ====================
+    // setupThumbnail so' roda para as celulas que o RecyclerView liga na tela, entao a
+    // pasta carregava apenas o que estava visivel e o resto so' quando o usuario rolava
+    // ate la. Aqui cada celula ligada enfileira as seguintes numa UNICA thread de
+    // prioridade minima, usando a MESMA chamada loadImage do bind - mesmo type, path,
+    // signature, roundCorners e columnCount. Assim o bitmap cai no cache do Glide com
+    // exatamente a chave que o bind vai procurar depois; com chave diferente o trabalho
+    // seria jogado fora, e e' por isso que esta fila vive dentro do adapter.
+    private val aquecerAFrente = 40
+    private val intervaloMiniaturaMs = 60L
+    private val filaMiniaturas = java.util.concurrent.Executors.newSingleThreadExecutor { alvo ->
+        Thread(alvo, "Right100-prethumb").apply { priority = Thread.MIN_PRIORITY }
+    }
+
+    @Volatile
+    private var geracaoMiniaturas = 0
+    private val miniaturasJaPedidas = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    fun cancelarPreCarregamento() {
+        geracaoMiniaturas++
+    }
+
+    private fun aquecerSeguintes(position: Int) {
+        if (position < 0 || position >= media.size - 1) return
+        val fim = minOf(media.size, position + 1 + aquecerAFrente)
+        val lote = ArrayList<Medium>(fim - position)
+        for (i in position + 1 until fim) {
+            val item = media.getOrNull(i) as? Medium ?: continue
+            if (!miniaturasJaPedidas.contains(item.path)) lote.add(item)
+        }
+        if (lote.isEmpty()) return
+
+        val minhaGeracao = geracaoMiniaturas
+        filaMiniaturas.execute {
+            for (item in lote) {
+                if (minhaGeracao != geracaoMiniaturas) return@execute
+                if (activity.isFinishing || activity.isDestroyed) return@execute
+                // Marca ANTES de tentar: arquivo que falha nao volta para a fila a cada
+                // rolagem. Os que mostram a exclamacao amarela custam uma tentativa so'.
+                if (!miniaturasJaPedidas.add(item.path)) continue
+                try {
+                    activity.runOnUiThread {
+                        if (minhaGeracao != geracaoMiniaturas) return@runOnUiThread
+                        try {
+                            carregarMiniaturaParaCache(item)
+                        } catch (_: Exception) {
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                try {
+                    Thread.sleep(intervaloMiniaturaMs)
+                } catch (_: InterruptedException) {
+                    return@execute
+                }
+            }
+        }
+    }
+
+    // Copia os parametros de setupThumbnail um por um. Qualquer diferenca aqui muda a
+    // chave de cache do Glide e aquece uma entrada que o bind nunca vai usar.
+    private fun carregarMiniaturaParaCache(medium: Medium) {
+        var path = medium.path
+        if (hasOTGConnected && root.context.isPathOnOTG(path)) {
+            path = path.getOTGPublicPath(root.context)
+        }
+        val thumbnailPath = if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            medium.mediaStoreId > 0L &&
+            !path.startsWith("content://") &&
+            !root.context.isPathOnOTG(path) &&
+            !Environment.isExternalStorageManager()
+        ) {
+            ContentUris.withAppendedId(
+                MediaStore.Files.getContentUri("external"),
+                medium.mediaStoreId
+            ).toString()
+        } else {
+            path
+        }
+
+        val roundedCorners = when {
+            isListViewType -> ROUNDED_CORNERS_SMALL
+            config.fileRoundedCorners -> ROUNDED_CORNERS_BIG
+            else -> ROUNDED_CORNERS_NONE
+        }
+
+        val alvo = android.widget.ImageView(activity)
+        alvo.tag = thumbnailPath
+        activity.loadImage(
+            type = medium.type,
+            path = thumbnailPath,
+            target = alvo,
+            horizontalScroll = scrollHorizontally,
+            animateGifs = animateGifs,
+            cropThumbnails = cropThumbnails,
+            roundCorners = roundedCorners,
+            signature = ObjectKey("thumbnail-v12-${medium.getKey()}"),
+            skipMemoryCacheAtPaths = rotatedImagePaths,
+            columnCount = config.mediaColumnCnt,
+            fallbackPath = medium.path.takeIf { it != thumbnailPath },
+            detectarQuadroPreto = true,
+            onError = {}
+        )
+
+        // O alvo de aquecimento nao vai para a tela. Sem este clear o RequestManager da
+        // Activity seguraria cada ImageView ate a Activity morrer.
+        alvo.postDelayed({
+            try {
+                com.bumptech.glide.Glide.with(activity).clear(alvo)
+            } catch (_: Exception) {
+            }
+        }, 5000L)
+    }
+
     private fun setupThumbnail(view: View, medium: Medium) {
+        // Dispara o aquecimento daqui porque esta funcao ja' recebe toda celula ligada e
+        // a posicao sai pronta do cache que o updateMedia() mantem por caminho.
+        if (miniaturasJaPedidas.size < media.size) {
+            val posicaoAquece = keyToPositionCache[medium.path.hashCode()]
+            if (posicaoAquece != null && posicaoAquece % 6 == 0) {
+                aquecerSeguintes(posicaoAquece)
+            }
+        }
         val isSelected = selectedKeys.contains(medium.path.hashCode())
         bindItem(view, medium).apply {
             val padding = if (config.thumbnailSpacing <= 1) {
