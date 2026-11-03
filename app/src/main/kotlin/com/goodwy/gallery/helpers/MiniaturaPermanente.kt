@@ -26,10 +26,10 @@ object MiniaturaPermanente {
 
     private const val VERSAO = "v1"
     private const val QUALIDADE = 80
-    private const val QUALIDADE_FUNDO = 70
+    private const val QUALIDADE_FUNDO = 88
     // Forca do desfoque do fundo, em pixels na resolucao de trabalho (~320-360).
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
-    private const val RAIO_FUNDO = 66
+    private const val RAIO_FUNDO = 30
     private const val SUFIXO_FUNDO = ".fundo"
 
     private fun raiz(context: Context): File =
@@ -89,7 +89,6 @@ object MiniaturaPermanente {
         val destino = arquivoFundo(context, mediaPath, mtime)
         if (destino.isFile && destino.length() > 0L) return true
 
-        var pequeno: Bitmap? = null
         var borrado: Bitmap? = null
         try {
             val largura = larguraAlvo.coerceIn(320, 480)
@@ -100,7 +99,7 @@ object MiniaturaPermanente {
             // raio 60. Uma passada so' deixa faixas de cor visiveis no degrade.
             val passo = (RAIO_FUNDO / 3).coerceAtLeast(6)
             var atual: Bitmap = Bitmap.createScaledBitmap(fonte, largura, altura, true)
-            repeat(3) {
+            repeat(1) {
                 val proximo = desfocar(atual, passo)
                 if (atual !== fonte) atual.recycle()
                 atual = proximo
@@ -111,6 +110,15 @@ object MiniaturaPermanente {
                 return true
             }
             return false
+        } catch (_: Exception) {
+            return false
+        } finally {
+            val b = borrado
+            try {
+                if (b != null && !b.isRecycled) b.recycle()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun apagarFundosAntigos(destino: File) {
