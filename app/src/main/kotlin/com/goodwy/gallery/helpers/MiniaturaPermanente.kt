@@ -27,6 +27,9 @@ object MiniaturaPermanente {
     private const val VERSAO = "v1"
     private const val QUALIDADE = 80
     private const val QUALIDADE_FUNDO = 70
+    // Forca do desfoque do fundo, em pixels na resolucao de trabalho (~320-360).
+    // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
+    private const val RAIO_FUNDO = 66
     private const val SUFIXO_FUNDO = ".fundo"
 
     private fun raiz(context: Context): File =
@@ -89,20 +92,25 @@ object MiniaturaPermanente {
         var pequeno: Bitmap? = null
         var borrado: Bitmap? = null
         try {
-            val largura = larguraAlvo.coerceIn(64, 320)
-            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceIn(64, 640)
-            pequeno = Bitmap.createScaledBitmap(fonte, largura, altura, true)
-            borrado = desfocar(pequeno, (largura / 9).coerceAtLeast(5))
-            if (gravarArquivo(destino, borrado, QUALIDADE_FUNDO)) {
+            val largura = larguraAlvo.coerceIn(320, 480)
+            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceIn(320, 960)
+
+            // Tres passadas de box blur aproximam uma gaussiana - foi o que faltava em
+            // relacao ao BestGallery, que aplica ScriptIntrinsicBlur 3x (25+25+10) para
+            // raio 60. Uma passada so' deixa faixas de cor visiveis no degrade.
+            val passo = (RAIO_FUNDO / 3).coerceAtLeast(6)
+            var atual: Bitmap = Bitmap.createScaledBitmap(fonte, largura, altura, true)
+            repeat(3) {
+                val proximo = desfocar(atual, passo)
+                if (atual !== fonte) atual.recycle()
+                atual = proximo
+            }
+            borrado = atual
+            if (gravarArquivo(destino, atual, QUALIDADE_FUNDO)) {
                 apagarFundosAntigos(destino)
                 return true
             }
-        } catch (_: Throwable) {
-        } finally {
-            try { if (borrado != null && borrado != pequeno) borrado.recycle() } catch (_: Throwable) {}
-            try { if (pequeno != null && pequeno != fonte) pequeno.recycle() } catch (_: Throwable) {}
-        }
-        return false
+            return false
     }
 
     private fun apagarFundosAntigos(destino: File) {

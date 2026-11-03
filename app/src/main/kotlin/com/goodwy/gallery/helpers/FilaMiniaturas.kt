@@ -263,7 +263,7 @@ object FilaMiniaturas {
     }
 
     private fun larguraDoFundo(contexto: Context): Int =
-        (contexto.resources.displayMetrics.widthPixels / 8).coerceAtLeast(96)
+        (contexto.resources.displayMetrics.widthPixels / 2).coerceIn(320, 480)
 
     /**
      * Gera o fundo a partir do arquivo da miniatura ja' gravado. Serve para as midias que
