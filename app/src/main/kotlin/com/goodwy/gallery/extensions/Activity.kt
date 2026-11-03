@@ -724,6 +724,18 @@ private fun BaseSimpleActivity.directCopyMoveFiles(
                 }
                 if (replacing) replacedCount++
                 okCount++
+                // MINIATURA-JUNTO: a miniatura vai junto com o arquivo. Mover so' move,
+                // entao nada e' decodificado de novo; copiar leva uma copia pronta.
+                try {
+                    val mp = com.goodwy.gallery.helpers.MiniaturaPermanente
+                    if (isCopyOperation) {
+                        mp.copiar(applicationContext, src.absolutePath, dst.absolutePath)
+                    } else {
+                        mp.mover(applicationContext, src.absolutePath, dst.absolutePath)
+                    }
+                    com.goodwy.gallery.helpers.FilaMiniaturas.esquecerCaminhos(arrayListOf(src.absolutePath, dst.absolutePath))
+                } catch (_: Throwable) {
+                }
                 touched.add(src.absolutePath)
                 touched.add(dst.absolutePath)
                 com.goodwy.gallery.App.logGesture("COPYDIAG direto ok " + src.name + " -> " + dst.name + " copy=" + isCopyOperation + " replaced=" + replacing)
@@ -1328,6 +1340,21 @@ fun BaseSimpleActivity.showRestoreConfirmationDialog(count: Int, callback: () ->
         negative = com.goodwy.commons.R.string.no
     ) {
         callback()
+    }
+}
+
+/**
+ * Renomear na propria pasta tambem nao deve gerar miniatura de novo: a midia e' a mesma,
+ * so' o nome mudou. Mesmo rename do mover, aplicado sempre que o caminho da mídia muda.
+ */
+fun BaseSimpleActivity.definirMiniatura(origem: String, destino: String) {
+    ensureBackgroundThread {
+        try {
+            com.goodwy.gallery.helpers.MiniaturaPermanente.mover(applicationContext, origem, destino)
+            com.goodwy.gallery.helpers.FilaMiniaturas.esquecerCaminhos(arrayListOf(origem, destino))
+            Right100Diag.add("miniatura levada junto: " + origem + " -> " + destino)
+        } catch (_: Exception) {
+        }
     }
 }
 

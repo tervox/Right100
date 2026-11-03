@@ -514,6 +514,69 @@ object MiniaturaPermanente {
         return total
     }
 
+    /**
+     * A miniatura acompanha a midia quando ela MUDA DE PASTA. O nome do arquivo de
+     * miniatura e' o caminho da midia + mtime; mover muda o caminho, e sem isto a foto
+     * chegava na pasta nova sem miniatura e era decodificada outra vez - exatamente o
+     * que o usuario reclamou: "mover so' move, nao devia gerar de novo".
+     *
+     * mtime e' preservado pelo mover, entao basta RENOMEAR: nenhum byte e' decodificado.
+     * Vale para a miniatura e para o fundo desfocado, que tem a mesma base.
+     */
+    fun mover(context: Context, origem: String, destino: String): Int =
+        levarJunto(context, origem, destino, copiar = false)
+
+    /** Copiar leva uma COPIA da miniatura: a midia nova ja' nasce pronta. */
+    fun copiar(context: Context, origem: String, destino: String): Int =
+        levarJunto(context, origem, destino, copiar = true)
+
+    private fun pastaDe(context: Context, mediaPath: String): File {
+        val relativo = mediaPath.trimStart('/')
+        val pasta = relativo.substringBeforeLast('/', "")
+        return if (pasta.isEmpty()) raiz(context) else File(raiz(context), pasta)
+    }
+
+    private fun levarJunto(context: Context, origem: String, destino: String, copiar: Boolean): Int {
+        if (origem.startsWith("content://") || destino.startsWith("content://")) return 0
+        val nomeOrigem = origem.trimStart('/').substringAfterLast('/')
+        val nomeDestino = destino.trimStart('/').substringAfterLast('/')
+        if (nomeOrigem.isEmpty() || nomeDestino.isEmpty()) return 0
+        if (nomeOrigem == nomeDestino && pastaDe(context, origem) == pastaDe(context, destino)) return 0
+
+        val dirOrigem = pastaDe(context, origem)
+        val dirDestino = pastaDe(context, destino)
+        val filhos = try {
+            dirOrigem.listFiles()
+        } catch (_: Exception) {
+            null
+        } ?: return 0
+
+        var feitos = 0
+        val prefixo = nomeOrigem + "@"
+        try {
+            dirDestino.mkdirs()
+        } catch (_: Exception) {
+        }
+        for (f in filhos) {
+            // Pega a miniatura, o fundo desfocado e o .tmp da mesma midia.
+            if (!f.name.startsWith(prefixo)) continue
+            val novo = File(dirDestino, nomeDestino + "@" + f.name.substring(prefixo.length))
+            try {
+                if (novo.exists()) continue
+                if (copiar) {
+                    f.copyTo(novo, false)
+                    if (novo.length() > 0L) feitos++
+                } else if (f.renameTo(novo)) {
+                    feitos++
+                } else if (f.copyTo(novo, false).length() > 0L && f.delete()) {
+                    feitos++
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return feitos
+    }
+
     fun tamanhoBytes(context: Context): Long {
         var total = 0L
         val pilha = ArrayDeque<File>()
