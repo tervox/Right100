@@ -30,8 +30,8 @@ object MiniaturaPermanente {
     // Forca do desfoque do fundo, em pixels na resolucao de trabalho (~320-360).
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
     private const val LARGURA_FUNDO = 240
-    private const val RAIO_FUNDO = 60
-    private const val SUFIXO_FUNDO = ".fundo4"
+    private const val RAIO_FUNDO = 30
+    private const val SUFIXO_FUNDO = ".fundo5"
 
     private fun raiz(context: Context): File =
         File(context.filesDir, "miniaturas/" + VERSAO).apply { if (!isDirectory) mkdirs() }
@@ -95,9 +95,13 @@ object MiniaturaPermanente {
             val largura = LARGURA_FUNDO
             val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceAtLeast(1)
 
-            // Tres passadas de box blur aproximam uma gaussiana - foi o que faltava em
-            // relacao ao BestGallery, que aplica ScriptIntrinsicBlur 3x (25+25+10) para
-            // raio 60. Uma passada so' deixa faixas de cor visiveis no degrade.
+            // Sigma identico ao do BestGallery. Ele usa Stack Blur raio 60,
+            // cujo kernel triangular equivale a duas caixas de largura 61:
+            //   2 * ((61^2 - 1) / 12) = 620  ->  sigma 24,9 px.
+            // desfocar() faz quatro passadas (h,v,h,v), ou seja duas caixas
+            // por eixo. Com raio 30 a largura da caixa e' 61 e o sigma bate
+            // exatamente. Com raio 60 (o que estava aqui) o sigma era 49,4:
+            // o dobro do BestGallery, e o degrade ficava lavado.
             val passo = RAIO_FUNDO
             var atual: Bitmap = Bitmap.createScaledBitmap(fonte, largura, altura, true)
             repeat(1) {
