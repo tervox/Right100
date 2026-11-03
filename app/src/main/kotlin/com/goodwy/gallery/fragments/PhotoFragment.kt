@@ -517,8 +517,8 @@ class PhotoFragment : ViewPagerFragment() {
 
         // 2) Ainda nao existe (foto nova, ou pasta que nunca foi aberta na grade):
         //    desfoque na hora, como antes.
-        val larguraBase = (mScreenWidth / 8).coerceAtLeast(96)
-        val alturaBase = (mScreenHeight / 8).coerceAtLeast(96)
+        val larguraBase = 240
+        val alturaBase = 240
 
         val fonte = try {
             MiniaturaPermanente.existente(ctx, mMedium.path)
@@ -531,7 +531,7 @@ class PhotoFragment : ViewPagerFragment() {
             .apply(RequestOptions()
                 .override(larguraBase, alturaBase)
                 .diskCacheStrategy(DiskCacheStrategy.RESOURCE))
-            .transform(MultiTransformation(CenterCrop(), BlurTransformation(25, 1)))
+            .transform(BlurTransformation(60, 1))
             .into(binding.photoBlurBg)
     }
 
