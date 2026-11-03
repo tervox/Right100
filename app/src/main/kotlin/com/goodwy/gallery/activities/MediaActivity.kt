@@ -926,7 +926,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
             runOnUiThread {
                 duracaoEmAndamento = false
-                if (!alterou || isFinishing || isDestroyed) return@runOnUiThread
+                if (mudou == 0 || isFinishing || isDestroyed) return@runOnUiThread
                 val adapter = binding.mediaGrid.adapter as? MediaAdapter ?: return@runOnUiThread
                 // Aqui havia notifyDataSetChanged(), disparado so' porque a duracao de
                 // alguns videos ficou pronta. Ele reconstruia TODAS as celulas visiveis -
