@@ -461,10 +461,9 @@ object FilaMiniaturas {
                 val p = varredura[varreduraIndice++]
                 val caminho = p.caminho
                 if (prontas.contains(caminho) || jaNaFila(caminho)) continue
-                // Argumentos NOMEADOS de proposito: o Medium exige 12 campos e
-                // mediaStoreId nao tem valor padrao. Na forma posicional faltava esse
-                // campo e o build quebrava com "No value passed for parameter
-                // 'mediaStoreId'" - foi o que derrubou os runs 867, 868 e 869.
+                // Argumentos NOMEADOS de proposito: o Medium tem 13 campos e varios sem
+                // valor padrao (mediaStoreId, deletedTS...). Nomeados, um campo a mais no
+                // futuro nao quebra esta chamada.
                 val m = Medium(
                     id = null,
                     name = caminho.substringAfterLast('/'),
@@ -473,8 +472,11 @@ object FilaMiniaturas {
                     modified = 0L,
                     taken = 0L,
                     size = 0L,
-                    type = if (p.video) com.goodwy.commons.helpers.TYPE_VIDEOS
-                    else com.goodwy.commons.helpers.TYPE_IMAGES,
+                    // TYPE_IMAGES/TYPE_VIDEOS vivem em com.goodwy.gallery.helpers.Constants,
+                    // o mesmo pacote deste arquivo - por isso vem sem prefixo. Com
+                    // "com.goodwy.commons.helpers." o Kotlin nao resolve e o build cai
+                    // nas linhas 476-477 (erro do run 870).
+                    type = if (p.video) TYPE_VIDEOS else TYPE_IMAGES,
                     videoDuration = 0,
                     isFavorite = false,
                     deletedTS = 0L,
