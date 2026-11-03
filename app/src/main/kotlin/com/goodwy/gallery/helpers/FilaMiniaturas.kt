@@ -50,6 +50,26 @@ object FilaMiniaturas {
     private const val PRAZO_MS = 6000L
     private const val TENTATIVAS_MAX = 2
 
+    // Varredura da galeria inteira. Lote baixo de proposito: a fila nunca enche com
+    // coisa fora da tela e a pasta aberta depois entra na frente sem esperar tudo.
+    private const val LOTE_VARREDURA = 30
+    private const val VARREDURA_MAX = 80000
+    private const val ESPERA_AVISO_MS = 5000L
+
+    // O MediaStore nem sempre classifica formato menos comum (SVG, AVIF, RAW) como
+    // imagem - alguns ficam com MEDIA_TYPE 0. Por isso aceita pela extensao tambem.
+    private val EXT_FOTO = setOf(
+        "jpg", "jpeg", "jpe", "png", "gif", "bmp", "webp", "heic", "heif", "avif",
+        "jxl", "svg", "apng", "tif", "tiff", "ico", "psd", "dng", "cr2", "cr3",
+        "nef", "arw", "orf", "raf", "rw2", "pef", "srw", "x3f", "3fr", "erf",
+        "mef", "mos", "mrw", "nrw", "srf", "k25", "kdc", "dcr", "iiq"
+    )
+    private val EXT_VIDEO = setOf(
+        "mp4", "mkv", "webm", "avi", "mov", "wmv", "flv", "3gp", "3g2", "m4v",
+        "ts", "mts", "m2ts", "mpg", "mpeg", "mpe", "ogv", "rmvb", "asf", "vob",
+        "divx", "f4v", "m2v", "mxf", "mqv", "qt"
+    )
+
     private val lock = Any()
 
     private val urgentes = LinkedHashMap<String, Medium>()
@@ -57,6 +77,21 @@ object FilaMiniaturas {
     private val videos = LinkedHashMap<String, Medium>()
     private val prontas = HashSet<String>()
     private val tentativas = HashMap<String, Int>()
+
+    /** Item da varredura: so' o necessario para montar um Medium depois. */
+    private class Pendente(val caminho: String, val video: Boolean)
+
+    private val varredura = ArrayList<Pendente>()
+    private var varreduraIndice = 0
+    private var varreduraPreparando = false
+    private var varreduraPronta = false
+    private var observador: android.database.ContentObserver? = null
+
+    // Consulta em executor proprio: no decodificador ela entraria na fila atras de N
+    // decodes e levaria minutos para comecar.
+    private val consultor = Executors.newSingleThreadExecutor { alvo ->
+        Thread(alvo, "Right100-varredura-miniaturas").apply { priority = Thread.MIN_PRIORITY }
+    }
 
     private var app: Context? = null
     private var aviso: WeakReference<AvisoDeMiniatura>? = null
@@ -87,6 +122,7 @@ object FilaMiniaturas {
         @Suppress("UNUSED_PARAMETER") cantos: Int = 0
     ) {
         if (itens.isEmpty()) return
+        pedirVarredura(contexto, false)
         var novas = 0
         synchronized(lock) {
             if (app == null) app = contexto.applicationContext
@@ -127,6 +163,10 @@ object FilaMiniaturas {
         synchronized(lock) {
             prontas.clear()
             tentativas.clear()
+            varredura.clear()
+            varreduraIndice = 0
+            varreduraPronta = false
+            varreduraPreparando = false
             fotos.clear()
             videos.clear()
             urgentes.clear()
@@ -168,6 +208,8 @@ object FilaMiniaturas {
     private fun laco() {
         var marcadorDiag = 0L
         while (true) {
+            // Fila da pasta baixou? Entrega o proximo lote da varredura da galeria.
+            abastecerSePreciso()
             val par = proximo() ?: break
             val contexto = app ?: break
             val inicioMs = System.currentTimeMillis()
@@ -264,6 +306,144 @@ object FilaMiniaturas {
             try {
                 MiniaturaPermanente.limparOrfas(contexto)
             } catch (_: Throwable) {
+            }
+        }
+    }
+
+    // ---------------- varredura da galeria ----------------
+
+    /**
+     * Pede a varredura. A consulta roda fora da thread da fila.
+     * forcar=false: so' na primeira vez do processo.
+     * forcar=true:  o MediaStore mudou, refaz a lista inteira.
+     */
+    private fun pedirVarredura(contexto: Context, forcar: Boolean) {
+        ligarObservador(contexto.applicationContext)
+        val iniciar = synchronized(lock) {
+            if (varreduraPreparando) return
+            if (varreduraPronta && !forcar) return
+            varreduraPreparando = true
+            true
+        }
+        if (iniciar) prepararVarredura(contexto.applicationContext)
+    }
+
+    /**
+     * Escuta o MediaStore. Copiar 200 fotos dispara 200 avisos; sem o freio seriam
+     * 200 consultas a galeria inteira. O relogio reinicia a cada aviso, entao a
+     * consulta so' acontece quando o usuario para de mexer por 5 segundos - e e' uma
+     * unica consulta, cobrindo tudo que mudou naquela leva.
+     */
+    private fun ligarObservador(contexto: Context) {
+        if (observador != null) return
+        try {
+            val principal = android.os.Handler(android.os.Looper.getMainLooper())
+            val obs = object : android.database.ContentObserver(principal) {
+                private var agendado = false
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    if (agendado) return
+                    agendado = true
+                    principal.postDelayed({
+                        agendado = false
+                        pedirVarredura(contexto, true)
+                    }, ESPERA_AVISO_MS)
+                }
+            }
+            contexto.contentResolver.registerContentObserver(
+                MediaStore.Files.getContentUri("external"), true, obs
+            )
+            observador = obs
+        } catch (_: Throwable) {
+        }
+    }
+
+    /**
+     * Monta a lista: um bloco por pasta, pastas em ordem alfabetica, e dentro de cada
+     * pasta em ordem de nome. Nenhum filtro de pasta - .nomedia e pasta oculta sao do
+     * usuario e entram igual.
+     *
+     * Sempre consulta completa, nunca "so' o que e' novo": arquivo movido de pasta
+     * mantem o DATE_ADDED antigo, entao um filtro por data o ignoraria e ele ficaria
+     * sem miniatura na pasta nova. O que ja' esta pronto e' pulado por `prontas`.
+     */
+    private fun prepararVarredura(contexto: Context) {
+        consultor.execute {
+            val porPasta = LinkedHashMap<String, MutableList<Pendente>>()
+            var total = 0
+            try {
+                val uri = MediaStore.Files.getContentUri("external")
+                val projecao = arrayOf(
+                    MediaStore.MediaColumns._ID,
+                    MediaStore.MediaColumns.DATA,
+                    MediaStore.Files.FileColumns.MEDIA_TYPE
+                )
+                contexto.contentResolver.query(uri, projecao, null, null, null)?.use { c ->
+                    val iDados = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
+                    val iTipo = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
+                    while (c.moveToNext() && total < VARREDURA_MAX) {
+                        val caminho = c.getString(iDados) ?: continue
+                        if (caminho.isEmpty()) continue
+                        val tipo = c.getInt(iTipo)
+                        val ext = caminho.substringAfterLast('.', "").lowercase()
+                        val eVideo = tipo == 2 || (tipo != 1 && ext in EXT_VIDEO)
+                        val eFoto = tipo == 1 || (tipo != 2 && ext in EXT_FOTO)
+                        if (!eVideo && !eFoto) continue
+                        // GIF e SVG abrem o original na grade (animacao e vetor), entao
+                        // miniatura permanente deles nao serve.
+                        if (!eVideo && (ext == "gif" || ext == "svg")) continue
+                        val pai = caminho.substringBeforeLast('/', "")
+                        porPasta.getOrPut(pai) { ArrayList() }.add(Pendente(caminho, eVideo))
+                        total++
+                    }
+                }
+            } catch (_: Throwable) {
+            }
+
+            val pastas = porPasta.keys.sortedBy { it.lowercase() }
+            val final = ArrayList<Pendente>(total)
+            for (nome in pastas) {
+                val grupo = porPasta[nome] ?: continue
+                grupo.sortBy { it.caminho.substringAfterLast('/').lowercase() }
+                final.addAll(grupo)
+            }
+            synchronized(lock) {
+                varredura.clear()
+                varredura.addAll(final)
+                varreduraIndice = 0
+                varreduraPronta = true
+                varreduraPreparando = false
+            }
+            diag(
+                "miniaturas: varredura=" + final.size + " pastas=" + pastas.size +
+                    " truncada=" + (total >= VARREDURA_MAX)
+            )
+            garantirThread()
+        }
+    }
+
+    /** Entrega o proximo lote da varredura, se a fila da pasta estiver baixa. */
+    private fun abastecerSePreciso() {
+        synchronized(lock) {
+            if (!varreduraPronta) return
+            if (urgentes.isNotEmpty()) return
+            if (fotos.size + videos.size >= LOTE_VARREDURA) return
+            var adicionadas = 0
+            while (varreduraIndice < varredura.size && adicionadas < LOTE_VARREDURA) {
+                val p = varredura[varreduraIndice++]
+                val caminho = p.caminho
+                if (prontas.contains(caminho) || jaNaFila(caminho)) continue
+                val m = Medium(
+                    null,
+                    caminho.substringAfterLast('/'),
+                    caminho,
+                    caminho.substringBeforeLast('/', ""),
+                    0L, 0L, 0L,
+                    if (p.video) com.goodwy.commons.helpers.TYPE_VIDEOS
+                    else com.goodwy.commons.helpers.TYPE_IMAGES,
+                    0, false, 0L
+                )
+                if (p.video) videos[caminho] = m else fotos[caminho] = m
+                adicionadas++
             }
         }
     }

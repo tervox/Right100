@@ -116,6 +116,23 @@ class MediaAdapter(
     // Mantido no main thread: setupThumbnail e o post abaixo rodam os dois ali.
     private val semMiniaturaPermanente = HashSet<String>()
 
+    /**
+     * A pasta inteira entra na fila, nao so' as celulas que a tela desenhou. Antes,
+     * foto fora da tela nunca era enfileirada: saia da pasta e ela ficava vazia.
+     */
+    private var assinaturaDaPasta = ""
+
+    private fun enfileirarPastaInteira() {
+        val primeiro = (media.firstOrNull() as? Medium)?.path ?: ""
+        val ultimo = (media.lastOrNull() as? Medium)?.path ?: ""
+        val assinatura = media.size.toString() + "|" + primeiro + "|" + ultimo
+        if (assinatura == assinaturaDaPasta) return
+        assinaturaDaPasta = assinatura
+        val itens = media.filterIsInstance<Medium>()
+        if (itens.isEmpty()) return
+        com.goodwy.gallery.helpers.FilaMiniaturas.enfileirar(activity.applicationContext, itens)
+    }
+
     override fun miniaturaPronta(caminho: String) {
         val posicao = keyToPositionCache[caminho.hashCode()]
             ?: media.indexOfFirst { (it as? Medium)?.path == caminho }.takeIf { it >= 0 }
@@ -1128,6 +1145,7 @@ class MediaAdapter(
             // original: GIF pela animacao, SVG porque a miniatura gravada seria o vetor
             // rasterizado. Midia rotacionada agora tem o arquivo guardado desatualizado,
             // entao tambem cai no original (a limpeza troca a miniatura depois).
+            enfileirarPastaInteira()
             val miniaturaPermanente = if (
                 rotatedImagePaths.contains(medium.path) ||
                 medium.isGIF() || medium.isSVG()
