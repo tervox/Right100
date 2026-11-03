@@ -602,6 +602,31 @@ object FilaMiniaturas {
             }
         }
 
+        // Revalida quase-preto DEPOIS de cada fallback, nao so' no primeiro quadro.
+        // Antes, um quadro preto vindo do loadThumbnail do provedor ou do ThumbnailUtils era
+        // devolvido como sucesso e gravado como WebP - e como o WebP e' lido como imagem
+        // estatica, a deteccao de quadro preto da grade nunca mais rodava naquela celula:
+        // preto permanente, sem segunda chance.
+        if (bmp != null && item.isVideo() && QuadroDeVideo.ehQuasePreto(bmp)) {
+            bmp.recycle()
+            bmp = null
+        }
+
+        // Ultima tentativa para video: o meio do arquivo. Se nem isso servir, devolve null
+        // de proposito - melhor nenhum WebP do que um WebP preto gravado em definitivo.
+        if (bmp == null && item.isVideo() && !item.path.startsWith("content://")) {
+            val segundos = (duracaoMs(item.path) / 1000L).toInt()
+            bmp = try {
+                QuadroDeVideo.quadroNoMeio(item.path, segundos)
+            } catch (_: Exception) {
+                null
+            }
+            if (bmp != null && QuadroDeVideo.ehQuasePreto(bmp)) {
+                bmp.recycle()
+                bmp = null
+            }
+        }
+
         return bmp
     }
 

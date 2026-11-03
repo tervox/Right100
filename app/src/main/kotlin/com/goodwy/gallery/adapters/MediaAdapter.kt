@@ -353,6 +353,15 @@ class MediaAdapter(
                 }
                 thumbnail.tag = null
                 Glide.with(thumbnail).clear(thumbnail)
+                // Glide e Picasso escrevem na MESMA ImageView (o fallback de PNG grande usa
+                // Picasso). Aqui so' o Glide era cancelado; um resultado tardio do Picasso
+                // podia cair numa celula ja' reaproveitada e mostrar a imagem de outro
+                // arquivo. O cancelRequest do inicio de tryLoadingWithPicasso() nao cobre
+                // este caso, porque na reciclagem nao existe request novo para cancelar.
+                try {
+                    com.squareup.picasso.Picasso.get().cancelRequest(thumbnail)
+                } catch (_: Exception) {
+                }
                 thumbnail.setImageDrawable(null)
             }
         }
@@ -1162,7 +1171,12 @@ class MediaAdapter(
             // novo - a piscada "visivel -> preta -> visivel", celula por celula.
             // onViewRecycled() zera tag e drawable, entao a comparacao so' casa quando a
             // celula continua no mesmo arquivo.
-            val jaMostrandoEsta = mediumThumbnail.tag == thumbnailPath &&
+            // A tag guarda caminho + data de modificacao. So' o caminho nao bastava: se o
+            // arquivo fosse editado (girado, cortado, sobrescrito), o caminho continuava
+            // igual e a guarda abaixo manteria a imagem ANTIGA na tela. Com a data, editar
+            // muda a tag e a celula recarrega sozinha.
+            val chaveDaCelula = thumbnailPath + "@" + medium.modified
+            val jaMostrandoEsta = mediumThumbnail.tag == chaveDaCelula &&
                 mediumThumbnail.drawable != null
             if (!jaMostrandoEsta) {
                 mediumThumbnail.setBackgroundResource(
@@ -1173,7 +1187,7 @@ class MediaAdapter(
                     }
                 )
             }
-            mediumThumbnail.tag = thumbnailPath
+            mediumThumbnail.tag = chaveDaCelula
 
             // Miniatura permanente - so' foto e video. GIF e SVG precisam do arquivo
             // original: GIF pela animacao, SVG porque a miniatura gravada seria o vetor
@@ -1198,8 +1212,16 @@ class MediaAdapter(
             } else {
                 semMiniaturaPermanente.remove(medium.path)
             }
-            activity.loadImage(
-                type = if (miniaturaPermanente != null) com.goodwy.gallery.helpers.TYPE_IMAGES else medium.type,
+            // A guarda acima so' impedia o FUNDO do placeholder de voltar; a chamada
+            // continuava acontecendo sempre. E quando o WebP fica pronto a signature muda
+            // ("perm-v1-..." em vez de "thumbnail-v12-..."), entao era request novo, com
+            // placeholder_square (@color/md_grey_black) por cima da imagem que ja' estava
+            // certa - a piscada imagem -> preto -> imagem.
+            // Celula reciclada nao entra aqui: onViewRecycled() zera tag e drawable, entao
+            // jaMostrandoEsta volta a ser false e a carga acontece normalmente.
+            if (!jaMostrandoEsta)
+                activity.loadImage(
+                    type = if (miniaturaPermanente != null) com.goodwy.gallery.helpers.TYPE_IMAGES else medium.type,
                 // AQUI estava o erro: o `path` e' o que o Glide abre. Ficava sempre
                 // thumbnailPath (a midia original), entao a miniatura gravada nunca era
                 // usada e a grade redecodificava o video/foto a cada rebind.
