@@ -78,8 +78,12 @@ object FilaMiniaturas {
     private val prontas = HashSet<String>()
     private val tentativas = HashMap<String, Int>()
 
-    /** Item da varredura: so' o necessario para montar um Medium depois. */
-    private class Pendente(val caminho: String, val video: Boolean)
+    /**
+     * Item da varredura. Carrega o _ID do MediaStore: o Medium exige esse campo e sem ele
+     * o decode caia sempre no caminho direto por arquivo (mais lento) em vez de pedir a
+     * miniatura pronta ao provedor.
+     */
+    private class Pendente(val caminho: String, val video: Boolean, val id: Long)
 
     private val varredura = ArrayList<Pendente>()
     private var varreduraIndice = 0
@@ -392,6 +396,7 @@ object FilaMiniaturas {
                     MediaStore.Files.FileColumns.MEDIA_TYPE
                 )
                 contexto.contentResolver.query(uri, projecao, null, null, null)?.use { c ->
+                    val iId = c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
                     val iDados = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
                     val iTipo = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
                     while (c.moveToNext() && total < VARREDURA_MAX) {
@@ -406,7 +411,7 @@ object FilaMiniaturas {
                         // miniatura permanente deles nao serve.
                         if (!eVideo && (ext == "gif" || ext == "svg")) continue
                         val pai = caminho.substringBeforeLast('/', "")
-                        porPasta.getOrPut(pai) { ArrayList() }.add(Pendente(caminho, eVideo))
+                        porPasta.getOrPut(pai) { ArrayList() }.add(Pendente(caminho, eVideo, c.getLong(iId)))
                         total++
                     }
                 }
@@ -456,15 +461,24 @@ object FilaMiniaturas {
                 val p = varredura[varreduraIndice++]
                 val caminho = p.caminho
                 if (prontas.contains(caminho) || jaNaFila(caminho)) continue
+                // Argumentos NOMEADOS de proposito: o Medium exige 12 campos e
+                // mediaStoreId nao tem valor padrao. Na forma posicional faltava esse
+                // campo e o build quebrava com "No value passed for parameter
+                // 'mediaStoreId'" - foi o que derrubou os runs 867, 868 e 869.
                 val m = Medium(
-                    null,
-                    caminho.substringAfterLast('/'),
-                    caminho,
-                    caminho.substringBeforeLast('/', ""),
-                    0L, 0L, 0L,
-                    if (p.video) com.goodwy.commons.helpers.TYPE_VIDEOS
+                    id = null,
+                    name = caminho.substringAfterLast('/'),
+                    path = caminho,
+                    parentPath = caminho.substringBeforeLast('/', ""),
+                    modified = 0L,
+                    taken = 0L,
+                    size = 0L,
+                    type = if (p.video) com.goodwy.commons.helpers.TYPE_VIDEOS
                     else com.goodwy.commons.helpers.TYPE_IMAGES,
-                    0, false, 0L
+                    videoDuration = 0,
+                    isFavorite = false,
+                    deletedTS = 0L,
+                    mediaStoreId = p.id
                 )
                 if (p.video) videos[caminho] = m else fotos[caminho] = m
                 adicionadas++
