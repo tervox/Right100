@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Environment
+import com.goodwy.gallery.extensions.TrashStore
 import java.io.File
 import java.io.FileOutputStream
 
@@ -316,10 +317,19 @@ object MiniaturaPermanente {
      * restaurar continua instantaneo. Consulta as duas lixeiras conhecidas do app: a privada
      * (files/.trash) e a publica (.right100_trash).
      */
-    fun limparOrfas(context: Context, limite: Int = 800): Int {
+    fun limparOrfas(context: Context, limite: Int = 800): Int =
+        limparOrfasDetalhado(context, limite).first
+
+    /**
+     * Mesmo trabalho do limparOrfas, mas devolve tambem quantos arquivos foram CHECADOS:
+     * e' isso que diz se a passada percorreu a arvore inteira ou parou no limite. O
+     * limparOrfasCompleto usa isso para saber quando parar de repetir.
+     */
+    fun limparOrfasDetalhado(context: Context, limite: Int = 800): Pair<Int, Int> {
         val naLixeira = nomesNaLixeira(context)
         var checados = 0
         var removidos = 0
+        val removidosCaminhos = ArrayList<String>()
         val raizStr = raiz(context).absolutePath.trimEnd('/')
         val pilha = ArrayDeque<File>()
         pilha.addLast(raiz(context))
@@ -366,29 +376,142 @@ object MiniaturaPermanente {
                 val sumiuDeVez = !original.isFile && !naLixeira.contains(original.name)
                 val mudou = mtime > 0 && original.isFile && original.lastModified() != mtime
                 if (sumiuDeVez || mudou) {
-                    f.delete()
+                    if (f.delete()) removidosCaminhos.add(caminhoOriginal)
                     removidos++
                 }
             }
         }
-        return removidos
+        // A fila nao guarda mais nada desse caminho: se um arquivo novo aparecer no
+        // mesmo lugar (apagar e copiar de volta), ele precisa ser enfileirado de novo.
+        if (removidosCaminhos.isNotEmpty()) {
+            try {
+                FilaMiniaturas.esquecerCaminhos(removidosCaminhos)
+            } catch (_: Exception) {
+            }
+        }
+        return Pair(removidos, checados)
     }
 
+    /**
+     * Nomes ORIGINAIS das midias que estao na lixeira. Desde o 8.4.0 a lixeira guarda o
+     * arquivo PLANO, com nome proprio, e o caminho de origem fica no indice: comparar
+     * File.name aqui dava falso negativo, e a miniatura de um item que estava na
+     * lixeira era apagada como orfa - restaurar voltava a gerar tudo do zero.
+     */
     private fun nomesNaLixeira(context: Context): HashSet<String> {
         val nomes = HashSet<String>()
-        val raizes = ArrayList<File>(2)
-        raizes.add(File(context.filesDir, ".trash"))
-        try {
-            Environment.getExternalStorageDirectory()?.let { raizes.add(File(it, ".right100_trash")) }
-        } catch (_: Exception) {
-        }
-        raizes.forEach { raizTrash ->
+        val raizes = ArrayList<File>(4)
+        fun acrescenta(bloco: () -> File) {
             try {
-                raizTrash.walkTopDown().forEach { f -> if (f.isFile) nomes.add(f.name) }
+                raizes.add(bloco())
+            } catch (_: Exception) {
+            }
+        }
+        acrescenta { TrashStore.privateRoot(context) }
+        acrescenta { TrashStore.root(context) }
+        acrescenta { TrashStore.publicRoot(context) }
+        acrescenta { TrashStore.legacyRoot(context) }
+
+        val vistas = HashSet<String>()
+        for (raizTrash in raizes) {
+            val absoluto = try {
+                raizTrash.absolutePath
+            } catch (_: Exception) {
+                ""
+            }
+            if (absoluto.isEmpty() || !vistas.add(absoluto)) continue
+            try {
+                raizTrash.walkTopDown().forEach caso@{ f ->
+                    if (!f.isFile) return@caso
+                    if (f.name == ".nomedia") return@caso
+                    if (f.name.endsWith(".tmp")) return@caso
+                    val original = try {
+                        TrashStore.originalPathOfFlat(context, f)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    nomes.add(if (original.isNullOrEmpty()) f.name else original.substringAfterLast('/'))
+                }
             } catch (_: Exception) {
             }
         }
         return nomes
+    }
+
+    /**
+     * Apaga a miniatura permanente de UMA midia, qualquer que seja o mtime gravado no
+     * nome. Pega tambem o fundo desfocado: os dois comecam com "nome@" na mesma pasta.
+     * Usado quando a midia saiu de vez (lixeira esvaziada) - nao quando foi para a
+     * lixeira, porque ali o restaurar precisa da miniatura pronta.
+     */
+    fun esquecer(context: Context, mediaPath: String): Boolean =
+        esquecerEm(context, mediaPath, null) > 0
+
+    fun esquecerVarios(context: Context, caminhos: Collection<String>): Int {
+        if (caminhos.isEmpty()) return 0
+        val cache = HashMap<String, Array<File>?>()
+        var apagados = 0
+        for (c in caminhos) {
+            if (c.isEmpty()) continue
+            apagados += esquecerEm(context, c, cache)
+        }
+        return apagados
+    }
+
+    private fun esquecerEm(context: Context, mediaPath: String, cache: HashMap<String, Array<File>?>?): Int {
+        if (mediaPath.startsWith("content://")) return 0
+        val relativo = mediaPath.trimStart('/')
+        val nome = relativo.substringAfterLast('/')
+        if (nome.isEmpty()) return 0
+        val pasta = relativo.substringBeforeLast('/', "")
+        val dir = if (pasta.isEmpty()) {
+            raiz(context)
+        } else {
+            File(raiz(context), pasta)
+        }
+        val filhos = if (cache != null) {
+            cache.getOrPut(dir.absolutePath) {
+                try {
+                    dir.listFiles()
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        } else {
+            try {
+                dir.listFiles()
+            } catch (_: Exception) {
+                null
+            }
+        } ?: return 0
+
+        var apagados = 0
+        val prefixo = nome + "@"
+        for (f in filhos) {
+            if (!f.name.startsWith(prefixo)) continue
+            try {
+                if (f.isFile && f.delete()) apagados++
+            } catch (_: Exception) {
+            }
+        }
+        return apagados
+    }
+
+    /**
+     * limparOrfas em passadas, ate' nao sobrar nada. Cada passada checa no maximo
+     * `limitePorPassada` arquivos; quando uma passada checa menos que isso, a arvore
+     * inteira ja' foi percorrida e para.
+     */
+    fun limparOrfasCompleto(context: Context, limitePorPassada: Int = 4000, maxPassadas: Int = 20): Int {
+        var total = 0
+        var passada = 0
+        while (passada < maxPassadas) {
+            val r = limparOrfasDetalhado(context, limitePorPassada)
+            total += r.first
+            passada++
+            if (r.second < limitePorPassada) break
+        }
+        return total
     }
 
     fun tamanhoBytes(context: Context): Long {

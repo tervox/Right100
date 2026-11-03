@@ -1257,6 +1257,24 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             } catch (_: Exception) {
             }
             quantos = trashed.size
+            // Esvaziar a lixeira e' o caso em que a midia sai DE VEZ: o arquivo nao esta
+            // mais em disco nem na lixeira, entao a miniatura permanente e o fundo
+            // desfocado dela nao servem mais para nada. Antes ficavam para sempre em
+            // files/miniaturas e so' o "Limpar cache" removia.
+            try {
+                val originais = ArrayList<String>(trashed.size)
+                trashed.forEach { m ->
+                    val rel = m.path.removePrefix(RECYCLE_BIN).trimStart('/')
+                    if (rel.isNotEmpty()) originais.add("/" + rel)
+                }
+                val apagadas = com.goodwy.gallery.helpers.MiniaturaPermanente.esquecerVarios(applicationContext, originais)
+                val restantes = com.goodwy.gallery.helpers.MiniaturaPermanente.limparOrfasCompleto(applicationContext)
+                Right100Diag.add(
+                    "lixeira esvaziada: itens=" + quantos + " originais=" + originais.size +
+                        " miniaturas apagadas=" + apagadas + " orfas restantes=" + restantes
+                )
+            } catch (_: Exception) {
+            }
             mediaDB.clearRecycleBin()
             directoryDB.deleteRecycleBin()
         } catch (e: Exception) {

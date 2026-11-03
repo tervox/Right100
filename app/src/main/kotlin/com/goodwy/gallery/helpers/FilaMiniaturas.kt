@@ -173,6 +173,20 @@ object FilaMiniaturas {
         }
     }
 
+    /** Tira caminhos da fila e do conjunto de prontas (midia apagada ou substituida). */
+    fun esquecerCaminhos(caminhos: Collection<String>) {
+        if (caminhos.isEmpty()) return
+        synchronized(lock) {
+            for (c in caminhos) {
+                prontas.remove(c)
+                tentativas.remove(c)
+                urgentes.remove(c)
+                fotos.remove(c)
+                videos.remove(c)
+            }
+        }
+    }
+
     private fun jaNaFila(caminho: String): Boolean =
         urgentes.containsKey(caminho) || fotos.containsKey(caminho) || videos.containsKey(caminho)
 
@@ -325,7 +339,7 @@ object FilaMiniaturas {
             varreduraPreparando = true
             true
         }
-        if (iniciar) prepararVarredura(contexto.applicationContext)
+        if (iniciar) prepararVarredura(contexto.applicationContext, forcar)
     }
 
     /**
@@ -366,7 +380,7 @@ object FilaMiniaturas {
      * mantem o DATE_ADDED antigo, entao um filtro por data o ignoraria e ele ficaria
      * sem miniatura na pasta nova. O que ja' esta pronto e' pulado por `prontas`.
      */
-    private fun prepararVarredura(contexto: Context) {
+    private fun prepararVarredura(contexto: Context, limpar: Boolean) {
         consultor.execute {
             val porPasta = LinkedHashMap<String, MutableList<Pendente>>()
             var total = 0
@@ -417,6 +431,16 @@ object FilaMiniaturas {
                 "miniaturas: varredura=" + final.size + " pastas=" + pastas.size +
                     " truncada=" + (total >= VARREDURA_MAX)
             )
+            if (limpar) {
+                // O MediaStore mudou: pode ser exclusao definitiva, lixeira esvaziada ou
+                // midia apagada por outro app. limparOrfas apaga a miniatura de quem nao
+                // esta em disco NEM na lixeira, e preserva a de quem esta na lixeira.
+                try {
+                    val apagadas = MiniaturaPermanente.limparOrfasCompleto(contexto)
+                    if (apagadas > 0) diag("miniaturas: orfas removidas=" + apagadas)
+                } catch (_: Throwable) {
+                }
+            }
             garantirThread()
         }
     }
