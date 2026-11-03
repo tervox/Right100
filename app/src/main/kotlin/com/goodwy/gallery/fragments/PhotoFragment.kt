@@ -518,11 +518,12 @@ class PhotoFragment : ViewPagerFragment() {
         // 2) Ainda nao existe (foto nova, ou pasta que nunca foi aberta na grade):
         //    desfoque na hora, como antes.
         val larguraBase = 240
-        // Teto alto so' para nunca limitar: quem manda e' a largura 240, a mesma
-        // do arquivo .fundo5. Com 240 nos dois lados o Glide encaixava a foto
-        // 3:4 em 180x240 e o desfoque saia 33% mais forte que o do arquivo -
-        // o fundo mudava de aparencia entre a 1a e a 2a abertura da mesma foto.
-        val alturaBase = 1000
+        // Mesmo aspecto de tela do arquivo .fundo7. O CenterCrop abaixo recorta
+        // a foto na tela (como o CENTER_OUTSIDE do Glide no BestGallery) e o
+        // BlurTransformation divide por 1 - resultado identico ao arquivo.
+        val dm = ctx.resources.displayMetrics
+        val alturaBase = (larguraBase.toFloat() * dm.heightPixels / dm.widthPixels)
+            .toInt().coerceAtLeast(1)
 
         val fonte = try {
             MiniaturaPermanente.existente(ctx, mMedium.path)
@@ -535,7 +536,7 @@ class PhotoFragment : ViewPagerFragment() {
             .apply(RequestOptions()
                 .override(larguraBase, alturaBase)
                 .diskCacheStrategy(DiskCacheStrategy.RESOURCE))
-            .transform(BlurTransformation(60, 1))
+            .transform(com.bumptech.glide.load.resource.bitmap.CenterCrop(), BlurTransformation(60, 1))
             .into(binding.photoBlurBg)
     }
 

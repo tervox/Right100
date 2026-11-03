@@ -31,7 +31,7 @@ object MiniaturaPermanente {
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
     private const val LARGURA_FUNDO = 240
     private const val RAIO_FUNDO = 30
-    private const val SUFIXO_FUNDO = ".fundo5"
+    private const val SUFIXO_FUNDO = ".fundo7"
 
     private fun raiz(context: Context): File =
         File(context.filesDir, "miniaturas/" + VERSAO).apply { if (!isDirectory) mkdirs() }
@@ -93,7 +93,14 @@ object MiniaturaPermanente {
         var borrado: Bitmap? = null
         try {
             val largura = LARGURA_FUNDO
-            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceAtLeast(1)
+            // Aspecto da TELA, nao da foto. O BestGallery decodifica a foto
+            // cobrindo a view (CENTER_OUTSIDE) e so' depois divide por 3: o
+            // fundo fica sempre com o aspecto da tela e a ampliacao final e'
+            // sempre 3,0x, em qualquer formato de foto. Antes o fundo herdava
+            // o aspecto da foto - numa 3:4 era ampliado 4,7x e o desfoque saia
+            // 57% mais forte que o dele.
+            val altura = alturaDoFundo(context, largura)
+            val recorte = recortarParaAspecto(fonte, largura, altura)
 
             // Sigma identico ao do BestGallery. Ele usa Stack Blur raio 60,
             // cujo kernel triangular equivale a duas caixas de largura 61:
@@ -103,7 +110,8 @@ object MiniaturaPermanente {
             // exatamente. Com raio 60 (o que estava aqui) o sigma era 49,4:
             // o dobro do BestGallery, e o degrade ficava lavado.
             val passo = RAIO_FUNDO
-            var atual: Bitmap = Bitmap.createScaledBitmap(fonte, largura, altura, true)
+            var atual: Bitmap = Bitmap.createScaledBitmap(recorte, largura, altura, true)
+            if (recorte !== fonte) recorte.recycle()
             repeat(1) {
                 val proximo = desfocar(atual, passo)
                 if (atual !== fonte) atual.recycle()
@@ -126,11 +134,45 @@ object MiniaturaPermanente {
         }
     }
 
+    /**
+     * Altura do fundo no aspecto da tela. A largura e' fixa, entao a ampliacao
+     * do centerCrop passa a ser sempre a mesma (limitada pela largura) e o
+     * desfoque na tela deixa de depender do formato da foto.
+     */
+    private fun alturaDoFundo(context: Context, largura: Int): Int {
+        return try {
+            val dm = context.resources.displayMetrics
+            if (dm.widthPixels <= 0 || dm.heightPixels <= 0) return largura
+            (largura.toFloat() * dm.heightPixels / dm.widthPixels).toInt().coerceAtLeast(1)
+        } catch (_: Exception) {
+            largura
+        }
+    }
+
+    /** Recorta no aspecto alvo pelo centro, como o centerCrop do Glide. */
+    private fun recortarParaAspecto(fonte: Bitmap, largura: Int, altura: Int): Bitmap {
+        if (largura <= 0 || altura <= 0) return fonte
+        val alvo = altura.toFloat() / largura
+        val real = fonte.height.toFloat() / fonte.width
+        val r: IntArray = if (real > alvo) {
+            val nova = (fonte.width * alvo).toInt().coerceIn(1, fonte.height)
+            intArrayOf(0, (fonte.height - nova) / 2, fonte.width, nova)
+        } else {
+            val nova = (fonte.height / alvo).toInt().coerceIn(1, fonte.width)
+            intArrayOf((fonte.width - nova) / 2, 0, nova, fonte.height)
+        }
+        return try {
+            Bitmap.createBitmap(fonte, r[0], r[1], r[2], r[3])
+        } catch (_: Exception) {
+            fonte
+        }
+    }
+
     private fun apagarFundosAntigos(destino: File) {
         try {
             val base = destino.name.substringBeforeLast('@')
             destino.parentFile?.listFiles()?.forEach { irmao ->
-                if (irmao != destino && irmao.name.startsWith(base + "@") && irmao.name.endsWith(SUFIXO_FUNDO + ".webp")) {
+                if (irmao != destino && irmao.name.startsWith(base + "@") && irmao.name.contains(".fundo") && irmao.name.endsWith(".webp")) {
                     irmao.delete()
                 }
             }
