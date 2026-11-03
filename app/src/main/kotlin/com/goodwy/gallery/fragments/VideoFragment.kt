@@ -341,7 +341,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // troca, durante a reproducao do video atual. Para um lugar-placeholder de tela
         // cheia, a miniatura de 320 px do disco basta e custa uma fracao disso.
         val poster = try {
-            MiniaturaPermanente.existente(context, mMedium.path)
+            MiniaturaPermanente.existente(context ?: requireContext(), mMedium.path)
         } catch (_: Exception) {
             null
         }
