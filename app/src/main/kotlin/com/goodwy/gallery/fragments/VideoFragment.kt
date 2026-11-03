@@ -2,6 +2,7 @@
 
 package com.goodwy.gallery.fragments
 
+import com.goodwy.gallery.helpers.MiniaturaPermanente
 import android.annotation.SuppressLint
 import android.content.ContentUris
 import android.content.res.Configuration
@@ -95,6 +96,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     private var mPlayOnPrepared = false
     private var mCurrTime = 0L
     private var mDuration = 0L
+    private var mUltimoSegundo = -1L
     private var mPositionWhenInit = 0L
     private var mPositionAtPause = 0L
     var mIsPlaying = false
@@ -334,7 +336,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
         updatePlaybackSpeed(mConfig.playbackSpeed)
         storeStateVariables()
-        Glide.with(context).load(getMediaUri()).into(binding.videoPreview)
+        // O poster vinha do URI do proprio video: o Glide abria o arquivo e decodificava
+        // um frame inteiro - e fazia o mesmo no fragmento vizinho, que o pager cria a cada
+        // troca, durante a reproducao do video atual. Para um lugar-placeholder de tela
+        // cheia, a miniatura de 320 px do disco basta e custa uma fracao disso.
+        val poster = try {
+            MiniaturaPermanente.existente(context, mMedium.path)
+        } catch (_: Exception) {
+            null
+        }
+        Glide.with(context).load(poster ?: getMediaUri()).into(binding.videoPreview)
 
         if (!mIsFragmentVisible && activity is VideoActivity) mIsFragmentVisible = true
         mIsFullscreen = listener?.isFullScreen() == true
@@ -477,7 +488,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (mExoPlayer != null && !mIsDragged && mIsPlaying) {
                     mCurrTime = mExoPlayer!!.currentPosition
                     mSeekBar.progress = mCurrTime.toInt()
-                    mCurrTimeView.text = mCurrTime.getFormattedDuration()
+                    // A barra continua a 60 Hz: setProgress e' barato. O que saia caro era
+                    // reescrever o texto e formatar a string 60 vezes por segundo - medida,
+                    // layout e uma alocacao por quadro, alimentando o GC no meio do video.
+                    // O numero mostrado e' em segundos, entao 1 atualizacao por segundo
+                    // exibe exatamente a mesma coisa.
+                    val segundos = mCurrTime / 1000L
+                    if (segundos != mUltimoSegundo) {
+                        mUltimoSegundo = segundos
+                        mCurrTimeView.text = mCurrTime.getFormattedDuration()
+                    }
                 }
                 if (mIsPlaying) {
                     mMainHandler.postDelayed(this, UPDATE_INTERVAL_MS)
