@@ -26,12 +26,12 @@ object MiniaturaPermanente {
 
     private const val VERSAO = "v1"
     private const val QUALIDADE = 80
-    private const val QUALIDADE_FUNDO = 88
+    private const val QUALIDADE_FUNDO = 100
     // Forca do desfoque do fundo, em pixels na resolucao de trabalho (~320-360).
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
-    private const val LARGURA_FUNDO = 560
-    private const val RAIO_FUNDO = 30
-    private const val SUFIXO_FUNDO = ".fundo2"
+    private const val LARGURA_FUNDO = 240
+    private const val RAIO_FUNDO = 60
+    private const val SUFIXO_FUNDO = ".fundo4"
 
     private fun raiz(context: Context): File =
         File(context.filesDir, "miniaturas/" + VERSAO).apply { if (!isDirectory) mkdirs() }
@@ -92,8 +92,8 @@ object MiniaturaPermanente {
 
         var borrado: Bitmap? = null
         try {
-            val largura = LARGURA_FUNDO.coerceAtLeast(larguraAlvo)
-            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceIn(1, 1280)
+            val largura = LARGURA_FUNDO
+            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceAtLeast(1)
 
             // Tres passadas de box blur aproximam uma gaussiana - foi o que faltava em
             // relacao ao BestGallery, que aplica ScriptIntrinsicBlur 3x (25+25+10) para
