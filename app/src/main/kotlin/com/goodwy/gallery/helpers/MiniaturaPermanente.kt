@@ -29,8 +29,9 @@ object MiniaturaPermanente {
     private const val QUALIDADE_FUNDO = 88
     // Forca do desfoque do fundo, em pixels na resolucao de trabalho (~320-360).
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
+    private const val LARGURA_FUNDO = 560
     private const val RAIO_FUNDO = 30
-    private const val SUFIXO_FUNDO = ".fundo"
+    private const val SUFIXO_FUNDO = ".fundo2"
 
     private fun raiz(context: Context): File =
         File(context.filesDir, "miniaturas/" + VERSAO).apply { if (!isDirectory) mkdirs() }
@@ -91,13 +92,13 @@ object MiniaturaPermanente {
 
         var borrado: Bitmap? = null
         try {
-            val largura = larguraAlvo.coerceIn(320, 480)
-            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceIn(320, 960)
+            val largura = LARGURA_FUNDO.coerceAtLeast(larguraAlvo)
+            val altura = (largura.toFloat() * fonte.height / fonte.width).toInt().coerceIn(1, 1280)
 
             // Tres passadas de box blur aproximam uma gaussiana - foi o que faltava em
             // relacao ao BestGallery, que aplica ScriptIntrinsicBlur 3x (25+25+10) para
             // raio 60. Uma passada so' deixa faixas de cor visiveis no degrade.
-            val passo = (RAIO_FUNDO / 3).coerceAtLeast(6)
+            val passo = RAIO_FUNDO
             var atual: Bitmap = Bitmap.createScaledBitmap(fonte, largura, altura, true)
             repeat(1) {
                 val proximo = desfocar(atual, passo)
@@ -287,6 +288,12 @@ object MiniaturaPermanente {
                     continue
                 }
                 if (f.name.endsWith(".tmp")) {
+                    f.delete()
+                    continue
+                }
+                // Fundos da geracao anterior (".fundo.webp") nao sao mais servidos:
+                // o sufixo mudou para ".fundo2". Apagar em vez de deixar ocupando espaco.
+                if (f.name.endsWith(".fundo.webp") && !f.name.endsWith(SUFIXO_FUNDO + ".webp")) {
                     f.delete()
                     continue
                 }
