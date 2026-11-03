@@ -31,7 +31,7 @@ object MiniaturaPermanente {
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
     private const val LARGURA_FUNDO = 240
     private const val RAIO_FUNDO = 30
-    private const val SUFIXO_FUNDO = ".fundo7"
+    private const val SUFIXO_FUNDO = ".fundo8"
 
     private fun raiz(context: Context): File =
         File(context.filesDir, "miniaturas/" + VERSAO).apply { if (!isDirectory) mkdirs() }
@@ -291,7 +291,7 @@ object MiniaturaPermanente {
 
     private fun comprimir(bmp: Bitmap, saida: FileOutputStream, qualidade: Int) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            bmp.compress(Bitmap.CompressFormat.WEBP_LOSSY, qualidade, saida)
+            bmp.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, qualidade, saida)
         } else {
             @Suppress("DEPRECATION")
             bmp.compress(Bitmap.CompressFormat.WEBP, qualidade, saida)
