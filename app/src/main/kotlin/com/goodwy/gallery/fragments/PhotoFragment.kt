@@ -518,7 +518,11 @@ class PhotoFragment : ViewPagerFragment() {
         // 2) Ainda nao existe (foto nova, ou pasta que nunca foi aberta na grade):
         //    desfoque na hora, como antes.
         val larguraBase = 240
-        val alturaBase = 240
+        // Teto alto so' para nunca limitar: quem manda e' a largura 240, a mesma
+        // do arquivo .fundo5. Com 240 nos dois lados o Glide encaixava a foto
+        // 3:4 em 180x240 e o desfoque saia 33% mais forte que o do arquivo -
+        // o fundo mudava de aparencia entre a 1a e a 2a abertura da mesma foto.
+        val alturaBase = 1000
 
         val fonte = try {
             MiniaturaPermanente.existente(ctx, mMedium.path)
