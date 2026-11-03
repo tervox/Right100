@@ -109,6 +109,13 @@ class MediaAdapter(
      * vendo o placeholder mesmo depois de o arquivo existir - ele so' aparecia ao sair e
      * voltar na pasta, que rebinda tudo.
      */
+    // Caminhos que ficaram SEM miniatura permanente no ultimo bind (a celula abriu a
+    // midia original). So' essas precisam de rebind quando a fila termina: quem ja'
+    // estava mostrando uma imagem nao precisa - refazer o bind troca o desenho pelo
+    // fundo do placeholder e a celula pisca em preto para carregar a mesma coisa.
+    // Mantido no main thread: setupThumbnail e o post abaixo rodam os dois ali.
+    private val semMiniaturaPermanente = HashSet<String>()
+
     override fun miniaturaPronta(caminho: String) {
         val posicao = keyToPositionCache[caminho.hashCode()]
             ?: media.indexOfFirst { (it as? Medium)?.path == caminho }.takeIf { it >= 0 }
@@ -116,6 +123,7 @@ class MediaAdapter(
         attachedRecyclerView.post {
             try {
                 if (attachedRecyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) return@post
+                if (!semMiniaturaPermanente.contains(caminho)) return@post
                 if (attachedRecyclerView.findViewHolderForAdapterPosition(posicao) == null) return@post
                 notifyItemChanged(posicao)
             } catch (_: Exception) {
@@ -1131,9 +1139,12 @@ class MediaAdapter(
             // O que esta na tela passa na frente da fila: sem isso a fila andava na
             // ordem da pasta a partir do item 0 e o meio da pasta parecia travado.
             if (miniaturaPermanente == null) {
+                semMiniaturaPermanente.add(medium.path)
                 com.goodwy.gallery.helpers.FilaMiniaturas.priorizar(
                     activity.applicationContext, listOf(medium)
                 )
+            } else {
+                semMiniaturaPermanente.remove(medium.path)
             }
             activity.loadImage(
                 type = if (miniaturaPermanente != null) com.goodwy.gallery.helpers.TYPE_IMAGES else medium.type,

@@ -173,6 +173,11 @@ object FilaMiniaturas {
             val inicioMs = System.currentTimeMillis()
 
             var temArquivo = false
+            // So' avisa a grade quando o arquivo nasceu AGORA. Antes avisava tambem
+            // quando ele ja' existia - e ao abrir uma pasta com o app recem-iniciado
+            // isso virava uma onda de rebinds, um a cada 20 ms, na ordem da pasta:
+            // a grade piscava celula por celula sem nada ter mudado na tela.
+            var gerouAgora = false
             try {
                 if (MiniaturaPermanente.existente(contexto, par.first) != null) {
                     temArquivo = true
@@ -183,6 +188,7 @@ object FilaMiniaturas {
                         bmp.recycle()
                     }
                     temArquivo = MiniaturaPermanente.existente(contexto, par.first) != null
+                    gerouAgora = temArquivo
                 }
                 // Fundo desfocado do visualizador: gerado aqui, em thread de prioridade
                 // minima, a partir do WebP de 320 px. Antes o desfoque rodava na thread
@@ -221,7 +227,7 @@ object FilaMiniaturas {
                 total = geradas
             }
 
-            if (temArquivo) {
+            if (temArquivo && gerouAgora) {
                 val destino = synchronized(lock) { aviso?.get() }
                 try {
                     destino?.miniaturaPronta(par.first)
