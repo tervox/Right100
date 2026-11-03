@@ -550,7 +550,39 @@ object FilaMiniaturas {
     private fun decodificar(contexto: Context, item: Medium): Bitmap? {
         var bmp: Bitmap? = null
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // VIDEO PRIMEIRO, e pela mesma fonte que a grade usa. Quem desenha a celula e' o
+        // Glide, e no video ele pega o primeiro sync sample do arquivo (VideoDecoder,
+        // getFrameAtTime(-1)). O loadThumbnail do MediaStore entrega OUTRO instante do
+        // mesmo video - era por isso que a celula mostrava um momento e, quando o WebP da
+        // fila ficava pronto, trocava para outro momento, parecendo "carregar de novo".
+        if (item.isVideo() && !item.path.startsWith("content://")) {
+            try {
+                bmp = QuadroDeVideo.primeiroQuadro(item.path)
+            } catch (_: Exception) {
+            }
+            if (bmp != null && QuadroDeVideo.ehQuasePreto(bmp)) {
+                // Fade-in: gravar o quadro de abertura deixaria a celula preta para
+                // sempre. Pede o MEIO do video, em SEGUNDOS. A versao anterior passava
+                // (ms / 2000), ou seja um QUARTO do video em vez da metade.
+                val segundos = (duracaoMs(item.path) / 1000L).toInt()
+                val doMeio = try {
+                    QuadroDeVideo.quadroNoMeio(item.path, segundos)
+                } catch (_: Exception) {
+                    null
+                }
+                if (doMeio != null && !QuadroDeVideo.ehQuasePreto(doMeio)) {
+                    if (bmp != doMeio) bmp.recycle()
+                    bmp = doMeio
+                } else {
+                    // Nada aproveitavel pela decodificacao direta: cai para o provedor.
+                    doMeio?.recycle()
+                    bmp?.recycle()
+                    bmp = null
+                }
+            }
+        }
+
+        if (bmp == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             uriDe(item)?.let { uri ->
                 try {
                     bmp = contexto.contentResolver.loadThumbnail(uri, Size(LADO_PX, LADO_PX), null)
@@ -567,33 +599,6 @@ object FilaMiniaturas {
                     ThumbnailUtils.createImageThumbnail(File(item.path), Size(LADO_PX, LADO_PX), null)
                 }
             } catch (_: Exception) {
-            }
-        }
-
-        if (item.isVideo() && !item.path.startsWith("content://")) {
-            if (bmp == null) {
-                try {
-                    bmp = QuadroDeVideo.primeiroQuadro(item.path)
-                } catch (_: Exception) {
-                }
-            }
-            // Video que comeca em fade-in entrega quadro quase preto. Gravar isso deixaria
-            // a celula preta para sempre, porque a grade passaria a abrir o arquivo direto.
-            if (bmp != null && QuadroDeVideo.ehQuasePreto(bmp)) {
-                val doMeio = try {
-                    val ms = duracaoMs(item.path)
-                    if (ms > 0L) QuadroDeVideo.quadroNoMeio(item.path, (ms / 2000L).toInt()) else null
-                } catch (_: Exception) {
-                    null
-                }
-                if (doMeio != null && !QuadroDeVideo.ehQuasePreto(doMeio)) {
-                    if (bmp != doMeio) bmp.recycle()
-                    bmp = doMeio
-                } else {
-                    doMeio?.recycle()
-                    bmp?.recycle()
-                    return null
-                }
             }
         }
 

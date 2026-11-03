@@ -924,11 +924,18 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     }
                 }
             }
-            val alterou = mudou > 0
             runOnUiThread {
                 duracaoEmAndamento = false
-                if (alterou && !isFinishing && !isDestroyed) {
-                    (binding.mediaGrid.adapter as? MediaAdapter)?.notifyDataSetChanged()
+                if (!alterou || isFinishing || isDestroyed) return@runOnUiThread
+                val adapter = binding.mediaGrid.adapter as? MediaAdapter ?: return@runOnUiThread
+                // Aqui havia notifyDataSetChanged(), disparado so' porque a duracao de
+                // alguns videos ficou pronta. Ele reconstruia TODAS as celulas visiveis -
+                // foto e video - e cada uma voltava ao placeholder e pedia o bitmap de
+                // novo. updateVideoDuration troca apenas o texto "00:32" daquela celula.
+                // Observacao: setupAdapter() chama este metodo ANTES de criar o adapter, e
+                // o runOnUiThread chegava depois - o rebind caia na grade recem-montada.
+                videos.forEach { m ->
+                    if (m.videoDuration > 0) adapter.updateVideoDuration(m.path, m.videoDuration)
                 }
             }
         }, "Right100-Duracao").apply { isDaemon = true }.start()

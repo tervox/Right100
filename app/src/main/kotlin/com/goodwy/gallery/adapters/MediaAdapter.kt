@@ -139,10 +139,37 @@ class MediaAdapter(
             ?: return
         attachedRecyclerView.post {
             try {
-                if (attachedRecyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) return@post
-                if (!semMiniaturaPermanente.contains(caminho)) return@post
-                if (attachedRecyclerView.findViewHolderForAdapterPosition(posicao) == null) return@post
-                notifyItemChanged(posicao)
+                val holder = attachedRecyclerView.findViewHolderForAdapterPosition(posicao) ?: return@post
+                val alvo = holder.itemView.findViewById<ImageView>(R.id.medium_thumbnail) ?: return@post
+                // So' a celula que abriu a midia ORIGINAL precisa receber o WebP. Quem ja'
+                // estava mostrando imagem nao e' tocado.
+                if (!semMiniaturaPermanente.remove(caminho)) return@post
+                val arquivo = com.goodwy.gallery.helpers.MiniaturaPermanente.existente(activity, caminho)
+                    ?: return@post
+
+                // A versao anterior pedia notifyItemChanged(posicao). O rebind refazia a
+                // celula inteira: voltava o fundo do placeholder, o Glide recarregava e, no
+                // video, toda a cadeia detectarQuadroPreto -> onError -> loadThumbnail rodava
+                // outra vez. Era a piscada visivel/preto/visivel, uma por miniatura gerada.
+                // Agora o WebP de 320 px entra na ImageView que ja' esta na tela.
+                ensureBackgroundThread {
+                    val bmp = try {
+                        android.graphics.BitmapFactory.decodeFile(arquivo.absolutePath)
+                    } catch (_: Throwable) {
+                        null
+                    } ?: return@ensureBackgroundThread
+
+                    activity.runOnUiThread {
+                        val vivo = attachedRecyclerView.findViewHolderForAdapterPosition(posicao)
+                            ?.itemView?.findViewById<ImageView>(R.id.medium_thumbnail)
+                        if (vivo === alvo) {
+                            alvo.scaleType = ImageView.ScaleType.CENTER_CROP
+                            alvo.setImageBitmap(bmp)
+                        } else {
+                            bmp.recycle()
+                        }
+                    }
+                }
             } catch (_: Exception) {
             }
         }
@@ -1130,15 +1157,22 @@ class MediaAdapter(
                 else -> ROUNDED_CORNERS_NONE
             }
 
-            mediumThumbnail.setBackgroundResource(
-                when (roundedCorners) {
-                    ROUNDED_CORNERS_SMALL -> R.drawable.placeholder_rounded_small
-                    ROUNDED_CORNERS_BIG -> R.drawable.placeholder_rounded_big
-                    else -> R.drawable.placeholder_square
-                }
-            )
-            // A ViewHolder pode ser reciclado antes do callback de Glide/Picasso. A tag
-            // permite ignorar callbacks antigos que não pertencem mais a esta célula.
+            // Rebind da MESMA celula: nao volta ao fundo do placeholder. Sem esta guarda,
+            // cada rebind trocava a imagem atual pelo placeholder escuro e pedia o bitmap de
+            // novo - a piscada "visivel -> preta -> visivel", celula por celula.
+            // onViewRecycled() zera tag e drawable, entao a comparacao so' casa quando a
+            // celula continua no mesmo arquivo.
+            val jaMostrandoEsta = mediumThumbnail.tag == thumbnailPath &&
+                mediumThumbnail.drawable != null
+            if (!jaMostrandoEsta) {
+                mediumThumbnail.setBackgroundResource(
+                    when (roundedCorners) {
+                        ROUNDED_CORNERS_SMALL -> R.drawable.placeholder_rounded_small
+                        ROUNDED_CORNERS_BIG -> R.drawable.placeholder_rounded_big
+                        else -> R.drawable.placeholder_square
+                    }
+                )
+            }
             mediumThumbnail.tag = thumbnailPath
 
             // Miniatura permanente - so' foto e video. GIF e SVG precisam do arquivo
