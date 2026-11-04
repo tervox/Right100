@@ -44,15 +44,16 @@ object FilaMiniaturas {
         fun miniaturaPronta(caminho: String)
     }
 
-    private const val INTERVALO_MS = 20L
+    private const val INTERVALO_MS = 5L
     private const val LADO_PX = 320
     private const val DIAG_CADA = 20
     private const val PRAZO_MS = 6000L
     private const val TENTATIVAS_MAX = 2
+    private const val MAX_THREADS = 3
 
     // Varredura da galeria inteira. Lote baixo de proposito: a fila nunca enche com
     // coisa fora da tela e a pasta aberta depois entra na frente sem esperar tudo.
-    private const val LOTE_VARREDURA = 30
+    private const val LOTE_VARREDURA = 300
     private const val VARREDURA_MAX = 80000
     private const val ESPERA_AVISO_MS = 5000L
 
@@ -102,9 +103,9 @@ object FilaMiniaturas {
     private var geradas = 0L
     private var desistencias = 0L
     private var tempoTotal = 0L
-    private var rodando = false
+    private var rodando = 0
 
-    private val executor = Executors.newSingleThreadExecutor { alvo ->
+    private val executor = Executors.newFixedThreadPool(MAX_THREADS) { alvo ->
         Thread(alvo, "Right100-fila-miniaturas").apply { priority = Thread.MIN_PRIORITY }
     }
 
@@ -197,14 +198,16 @@ object FilaMiniaturas {
     private fun tamanho(): Int = synchronized(lock) { urgentes.size + fotos.size + videos.size }
 
     private fun garantirThread() {
-        if (rodando) return
-        rodando = true
+        synchronized(lock) {
+            if (rodando >= MAX_THREADS) return
+            rodando++
+        }
         executor.execute {
             try {
                 laco()
             } finally {
                 synchronized(lock) {
-                    rodando = false
+                    rodando--
                     if (urgentes.isNotEmpty() || fotos.isNotEmpty() || videos.isNotEmpty()) garantirThread()
                 }
             }

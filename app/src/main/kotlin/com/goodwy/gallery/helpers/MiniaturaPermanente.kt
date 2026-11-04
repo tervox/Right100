@@ -25,7 +25,7 @@ import java.io.FileOutputStream
  */
 object MiniaturaPermanente {
 
-    private const val VERSAO = "v1"
+    private const val VERSAO = "v2"
     private const val QUALIDADE = 80
     private const val QUALIDADE_FUNDO = 100
     // Forca do desfoque do fundo, em pixels na resolucao de trabalho (~320-360).
@@ -34,8 +34,25 @@ object MiniaturaPermanente {
     private const val RAIO_FUNDO = 30
     private const val SUFIXO_FUNDO = ".fundo8"
 
-    private fun raiz(context: Context): File =
-        File(context.filesDir, "miniaturas/" + VERSAO).apply { if (!isDirectory) mkdirs() }
+    private var limpezaVersaoFeita = false
+
+    private fun raiz(context: Context): File {
+        val base = File(context.filesDir, "miniaturas")
+        val atual = File(base, VERSAO).apply { if (!isDirectory) mkdirs() }
+        // VERSAO bumpada: WebPs antigos (frame do MediaStore) causavam swap.
+        // Apaga a arvore de versoes anteriores uma unica vez.
+        if (!limpezaVersaoFeita) {
+            limpezaVersaoFeita = true
+            try {
+                base.listFiles()?.forEach { f ->
+                    if (f.isDirectory && f.name != VERSAO && f.name.matches(Regex("v\\d+"))) {
+                        try { f.deleteRecursively() } catch (_: Exception) {}
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        return atual
+    }
 
     private fun arquivoPara(context: Context, mediaPath: String, mtime: Long): File {
         val relativo = mediaPath.trimStart('/')

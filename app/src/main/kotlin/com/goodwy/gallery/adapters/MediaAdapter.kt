@@ -1233,7 +1233,7 @@ class MediaAdapter(
                 cropThumbnails = cropThumbnails,
                 roundCorners = roundedCorners,
                 signature = if (miniaturaPermanente != null) {
-                    ObjectKey("perm-v1-" + miniaturaPermanente.name)
+                    ObjectKey("perm-v2-" + miniaturaPermanente.name)
                 } else {
                     ObjectKey("thumbnail-v12-${medium.getKey()}")
                 },
@@ -1247,13 +1247,13 @@ class MediaAdapter(
                 // cadeia de fallback de video - nunca rodava.
                 detectarQuadroPreto = miniaturaPermanente == null,
                 onError = {
-                    if (mediumThumbnail.tag == thumbnailPath) {
+                    if (mediumThumbnail.tag == chaveDaCelula) {
                         var fallbackLoaded = false
                         
                         if (medium.type == TYPE_VIDEOS) {
                             // Consultas ao MediaStore e decodificação de vídeo
                             // não devem bloquear a thread que atualiza a interface.
-                            val targetTag = thumbnailPath
+                            val targetTag = chaveDaCelula
                             fallbackLoaded = true
 
                             ensureBackgroundThread {
@@ -1289,9 +1289,49 @@ class MediaAdapter(
                                         }
                                     }
 
+                                    // MESMA ORDEM DA FILA DE MINIATURAS: o ARQUIVO primeiro, o provedor depois.
+                                    // A fila comeca pelo primeiro quadro do arquivo; esta cadeia comecava pelo
+                                    // loadThumbnail do MediaStore, que devolve um instante escolhido pelo sistema. Em
+                                    // video que abre quase preto (X/Twitter, GIF convertido) a grade mostrava um
+                                    // momento e trocava para outro quando o WebP da fila ficava pronto.
+                                    if (!medium.path.startsWith("content://")) {
+                                        val primeiro = try {
+                                            com.goodwy.gallery.helpers.QuadroDeVideo.primeiroQuadro(medium.path)
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+
+                                        if (primeiro != null &&
+                                            !com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(primeiro)
+                                        ) {
+                                            bmp = primeiro
+                                        } else {
+                                            val duracaoSeg = medium.videoDuration.takeIf { it > 0 }
+                                                ?: com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(
+                                                    activity, medium.path, medium.mediaStoreId
+                                                )
+                                            val doMeio = try {
+                                                com.goodwy.gallery.helpers.QuadroDeVideo.quadroNoMeio(
+                                                    medium.path, if (duracaoSeg > 0) duracaoSeg else 0
+                                                )
+                                            } catch (_: Exception) {
+                                                null
+                                            }
+                                            if (doMeio != null &&
+                                                !com.goodwy.gallery.helpers.QuadroDeVideo.ehQuasePreto(doMeio)
+                                            ) {
+                                                bmp = doMeio
+                                                primeiro?.recycle()
+                                            } else {
+                                                doMeio?.recycle()
+                                                primeiro?.recycle()
+                                            }
+                                        }
+                                    }
+
                                     val mediaId = medium.mediaStoreId
 
-                                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                                    if (bmp == null && android.os.Build.VERSION.SDK_INT >= 29) {
                                         bmp = if (medium.path.startsWith("content://")) {
                                             loadViaUri(android.net.Uri.parse(medium.path))
                                         } else {
@@ -1452,7 +1492,7 @@ class MediaAdapter(
                                 mediumThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
                             } else {
                                 // Glide falhou em imagem: decodifica direto do arquivo
-                                val targetTag = thumbnailPath
+                                val targetTag = chaveDaCelula
                                 ensureBackgroundThread {
                                     var bmp: android.graphics.Bitmap? = null
                                     try {
