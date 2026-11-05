@@ -49,7 +49,7 @@ object FilaMiniaturas {
     private const val DIAG_CADA = 20
     private const val PRAZO_MS = 6000L
     private const val TENTATIVAS_MAX = 2
-    private const val MAX_THREADS = 3
+    private const val MAX_THREADS = 2
 
     // Varredura da galeria inteira. Lote baixo de proposito: a fila nunca enche com
     // coisa fora da tela e a pasta aberta depois entra na frente sem esperar tudo.

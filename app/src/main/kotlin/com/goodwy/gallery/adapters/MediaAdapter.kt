@@ -1462,6 +1462,9 @@ class MediaAdapter(
                                         quadroPretoResolvido.clear()
                                     }
                                     quadroPretoResolvido[medium.path] = bmp
+                                    // Grava o WebP permanente AGORA: a fila pula este item e nunca gera um
+                                    // frame divergente. Acaba com o swap de vez (bind = fonte unica do frame).
+                                    try { com.goodwy.gallery.helpers.MiniaturaPermanente.guardar(activity, medium.path, bmp) } catch (_: Exception) {}
                                 }
 
                                 val finalBmp = bmp
