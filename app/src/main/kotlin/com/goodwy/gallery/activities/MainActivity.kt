@@ -1554,8 +1554,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         var diagPrevT = 0L
         var uiDirty = false
         var lastLoopUiAt = 0L
+        // VARREDURA EM ORDEM A-Z, SOBRE SNAPSHOT FIXO. O laco seguia a ordem da lista
+        // na tela (data, tamanho, o que o usuario escolheu): como cada pasta grande custa
+        // segundos, a grade enchia fora de ordem e o mesmo conjunto era relido em ordens
+        // diferentes a cada varredura. `dirs` continua sendo a lista exibida.
+        val ordemVarredura = ArrayList<Directory>(dirs)
+            .sortedBy { it.name.lowercase(java.util.Locale.getDefault()) }
         try {
-            for (directory in dirs) {
+            for (directory in ordemVarredura) {
                 if (mShouldStopFetching || isDestroyed || isFinishing) {
                     return
                 }
@@ -1576,19 +1582,18 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     }
                 }
 
-                // Com listagem pelo MediaStore a pasta nunca é pulada; não gasta
-                // tempo calculando a assinatura nesse caso.
-                val folderMtime = if (config.mediaStoreListing) {
+                                // A ASSINATURA E CALCULADA NOS DOIS MODOS. Antes, com a
+                // "listagem rapida pelo MediaStore" ligada, folderMtime virava 0 e o
+                // continue abaixo nunca rodava: NENHUMA pasta era pulada e as grandes
+                // (General 19 s, Facebook 23 s) eram relidas em toda varredura sem nada
+                // ter mudado. O modo da listagem diz de ONDE vem a lista de midia, nao
+                // se a pasta pode ser reaproveitada.
+                val folderMtime = try {
+                    folderScanFingerprint(directory.path)
+                } catch (_: Exception) {
                     0L
-                } else {
-                    try {
-                        folderScanFingerprint(directory.path)
-                    } catch (_: Exception) {
-                        0L
-                    }
                 }
-                // Com a listagem pelo MediaStore reler tudo e barato; so pula no modo antigo.
-                if (folderMtime != 0L && !config.mediaStoreListing && !config.groupDirectSubfolders
+                if (folderMtime != 0L && !config.groupDirectSubfolders
                     && mFolderMtimes[directory.path] == folderMtime
                     && directory.path != tempFolderPath && !directory.isRecycleBin() && !directory.areFavorites()
                 ) {
