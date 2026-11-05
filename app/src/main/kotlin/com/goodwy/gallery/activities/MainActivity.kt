@@ -822,6 +822,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun startNewPhotoFetcher() {
+        com.goodwy.gallery.helpers.FilaMiniaturas.iniciarPreload(this)
         val photoFetcher = NewPhotoFetcher()
         if (!photoFetcher.isScheduled(applicationContext)) {
             photoFetcher.scheduleJob(applicationContext)

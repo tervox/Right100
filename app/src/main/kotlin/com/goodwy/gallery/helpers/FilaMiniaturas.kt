@@ -76,6 +76,8 @@ object FilaMiniaturas {
     private val urgentes = LinkedHashMap<String, Medium>()
     private val fotos = LinkedHashMap<String, Medium>()
     private val videos = LinkedHashMap<String, Medium>()
+    // Itens da pasta ABERTA: entram na frente da varredura de fundo.
+    private val pasta = LinkedHashMap<String, Medium>()
     private val prontas = HashSet<String>()
     private val tentativas = HashMap<String, Int>()
 
@@ -119,6 +121,17 @@ object FilaMiniaturas {
         }
     }
 
+    /** Chamado pela tela principal: dispara a varredura de fundo sem precisar
+     *  abrir uma pasta. Se a primeira consulta voltou vazia (sem permissao ainda),
+     *  zera a flag e reconsulta. */
+    fun iniciarPreload(contexto: Context) {
+        synchronized(lock) {
+            if (app == null) app = contexto.applicationContext
+            if (varreduraPronta && varredura.isEmpty()) varreduraPronta = false
+        }
+        pedirVarredura(contexto.applicationContext, false)
+    }
+
     fun enfileirar(
         contexto: Context,
         itens: List<Medium>,
@@ -138,7 +151,7 @@ object FilaMiniaturas {
                     prontas.add(caminho)
                     continue
                 }
-                if (item.isVideo()) videos[caminho] = item else fotos[caminho] = item
+                pasta[caminho] = item
                 novas++
             }
             if (novas > 0) garantirThread()
@@ -158,6 +171,7 @@ object FilaMiniaturas {
                 if (prontas.contains(caminho) || item.isGIF() || item.isSVG()) continue
                 fotos.remove(caminho)
                 videos.remove(caminho)
+                pasta.remove(caminho)
                 urgentes[caminho] = item
             }
             garantirThread()
@@ -174,6 +188,7 @@ object FilaMiniaturas {
             varreduraPreparando = false
             fotos.clear()
             videos.clear()
+            pasta.clear()
             urgentes.clear()
         }
     }
@@ -188,14 +203,15 @@ object FilaMiniaturas {
                 urgentes.remove(c)
                 fotos.remove(c)
                 videos.remove(c)
+                pasta.remove(c)
             }
         }
     }
 
     private fun jaNaFila(caminho: String): Boolean =
-        urgentes.containsKey(caminho) || fotos.containsKey(caminho) || videos.containsKey(caminho)
+        urgentes.containsKey(caminho) || pasta.containsKey(caminho) || fotos.containsKey(caminho) || videos.containsKey(caminho)
 
-    private fun tamanho(): Int = synchronized(lock) { urgentes.size + fotos.size + videos.size }
+    private fun tamanho(): Int = synchronized(lock) { urgentes.size + pasta.size + fotos.size + videos.size }
 
     private fun garantirThread() {
         synchronized(lock) {
@@ -208,14 +224,14 @@ object FilaMiniaturas {
             } finally {
                 synchronized(lock) {
                     rodando--
-                    if (urgentes.isNotEmpty() || fotos.isNotEmpty() || videos.isNotEmpty()) garantirThread()
+                    if (urgentes.isNotEmpty() || pasta.isNotEmpty() || fotos.isNotEmpty() || videos.isNotEmpty()) garantirThread()
                 }
             }
         }
     }
 
     private fun proximo(): Pair<String, Medium>? = synchronized(lock) {
-        val filas = arrayOf(urgentes, fotos, videos)
+        val filas = arrayOf(urgentes, pasta, fotos, videos)
         for (fila in filas) {
             val entrada = fila.entries.firstOrNull()
             if (entrada != null) {
@@ -457,8 +473,8 @@ object FilaMiniaturas {
     private fun abastecerSePreciso() {
         synchronized(lock) {
             if (!varreduraPronta) return
-            if (urgentes.isNotEmpty()) return
-            if (fotos.size + videos.size >= LOTE_VARREDURA) return
+            if (urgentes.isNotEmpty() || pasta.isNotEmpty()) return
+            if (pasta.size + fotos.size + videos.size >= LOTE_VARREDURA) return
             var adicionadas = 0
             while (varreduraIndice < varredura.size && adicionadas < LOTE_VARREDURA) {
                 val p = varredura[varreduraIndice++]
@@ -567,7 +583,7 @@ object FilaMiniaturas {
                 // Fade-in: gravar o quadro de abertura deixaria a celula preta para
                 // sempre. Pede o MEIO do video, em SEGUNDOS. A versao anterior passava
                 // (ms / 2000), ou seja um QUARTO do video em vez da metade.
-                val segundos = (duracaoMs(item.path) / 1000L).toInt()
+                val segundos = DuracaoVideos.duracaoReal(contexto, item.path, item.mediaStoreId)
                 val doMeio = try {
                     QuadroDeVideo.quadroNoMeio(item.path, segundos)
                 } catch (_: Exception) {
@@ -618,7 +634,7 @@ object FilaMiniaturas {
         // Ultima tentativa para video: o meio do arquivo. Se nem isso servir, devolve null
         // de proposito - melhor nenhum WebP do que um WebP preto gravado em definitivo.
         if (bmp == null && item.isVideo() && !item.path.startsWith("content://")) {
-            val segundos = (duracaoMs(item.path) / 1000L).toInt()
+            val segundos = DuracaoVideos.duracaoReal(contexto, item.path, item.mediaStoreId)
             bmp = try {
                 QuadroDeVideo.quadroNoMeio(item.path, segundos)
             } catch (_: Exception) {

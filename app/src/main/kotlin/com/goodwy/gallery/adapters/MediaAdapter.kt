@@ -1235,7 +1235,7 @@ class MediaAdapter(
                 signature = if (miniaturaPermanente != null) {
                     ObjectKey("perm-v2-" + miniaturaPermanente.name)
                 } else {
-                    ObjectKey("thumbnail-v12-${medium.getKey()}")
+                    ObjectKey("thumbnail-v13-${medium.getKey()}")
                 },
                 skipMemoryCacheAtPaths = rotatedImagePaths,
                 columnCount = config.mediaColumnCnt,
