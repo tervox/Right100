@@ -568,6 +568,8 @@ class PhotoFragment : ViewPagerFragment() {
         // fechar falhava so depois de navegar entre tipos diferentes.
         mHasInitialZoom = false
         mFitZoom = 0f
+        mHasGifInitialZoom = false
+        mGifInitialZoom = 1f
         try {
             val pathToLoad = getPathToLoad(mMedium)
             val source = if (pathToLoad.startsWith("content://") || pathToLoad.startsWith("file://")) {
@@ -579,6 +581,7 @@ class PhotoFragment : ViewPagerFragment() {
             binding.apply {
                 gesturesView.beGone()
                 gifViewFrame.beVisible()
+                gifViewFrame.controller.settings.isZoomEnabled = true
                 ensureBackgroundThread {
                     gifView.setInputSource(source)
                 }
@@ -633,6 +636,10 @@ class PhotoFragment : ViewPagerFragment() {
                 loadWithGlide(path, addZoomableView)
             } else {
                 binding.gesturesView.setImageDrawable(drawable)
+                binding.gesturesView.controller.settings.isZoomEnabled = true
+                if (mIsFragmentVisible && addZoomableView) {
+                    scheduleZoomableView()
+                }
             }
         } else {
             loadWithGlide(path, addZoomableView)
