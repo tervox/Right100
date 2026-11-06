@@ -602,8 +602,9 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
                 }
             }
             val posAtual = binding.viewPager.currentItem
+            mPos = posAtual
             binding.viewPager.adapter = MyPagerAdapter(this@ViewPagerActivity, supportFragmentManager, mMediums)
-            binding.viewPager.post { binding.viewPager.setCurrentItem(posAtual, false) }
+            binding.viewPager.setCurrentItem(posAtual, false)
             ensureBackgroundThread { updateDBMediaPath(oldPath, newPath) }
             updateTitle()
             runOnUiThread { toast(com.goodwy.commons.R.string.rename) }
