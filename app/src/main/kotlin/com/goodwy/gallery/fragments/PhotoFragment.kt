@@ -687,17 +687,25 @@ class PhotoFragment : ViewPagerFragment() {
             if (drawable.intrinsicWidth == 0) {
                 loadWithGlide(path, addZoomableView)
             } else {
-                mHasGifInitialZoom = false
-                mGifInitialZoom = 1f
-                binding.gesturesView.beGone()
-                binding.subsamplingView.beGone()
-                mIsSubsamplingVisible = false
-                binding.gifView.beGone()
-                binding.animatedImageView.beVisible()
-                binding.gifViewFrame.beVisible()
-                binding.gifViewFrame.controller.settings.isZoomEnabled = true
-                binding.animatedImageView.setImageDrawable(drawable)
-                startAnimationIfNeeded(drawable)
+
+                try {
+                    mHasGifInitialZoom = false
+                    mGifInitialZoom = 1f
+                    binding.gesturesView.beGone()
+                    binding.subsamplingView.beGone()
+                    mIsSubsamplingVisible = false
+                    binding.gifView.beGone()
+                    binding.animatedImageView.beVisible()
+                    binding.gifViewFrame.beVisible()
+                    try { binding.gifViewFrame.controller.resetState() } catch (_: Exception) {}
+                    binding.gifViewFrame.controller.settings.isZoomEnabled = true
+                    binding.animatedImageView.setImageDrawable(drawable)
+                    startAnimationIfNeeded(drawable)
+                } catch (_: Exception) {
+                    try { binding.gifViewFrame.beGone(); binding.animatedImageView.beGone() } catch (_: Exception) {}
+                    binding.gesturesView.beVisible()
+                    loadWithGlide(path, addZoomableView)
+                }
             }
         } else {
             loadWithGlide(path, addZoomableView)
