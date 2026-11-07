@@ -581,6 +581,8 @@ class PhotoFragment : ViewPagerFragment() {
             binding.apply {
                 gesturesView.beGone()
                 gifViewFrame.beVisible()
+                binding.subsamplingView.beGone()
+                mIsSubsamplingVisible = false
                 gifViewFrame.controller.settings.isZoomEnabled = true
                 ensureBackgroundThread {
                     gifView.setInputSource(source)
@@ -595,6 +597,8 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadSVG() {
         if (context != null) {
+            binding.subsamplingView.beGone()
+            mIsSubsamplingVisible = false
             Glide.with(requireContext())
                 .`as`(PictureDrawable::class.java)
                 .listener(SvgSoftwareLayerSetter())
@@ -605,6 +609,8 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadAPNG() {
         if (context != null) {
+            binding.subsamplingView.beGone()
+            mIsSubsamplingVisible = false
             val drawable = APNGDrawable.fromFile(mMedium.path)
             binding.gesturesView.setImageDrawable(drawable)
         }
@@ -612,6 +618,8 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadAVIF() {
         if (context != null) {
+            binding.subsamplingView.beGone()
+            mIsSubsamplingVisible = false
             val drawable = AVIFDrawable.fromFile(mMedium.path)
             if (drawable.intrinsicWidth == 0 || drawable.intrinsicHeight == 0) {
                 loadBitmap()
@@ -635,6 +643,10 @@ class PhotoFragment : ViewPagerFragment() {
             if (drawable.intrinsicWidth == 0) {
                 loadWithGlide(path, addZoomableView)
             } else {
+                binding.subsamplingView.beGone()
+                mIsSubsamplingVisible = false
+                mInitialZoom = 0f
+                mCurrentGestureViewZoom = 1f
                 binding.gesturesView.setImageDrawable(drawable)
                 binding.gesturesView.controller.settings.isZoomEnabled = true
                 if (mIsFragmentVisible && addZoomableView) {
