@@ -584,9 +584,7 @@ class PhotoFragment : ViewPagerFragment() {
                 binding.subsamplingView.beGone()
                 mIsSubsamplingVisible = false
                 gifViewFrame.controller.settings.isZoomEnabled = true
-                ensureBackgroundThread {
-                    gifView.setInputSource(source)
-                }
+                gifView.setInputSource(source)
             }
         } catch (_: Exception) {
             loadBitmap()
