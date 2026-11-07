@@ -349,6 +349,9 @@ class PhotoFragment : ViewPagerFragment() {
                 }
             }
             mShouldResetImage = false
+            if (!mMedium.isGIF() && (mMedium.isWebP() || mMedium.isApng() || mMedium.isAvif())) {
+                restartAnimatedDrawable()
+            }
         }
 
         val keepScreenOn = config.keepScreenOn
@@ -420,9 +423,26 @@ class PhotoFragment : ViewPagerFragment() {
                 !mMedium.isGIF() && !mMedium.isApng() && !mMedium.isAvif() && !mMedium.isWebP()
             if (isNotAnimatedContent) {
                 photoFragmentVisibilityChanged(menuVisible)
+            } else if (menuVisible) {
+                restartAnimatedDrawable()
             }
         }
     }
+    private fun restartAnimatedDrawable() {
+        if (!::binding.isInitialized || !isAdded) return
+        try {
+            val d = binding.gesturesView.drawable
+            if (d is android.graphics.drawable.Animatable) {
+                binding.gesturesView.postDelayed({
+                    try {
+                        (d as android.graphics.drawable.Animatable).stop()
+                        (d as android.graphics.drawable.Animatable).start()
+                    } catch (_: Exception) {}
+                }, 80)
+            }
+        } catch (_: Exception) {}
+    }
+
 
     private fun storeStateVariables() {
         requireContext().config.apply {
