@@ -645,12 +645,19 @@ class PhotoFragment : ViewPagerFragment() {
                 mIsSubsamplingVisible = false
                 mInitialZoom = 0f
                 mCurrentGestureViewZoom = 1f
-                binding.gesturesView.setImageDrawable(drawable)
+                                binding.gesturesView.setImageDrawable(drawable)
                 // Inicia animacao se for WebP animado
-                if (drawable is android.graphics.drawable.Animatable) {
-                    binding.gesturesView.post { (drawable as android.graphics.drawable.Animatable).start() }
-                } else {
-                    try { drawable.javaClass.getMethod("start").invoke(drawable) } catch (_: Exception) {}
+                binding.gesturesView.post {
+                    try {
+                        if (drawable is android.graphics.drawable.Animatable) {
+                            (drawable as android.graphics.drawable.Animatable).stop()
+                            (drawable as android.graphics.drawable.Animatable).start()
+                        } else {
+                            val m = drawable.javaClass.getMethod("start")
+                            m.invoke(drawable)
+                        }
+                    } catch (_: Exception) {
+                    }
                 }
                 binding.gesturesView.controller.settings.isZoomEnabled = true
                 if (mIsFragmentVisible && addZoomableView) {
