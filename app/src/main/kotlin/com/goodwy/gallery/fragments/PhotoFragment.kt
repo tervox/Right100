@@ -79,7 +79,7 @@ import kotlin.math.ceil
 
 class PhotoFragment : ViewPagerFragment() {
     private val DEFAULT_DOUBLE_TAP_ZOOM = 2f
-    private val ZOOMABLE_VIEW_LOAD_DELAY = 150L
+    private val ZOOMABLE_VIEW_LOAD_DELAY = 40L
     private val SAME_ASPECT_RATIO_THRESHOLD = 0.01
 
     private val WEIRD_DEVICES = arrayListOf(
@@ -648,6 +648,12 @@ class PhotoFragment : ViewPagerFragment() {
                 mInitialZoom = 0f
                 mCurrentGestureViewZoom = 1f
                 binding.gesturesView.setImageDrawable(drawable)
+                // Inicia animacao se for WebP animado
+                try {
+                    drawable.javaClass.getMethod("start").invoke(drawable)
+                } catch (_: Exception) {
+                    // WebP estatico nao tem start(), ignorar
+                }
                 binding.gesturesView.controller.settings.isZoomEnabled = true
                 if (mIsFragmentVisible && addZoomableView) {
                     scheduleZoomableView()
