@@ -647,10 +647,10 @@ class PhotoFragment : ViewPagerFragment() {
                 mCurrentGestureViewZoom = 1f
                 binding.gesturesView.setImageDrawable(drawable)
                 // Inicia animacao se for WebP animado
-                try {
-                    drawable.javaClass.getMethod("start").invoke(drawable)
-                } catch (_: Exception) {
-                    // WebP estatico nao tem start(), ignorar
+                if (drawable is android.graphics.drawable.Animatable) {
+                    binding.gesturesView.post { (drawable as android.graphics.drawable.Animatable).start() }
+                } else {
+                    try { drawable.javaClass.getMethod("start").invoke(drawable) } catch (_: Exception) {}
                 }
                 binding.gesturesView.controller.settings.isZoomEnabled = true
                 if (mIsFragmentVisible && addZoomableView) {
@@ -683,10 +683,14 @@ class PhotoFragment : ViewPagerFragment() {
                 }
             }
 
-        Glide.with(requireContext())
+        val thumb = try { com.goodwy.gallery.helpers.MiniaturaPermanente.existente(requireContext(), mMedium.path) } catch (_: Exception) { null }
+        val req = Glide.with(requireContext())
             .load(path)
             .apply(options)
-            .listener(object : RequestListener<Drawable> {
+        if (thumb != null) {
+            req.thumbnail(Glide.with(requireContext()).load(thumb).apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE)))
+        }
+        req.listener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {
                     ColorModeHelper.resetColorMode(activity)
                     if (activity != null && !activity!!.isDestroyed && !activity!!.isFinishing) {
