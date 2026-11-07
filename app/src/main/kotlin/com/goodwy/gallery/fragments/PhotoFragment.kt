@@ -148,6 +148,8 @@ class PhotoFragment : ViewPagerFragment() {
             subsamplingView.setOnClickListener { photoClicked() }
             gesturesView.setOnClickListener { photoClicked() }
             gifView.setOnClickListener { photoClicked() }
+            animatedImageView.setOnClickListener { photoClicked() }
+            gifViewFrame.setOnClickListener { photoClicked() }
             instantPrevItem.setOnClickListener { listener?.goToPrevItem() }
             instantNextItem.setOnClickListener { listener?.goToNextItem() }
             panoramaOutline.setOnClickListener { openPanorama() }
