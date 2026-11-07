@@ -42,6 +42,14 @@
             android:layout_height="match_parent"
             android:scaleType="fitCenter" />
 
+        <ImageView
+            android:id="@+id/animated_image_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:contentDescription="@null" />
+
     </com.alexvasilkov.gestures.GestureFrameLayout>
 
     <com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
