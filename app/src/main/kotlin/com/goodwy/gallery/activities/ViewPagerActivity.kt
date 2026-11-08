@@ -72,6 +72,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
     }
 
     private var mMediums = ArrayList<Medium>()
+    private var mDirectory = ""
+    private var mShowAll = false
     private var mPos = 0
     private var mLastPage = -1
     private var mIsFullScreen = false
