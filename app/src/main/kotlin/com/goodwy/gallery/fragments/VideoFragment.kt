@@ -681,8 +681,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
                 if (!mWasPlayerInited) mPositionWhenInit = newPosition
                 mSeekBar.progress = newPosition.toInt(); mCurrTimeView.text = newPosition.getFormattedDuration()
                 if (!mIsPlaying) mPositionAtPause = newPosition
-                val now = android.os.SystemClock.elapsedRealtime()
-                if (now - mLastSeekMs >= mSeekThrottleMs) { mLastSeekMs = now; mExoPlayer?.seekTo(newPosition) }
+                mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
+                mExoPlayer!!.seekTo(newPosition)
             }
             if (mExoPlayer == null) { mPositionAtPause = newPosition; playVideo() }
         }

@@ -710,6 +710,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
             return
         }
 
+        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
         val curr = mExoPlayer!!.currentPosition
         var newPosition =
             if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
@@ -829,6 +830,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
 
     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
         if (mExoPlayer != null && fromUser) {
+            mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
             setPosition(progress.toLong())
             resetPlayWhenReady()
         }
