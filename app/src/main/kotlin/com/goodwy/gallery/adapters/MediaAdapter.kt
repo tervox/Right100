@@ -150,7 +150,7 @@ class MediaAdapter(
                 // de substituir o drawable. Sem isso, o Glide termina a decodificacao
                 // do video original Depois do WebP ja ter entrado, e a celula pisca:
                 // imagem -> preto (placeholder) -> imagem (WebP).
-                try { com.github Glide.Glide.with(activity).clear(alvo) } catch (_: Exception) {}
+                try { Glide.with(activity).clear(alvo) } catch (_: Exception) {}
 
                 // A versao anterior pedia notifyItemChanged(posicao). O rebind refazia a
                 // celula inteira: voltava o fundo do placeholder, o Glide recarregava e, no
