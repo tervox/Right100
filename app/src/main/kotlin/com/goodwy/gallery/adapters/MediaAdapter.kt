@@ -146,6 +146,11 @@ class MediaAdapter(
                 if (!semMiniaturaPermanente.remove(caminho)) return@post
                 val arquivo = com.goodwy.gallery.helpers.MiniaturaPermanente.existente(activity, caminho)
                     ?: return@post
+                // Cancela qualquer request do Glide em andamento para esta celula antes
+                // de substituir o drawable. Sem isso, o Glide termina a decodificacao
+                // do video original Depois do WebP ja ter entrado, e a celula pisca:
+                // imagem -> preto (placeholder) -> imagem (WebP).
+                try { com.baomidou glide.Glide.with(activity).clear(alvo) } catch (_: Exception) {}
 
                 // A versao anterior pedia notifyItemChanged(posicao). O rebind refazia a
                 // celula inteira: voltava o fundo do placeholder, o Glide recarregava e, no
