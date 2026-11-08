@@ -88,6 +88,13 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(0, 0)
     private var mTimerHandler = Handler()
+    // Ultimo seek de previa (arrasto da barra ou deslize horizontal). Existe para limitar
+    // a ARRASTO_PREVIA_MS em vez de um seek por pixel.
+    private var mLastSeekMs = 0L
+    // Mesmo intervalo do VideoFragment: no maximo 5 seeks de previa por segundo
+    // enquanto o dedo arrasta a barra ou desliza na horizontal. Sem isso cada pixel
+    // pedia um seek e o player cancelava o anterior antes do fim.
+    private val ARRASTO_PREVIA_MS = 200L
     private var mPlayWhenReadyHandler = Handler()
     private var mVolumeController: VolumeController? = null
 
@@ -714,7 +721,12 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
         val curr = mExoPlayer!!.currentPosition
         var newPosition =
             if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
-        newPosition = newPosition.coerceIn(0, mExoPlayer!!.duration)
+        // coerceIn(0, duration) com duration negativa (C.TIME_UNSET, antes de ler o
+        // container) lanca IllegalArgumentException - o app fechava ao pular 10 s logo apos
+        // abrir o video. mDuration ja tem a duracao lida do arquivo como reserva.
+        val durSeguro = if (mExoPlayer!!.duration > 0L) mExoPlayer!!.duration else mDuration
+        if (durSeguro <= 0L) return
+        newPosition = newPosition.coerceIn(0L, durSeguro)
         setPosition(newPosition)
     }
 
@@ -755,8 +767,18 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
 
                     val skipLength = mDuration * (percent.toDouble() / 100)
                     var newProgress = mProgressAtDown + skipLength
-                    newProgress = newProgress.coerceIn(0.0, mExoPlayer!!.duration.toDouble())
-                    setPosition(newProgress.toLong())
+                    val durSeguro = if (mExoPlayer!!.duration > 0L) mExoPlayer!!.duration else mDuration
+                    newProgress = newProgress.coerceIn(0.0, maxOf(durSeguro, 0L).toDouble())
+                    // PREVIA LIMITADA. Era um seek por pixel durante o deslize - a mesma
+                    // causa da demora ao voltar para o video.
+                    binding.bottomVideoTimeHolder.videoSeekbar.progress = newProgress.toInt()
+                    binding.bottomVideoTimeHolder.videoCurrTime.text = newProgress.toLong().getFormattedDuration()
+                    val agora = System.currentTimeMillis()
+                    if (agora - mLastSeekMs >= ARRASTO_PREVIA_MS) {
+                        mLastSeekMs = agora
+                        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+                        mExoPlayer!!.seekTo(newProgress.toLong())
+                    }
                     resetPlayWhenReady()
                 }
             }
@@ -775,6 +797,12 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
 
                 mIgnoreCloseDown = false
                 if (mIsDragged) {
+                    // FECHA O DESLIZE COM UM SEEK EXATO NO PONTO MOSTRADO NA BARRA.
+                    mExoPlayer?.let { p ->
+                        p.setSeekParameters(SeekParameters.EXACT)
+                        p.seekTo(binding.bottomVideoTimeHolder.videoSeekbar.progress.toLong())
+                    }
+                    mLastSeekMs = 0L
                     if (mIsFullscreen) {
                         arrayOf(
                             binding.bottomVideoTimeHolder.videoCurrTime,
@@ -811,13 +839,11 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
     }
 
     private fun resetPlayWhenReady() {
-        mExoPlayer?.playWhenReady = false
-        mPlayWhenReadyHandler.removeCallbacksAndMessages(null)
-        mPlayWhenReadyHandler.postDelayed({
-            if (mIsPlaying) {
-                mExoPlayer?.playWhenReady = true
-            }
-        }, PLAY_WHEN_READY_DRAG_DELAY)
+        // NAO DESLIGA MAIS O PLAYER. Antes: playWhenReady = false e religamento 100 ms
+        // depois, chamado a CADA movimento de arrasto e de deslize. O player era desligado
+        // e religado dezenas de vezes por segundo; como e ele que entrega o quadro do ponto
+        // escolhido, a imagem ficava velha e a reproducao demorava a voltar.
+        // Mantida vazia de proposito para nao mexer nas chamadas de handleEvent/onProgress.
     }
 
     private fun releaseExoPlayer() {
@@ -829,11 +855,18 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
     }
 
     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-        if (mExoPlayer != null && fromUser) {
-            mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
-            setPosition(progress.toLong())
-            resetPlayWhenReady()
+        if (mExoPlayer == null || !fromUser) return
+        // MESMO TRATAMENTO DO VIDEOFRAGMENT: nada de seek EXACT a cada pixel.
+        val agora = System.currentTimeMillis()
+        if (agora - mLastSeekMs < ARRASTO_PREVIA_MS) {
+            binding.bottomVideoTimeHolder.videoSeekbar.progress = progress
+            binding.bottomVideoTimeHolder.videoCurrTime.text = progress.toLong().getFormattedDuration()
+            return
         }
+        mLastSeekMs = agora
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        setPosition(progress.toLong())
+        resetPlayWhenReady()
     }
 
     override fun onStartTrackingTouch(seekBar: SeekBar?) {
@@ -843,6 +876,11 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
     override fun onStopTrackingTouch(seekBar: SeekBar?) {
         if (mExoPlayer == null)
             return
+
+        // UM SEEK EXATO POR ARRASTO, NO FIM.
+        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
+        mExoPlayer!!.seekTo(binding.bottomVideoTimeHolder.videoSeekbar.progress.toLong())
+        mLastSeekMs = 0L
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
