@@ -356,18 +356,20 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
         fileDataSource.close()
 
         val loadControl = DefaultLoadControl.Builder()
+            // 3o E 4o ARGUMENTOS EM ZERO: eram 500 ms de espera obrigatoria depois de cada
+            // seek antes do primeiro quadro aparecer.
             .setBufferDurationsMs(
                 EXOPLAYER_MIN_BUFFER_MS,
                 EXOPLAYER_MAX_BUFFER_MS,
-                EXOPLAYER_MIN_BUFFER_MS,
-                EXOPLAYER_MIN_BUFFER_MS
+                0,
+                0
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
         mExoPlayer = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(applicationContext))
-            .setSeekParameters(SeekParameters.EXACT)
+            .setSeekParameters(SeekParameters.CLOSEST_SYNC)
             .setLoadControl(loadControl)
             .build()
             .apply {
@@ -496,6 +498,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
 
         mWasVideoStarted = true
         mIsPlaying = true
+        FilaMiniaturas.pausar()
         mExoPlayer?.playWhenReady = true
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
@@ -507,6 +510,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
         }
 
         mIsPlaying = false
+        FilaMiniaturas.retomar()
         if (!didVideoEnd()) {
             mExoPlayer?.playWhenReady = false
         }
@@ -717,7 +721,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
             return
         }
 
-        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         val curr = mExoPlayer!!.currentPosition
         var newPosition =
             if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
@@ -799,7 +803,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
                 if (mIsDragged) {
                     // FECHA O DESLIZE COM UM SEEK EXATO NO PONTO MOSTRADO NA BARRA.
                     mExoPlayer?.let { p ->
-                        p.setSeekParameters(SeekParameters.EXACT)
+                        p.setSeekParameters(SeekParameters.CLOSEST_SYNC)
                         p.seekTo(binding.bottomVideoTimeHolder.videoSeekbar.progress.toLong())
                     }
                     mLastSeekMs = 0L
@@ -847,6 +851,7 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
     }
 
     private fun releaseExoPlayer() {
+        FilaMiniaturas.retomar()
         mExoPlayer?.apply {
             stop()
             release()
@@ -877,8 +882,8 @@ open class VideoPlayerActivity : BaseViewerActivity(), SeekBar.OnSeekBarChangeLi
         if (mExoPlayer == null)
             return
 
-        // UM SEEK EXATO POR ARRASTO, NO FIM.
-        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
+        // UM SEEK AO SOLTAR, EM CLOSEST_SYNC.
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         mExoPlayer!!.seekTo(binding.bottomVideoTimeHolder.videoSeekbar.progress.toLong())
         mLastSeekMs = 0L
 

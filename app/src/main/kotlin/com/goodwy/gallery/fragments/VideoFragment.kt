@@ -523,14 +523,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // O Media3 abre o URI de forma assíncrona; o caminho anterior podia bloquear o
         // primeiro toque e ainda deixar a fonte inválida depois de uma troca animada.
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS)
+            // 3o E 4o ARGUMENTOS EM ZERO. Eram EXOPLAYER_MIN_BUFFER_MS (500 ms): significam
+            // "so comece a tocar com 500 ms ja no buffer" e sao cobrados depois de CADA seek.
+            // Mesmo com o ponto pronto, o player esperava meio segundo de proposito.
+            .setBufferDurationsMs(EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS, 0, 0)
             .setPrioritizeTimeOverSizeThresholds(true).build()
         mExoPlayer = ExoPlayer.Builder(requireContext())
             .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
-            // CLOSEST_SYNC obriga o player a decodificar ATE o ponto exato do seek
-            // anterior. Como o player e recriado a cada troca nao ha historico
-            // aproveitavel, entao essa precisao so atrasa o primeiro frame.
-            .setSeekParameters(SeekParameters.PREVIOUS_SYNC).setLoadControl(loadControl).build().apply {
+            // CLOSEST_SYNC = PULA PARA O KEYFRAME MAIS PROXIMO, SEM DECODIFICAR ATE O PONTO.
+            // Era PREVIOUS_SYNC (keyframe anterior, errava sempre para tras).
+            .setSeekParameters(SeekParameters.CLOSEST_SYNC).setLoadControl(loadControl).build().apply {
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) repeatMode = Player.REPEAT_MODE_ONE
                 setPlaybackSpeed(mConfig.playbackSpeed)
                 setMediaItem(MediaItem.fromUri(uri))
@@ -731,10 +733,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onStopTrackingTouch(seekBar: SeekBar) {
         if (mIsPanorama) { openPanorama(); return }
         if (mExoPlayer == null) return
-        // UM UNICO SEEK, EXATO, COM O DEDO JA FORA DA BARRA. E o unico lugar do arrasto que
-        // paga o preco de decodificar ate o ponto pedido - e por isso que antes demorava:
-        // esse trabalho era tentado dezenas de vezes e cancelado.
-        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
+        // UM UNICO SEEK AO SOLTAR, TAMBEM EM CLOSEST_SYNC. Era EXACT: pagava a
+        // decodificacao ate o ponto exato e o usuario sentia como espera.
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
         mCurrTime = mSeekBar.progress.toLong()
         mUltimoSegundo = -1L
@@ -804,6 +805,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mSurface = Surface(mTextureView.surfaceTexture)
             mExoPlayer?.setVideoSurface(mSurface)
         }
+        // Enquanto o video toca, a fila de miniaturas fica parada. Cada quadro de video dela
+        // abre um decoder de video, e o aparelho tem UM decoder de hardware - o mesmo que o
+        // player precisa para responder ao seek. Volta em pauseVideo() e em cleanup().
+        FilaMiniaturas.pausar()
         mExoPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setupTimer()
@@ -813,6 +818,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mExoPlayer == null) return
         if (updateActivityControls) listener?.updatePlayPause(true)
         mIsPlaying = false
+        FilaMiniaturas.retomar()
         if (!videoEnded()) mExoPlayer?.playWhenReady = false
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -826,11 +832,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setPosition(milliseconds: Long) {
-        // TODO POSICIONAMENTO DESTE ARQUIVO E EXATO. O player nasce com PREVIOUS_SYNC de
-        // proposito (primeiro quadro rapido), mas para pular 10 s, restaurar posicao salva
-        // e fechar o arrasto o parametro precisa ser EXACT: com PREVIOUS_SYNC o seek cai no
-        // keyframe anterior e a imagem para alguns segundos antes do ponto pedido.
-        mExoPlayer?.setSeekParameters(SeekParameters.EXACT)
+        // CLOSEST_SYNC, NAO EXACT. Este e o ponto usado por pular 10 s, restaurar posicao
+        // salva e fechar o arrasto da barra. Com EXACT o decoder voltava ao keyframe
+        // anterior e decodificava quadro por quadro ate o ponto, jogando tudo fora: era
+        // essa a demora de 1-2 s. CLOSEST_SYNC pula direto para o keyframe mais proximo.
+        mExoPlayer?.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         mExoPlayer?.seekTo(milliseconds); mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
         if (!mIsPlaying) mPositionAtPause = milliseconds
@@ -989,6 +995,7 @@ fun releasePlayerForFileOp() = cleanup()
 
 
     private fun cleanup() {
+        FilaMiniaturas.retomar()
         mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
         mMainHandler.removeCallbacks(mPendingPlayRunnable)
         mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }
