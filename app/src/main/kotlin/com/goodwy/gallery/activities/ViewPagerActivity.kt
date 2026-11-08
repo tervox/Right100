@@ -67,6 +67,8 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
 
         private const val SAVED_PATH = "saved_path"
         private const val SAVED_POS = "saved_pos"
+        private const val SAVED_DIRECTORY = "saved_directory"
+        private const val SAVED_SHOW_ALL = "saved_show_all"
     }
 
     private var mMediums = ArrayList<Medium>()
@@ -95,6 +97,12 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         val path = intent.getStringExtra(PATH) ?: ""
         if (path.isEmpty()) { finish(); return }
 
+        mDirectory = savedInstanceState?.getString(SAVED_DIRECTORY)
+            ?: intent.getStringExtra(DIRECTORY) ?: path.getParentPath()
+        mShowAll = savedInstanceState?.getBoolean(SAVED_SHOW_ALL)
+            ?: intent.getBooleanExtra(SHOW_ALL, false)
+
+        val hadPending = pendingMediums != null
         mMediums = pendingMediums ?: ArrayList()
         pendingMediums = null
 
@@ -134,12 +142,44 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
         if (intent.getBooleanExtra(SLIDESHOW_START_ON_ENTER, false)) {
             binding.viewPager.post { initSlideshow() }
         }
+
+        if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
+            reloadMediaListAfterRestore(path)
+        }
+    }
+
+    private fun reloadMediaListAfterRestore(currentPath: String) {
+        val dir = if (mShowAll) "" else mDirectory
+        if (dir.isEmpty() && !mShowAll) return
+        try {
+            getCachedMedia(dir) { items ->
+                if (isDestroyed || isFinishing) return@getCachedMedia
+                val mediums = ArrayList(items.filterIsInstance<Medium>())
+                if (mediums.isEmpty()) return@getCachedMedia
+                runOnUiThread {
+                    if (isDestroyed || isFinishing) return@runOnUiThread
+                    val newPos = mediums.indexOfFirst { it.path == currentPath }.coerceAtLeast(0)
+                    mMediums.clear()
+                    mMediums.addAll(mediums)
+                    mPos = newPos.coerceIn(0, (mMediums.size - 1).coerceAtLeast(0))
+                    val adapter = MyPagerAdapter(this@ViewPagerActivity, supportFragmentManager, mMediums)
+                    binding.viewPager.adapter = adapter
+                    binding.viewPager.setCurrentItem(mPos, false)
+                    updateTitle()
+                    refreshMenuItems()
+                    initBottomActions()
+                }
+            }
+        } catch (_: Exception) {
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(SAVED_PATH, getCurrentPath())
         outState.putInt(SAVED_POS, mPos)
+        outState.putString(SAVED_DIRECTORY, mDirectory)
+        outState.putBoolean(SAVED_SHOW_ALL, mShowAll)
     }
 
     override fun onResume() {

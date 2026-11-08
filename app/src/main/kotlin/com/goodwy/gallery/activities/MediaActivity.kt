@@ -269,7 +269,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaRefreshLayout.setOnRefreshListener { getMedia(forceRefresh = true) }
         setupSelectAllFab()
         try {
-            mPath = intent.getStringExtra(DIRECTORY) ?: ""
+            mPath = savedInstanceState?.getString(DIRECTORY)?.takeIf { it.isNotEmpty() }
+                ?: intent.getStringExtra(DIRECTORY) ?: ""
         } catch (e: Exception) {
             showErrorToast(e)
             finish()
@@ -596,6 +597,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         } else {
             mTempShowHiddenHandler.removeCallbacksAndMessages(null)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(DIRECTORY, mPath)
     }
 
     override fun onDestroy() {
