@@ -146,6 +146,12 @@ class MediaAdapter(
                 if (!semMiniaturaPermanente.remove(caminho)) return@post
                 val arquivo = com.goodwy.gallery.helpers.MiniaturaPermanente.existente(activity, caminho)
                     ?: return@post
+                // Se a celula ja mostra a imagem (frame do video, nao o placeholder), mantem
+                // o frame: trocar agora causava a segunda carga visivel. O WebP entra no
+                // proximo bind, quando a celula for reciclada e recarregada.
+                if (alvo.drawable != null && alvo.drawable !is android.graphics.drawable.GradientDrawable) {
+                    return@post
+                }
                 // Cancela qualquer request do Glide em andamento para esta celula antes
                 // de substituir o drawable. Sem isso, o Glide termina a decodificacao
                 // do video original Depois do WebP ja ter entrado, e a celula pisca:
