@@ -1321,6 +1321,10 @@ class MediaAdapter(
                                                 ?: com.goodwy.gallery.helpers.DuracaoVideos.duracaoReal(
                                                     activity, medium.path, medium.mediaStoreId
                                                 )
+                                            com.goodwy.gallery.extensions.Right100Diag.add(
+                                                "medir onError " + medium.path.substringAfterLast('/') +
+                                                    " videoDuration=" + medium.videoDuration + " duracaoSeg=" + duracaoSeg
+                                            )
                                             val doMeio = try {
                                                 com.goodwy.gallery.helpers.QuadroDeVideo.quadroNoMeio(
                                                     medium.path, if (duracaoSeg > 0) duracaoSeg else 0
