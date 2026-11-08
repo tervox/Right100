@@ -426,7 +426,7 @@ class PhotoFragment : ViewPagerFragment() {
             if (isNotAnimatedContent) {
                 photoFragmentVisibilityChanged(menuVisible)
             } else if (menuVisible) {
-                restartAnimatedDrawable()
+restartAnimatedDrawable()
             }
         }
     }
@@ -456,6 +456,21 @@ class PhotoFragment : ViewPagerFragment() {
         } catch (_: Exception) {}
     }
 
+
+    private fun restartAnimatedDrawable() {
+        if (!::binding.isInitialized || !isAdded) return
+        try {
+            val d = binding.gesturesView.drawable
+            if (d is android.graphics.drawable.Animatable) {
+                binding.gesturesView.postDelayed({
+                    try {
+                        (d as android.graphics.drawable.Animatable).stop()
+                        (d as android.graphics.drawable.Animatable).start()
+                    } catch (_: Exception) {}
+                }, 50)
+            }
+        } catch (_: Exception) {}
+    }
 
     private fun storeStateVariables() {
         requireContext().config.apply {
@@ -614,7 +629,7 @@ class PhotoFragment : ViewPagerFragment() {
             binding.apply {
                 gesturesView.beGone()
                 gifViewFrame.beVisible()
-                binding.subsamplingView.beGone()
+binding.subsamplingView.beGone()
                 mIsSubsamplingVisible = false
                 gifViewFrame.controller.settings.isZoomEnabled = true
                 gifView.setInputSource(source)
@@ -689,8 +704,7 @@ class PhotoFragment : ViewPagerFragment() {
             if (drawable.intrinsicWidth == 0) {
                 loadWithGlide(path, addZoomableView)
             } else {
-
-                try {
+try {
                     mHasGifInitialZoom = false
                     mGifInitialZoom = 1f
                     binding.gesturesView.beGone()
@@ -703,9 +717,8 @@ class PhotoFragment : ViewPagerFragment() {
                     binding.gifViewFrame.controller.settings.isZoomEnabled = true
                     binding.animatedImageView.setImageDrawable(drawable)
                     startAnimationIfNeeded(drawable)
-                } catch (_: Exception) {
+} catch (_: Exception) {
                     try { binding.gifViewFrame.beGone(); binding.animatedImageView.beGone() } catch (_: Exception) {}
-                    binding.gesturesView.beVisible()
                     loadWithGlide(path, addZoomableView)
                 }
             }

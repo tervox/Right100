@@ -2151,6 +2151,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         ViewPagerActivity.pendingMediums = mediums
         Intent(this, ViewPagerActivity::class.java).apply {
             putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
+            putExtra(DIRECTORY, mPath)
             putExtra(PATH, path)
             putExtra("pos", pos)
             putExtra(SHOW_ALL, mShowAll)

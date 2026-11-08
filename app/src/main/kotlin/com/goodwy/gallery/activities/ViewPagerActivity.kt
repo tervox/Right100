@@ -145,7 +145,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             binding.viewPager.post { initSlideshow() }
         }
 
-        if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
+if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
             reloadMediaListAfterRestore(path)
         }
     }
