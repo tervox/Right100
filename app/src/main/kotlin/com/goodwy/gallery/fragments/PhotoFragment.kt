@@ -457,20 +457,7 @@ restartAnimatedDrawable()
     }
 
 
-    private fun restartAnimatedDrawable() {
-        if (!::binding.isInitialized || !isAdded) return
-        try {
-            val d = binding.gesturesView.drawable
-            if (d is android.graphics.drawable.Animatable) {
-                binding.gesturesView.postDelayed({
-                    try {
-                        (d as android.graphics.drawable.Animatable).stop()
-                        (d as android.graphics.drawable.Animatable).start()
-                    } catch (_: Exception) {}
-                }, 50)
-            }
-        } catch (_: Exception) {}
-    }
+    
 
     private fun storeStateVariables() {
         requireContext().config.apply {
