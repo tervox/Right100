@@ -621,7 +621,6 @@ object FilaMiniaturas {
                 // sempre. Pede o MEIO do video, em SEGUNDOS. A versao anterior passava
                 // (ms / 2000), ou seja um QUARTO do video em vez da metade.
                 val segundos = DuracaoVideos.duracaoReal(contexto, item.path, item.mediaStoreId)
-                com.goodwy.gallery.extensions.Right100Diag.add("medir fila-meio " + item.path.substringAfterLast('/') + " duracaoReal=" + segundos)
                 val doMeio = try {
                     QuadroDeVideo.quadroNoMeio(item.path, segundos)
                 } catch (_: Exception) {
@@ -673,7 +672,6 @@ object FilaMiniaturas {
         // de proposito - melhor nenhum WebP do que um WebP preto gravado em definitivo.
         if (bmp == null && item.isVideo() && !item.path.startsWith("content://")) {
             val segundos = DuracaoVideos.duracaoReal(contexto, item.path, item.mediaStoreId)
-            com.goodwy.gallery.extensions.Right100Diag.add("medir fila-ultima " + item.path.substringAfterLast('/') + " duracaoReal=" + segundos)
             bmp = try {
                 QuadroDeVideo.quadroNoMeio(item.path, segundos)
             } catch (_: Exception) {

@@ -1367,6 +1367,7 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
     override fun onPageSelected(position: Int) {
         val navT0 = android.os.SystemClock.uptimeMillis()
         mPos = position
+        aquecerVizinhas(position)
         updateTitle()
         // A visibilidade dos botões dependia apenas do onResume. Depois de trocar
         // foto -> vídeo, o botão continuava oculto; depois de vídeo -> foto, ficava
@@ -1376,6 +1377,18 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
         scheduleSwipe()
         refreshCurrentPageState(position)
         com.goodwy.gallery.App.logGesture("NAVDIAG onPageSelected pos=$position tomou=${android.os.SystemClock.uptimeMillis() - navT0}ms")
+    }
+
+    // Miniatura e fundo das fotos vizinhas entram na fila antes de o usuario chegar nelas,
+    // para a troca de foto nao depender de decodificar a foto original.
+    private fun aquecerVizinhas(position: Int) {
+        val vizinhas = ArrayList<Medium>()
+        for (i in position - 2..position + 3) {
+            val medium = mMediums.getOrNull(i) ?: continue
+            if (!medium.isVideo()) vizinhas.add(medium)
+        }
+        if (vizinhas.isEmpty()) return
+        com.goodwy.gallery.helpers.FilaMiniaturas.priorizar(applicationContext, vizinhas)
     }
 
     private fun refreshCurrentPageState(position: Int, attempt: Int = 0) {

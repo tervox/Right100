@@ -35,10 +35,16 @@ object MiniaturaPermanente {
     private const val SUFIXO_FUNDO = ".fundo8"
 
     private var limpezaVersaoFeita = false
+    // A pasta da versao so e' criada uma vez por processo; a escrita garante o caminho.
+    private var pastaVersaoCriada = false
 
     private fun raiz(context: Context): File {
         val base = File(context.filesDir, "miniaturas")
-        val atual = File(base, VERSAO).apply { if (!isDirectory) mkdirs() }
+        val atual = File(base, VERSAO)
+        if (!pastaVersaoCriada) {
+            atual.mkdirs()
+            pastaVersaoCriada = true
+        }
         // VERSAO bumpada: WebPs antigos (frame do MediaStore) causavam swap.
         // Apaga a arvore de versoes anteriores uma unica vez.
         if (!limpezaVersaoFeita) {
