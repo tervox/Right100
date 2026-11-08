@@ -43,6 +43,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.bumptech.glide.Glide
 import com.goodwy.commons.extensions.*
@@ -533,6 +534,21 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             // CLOSEST_SYNC = PULA PARA O KEYFRAME MAIS PROXIMO, SEM DECODIFICAR ATE O PONTO.
             // Era PREVIOUS_SYNC (keyframe anterior, errava sempre para tras).
             .setSeekParameters(SeekParameters.CLOSEST_SYNC).setLoadControl(loadControl).build().apply {
+                addListener(object : Player.Listener {
+                    override fun onRenderedFirstFrame() {
+                        val inicio = mMedirInicio
+                        if (inicio > 0L) {
+                            val ms = android.os.SystemClock.elapsedRealtime() - inicio
+                            mMedirInicio = 0L
+                            android.widget.Toast.makeText(requireContext(), "seek ate quadro: " + ms + " ms", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                })
+                addAnalyticsListener(object : AnalyticsListener {
+                    override fun onVideoDecoderInitialized(eventTime: AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                        android.widget.Toast.makeText(requireContext(), "decoder: " + decoderName, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                })
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) repeatMode = Player.REPEAT_MODE_ONE
                 setPlaybackSpeed(mConfig.playbackSpeed)
                 setMediaItem(MediaItem.fromUri(uri))
@@ -688,6 +704,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private var mLastSeekMs = 0L
+    private var mMedirInicio = 0L
     private val mSeekThrottleMs = 60L
 
     override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -735,6 +752,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mExoPlayer == null) return
         // UM UNICO SEEK AO SOLTAR, TAMBEM EM CLOSEST_SYNC. Era EXACT: pagava a
         // decodificacao ate o ponto exato e o usuario sentia como espera.
+        mMedirInicio = android.os.SystemClock.elapsedRealtime()
         mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
         mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
         mCurrTime = mSeekBar.progress.toLong()
@@ -836,6 +854,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // salva e fechar o arrasto da barra. Com EXACT o decoder voltava ao keyframe
         // anterior e decodificava quadro por quadro ate o ponto, jogando tudo fora: era
         // essa a demora de 1-2 s. CLOSEST_SYNC pula direto para o keyframe mais proximo.
+        mMedirInicio = android.os.SystemClock.elapsedRealtime()
         mExoPlayer?.setSeekParameters(SeekParameters.EXACT)
         mExoPlayer?.seekTo(milliseconds); mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
