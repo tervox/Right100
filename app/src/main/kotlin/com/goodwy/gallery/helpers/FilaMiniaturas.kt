@@ -611,7 +611,17 @@ object FilaMiniaturas {
         // getFrameAtTime(-1)). O loadThumbnail do MediaStore entrega OUTRO instante do
         // mesmo video - era por isso que a celula mostrava um momento e, quando o WebP da
         // fila ficava pronto, trocava para outro momento, parecendo "carregar de novo".
-        if (item.isVideo() && !item.path.startsWith("content://")) {
+        // Miniatura do proprio Android primeiro: a grade pede a mesma fonte, entao a imagem nao muda depois.
+        if (item.isVideo() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            uriDe(item)?.let { uri ->
+                try {
+                    bmp = contexto.contentResolver.loadThumbnail(uri, Size(LADO_PX, LADO_PX), null)
+                } catch (_: Exception) {
+                }
+            }
+        }
+
+        if (bmp == null && item.isVideo() && !item.path.startsWith("content://")) {
             try {
                 bmp = QuadroDeVideo.primeiroQuadro(item.path)
             } catch (_: Exception) {

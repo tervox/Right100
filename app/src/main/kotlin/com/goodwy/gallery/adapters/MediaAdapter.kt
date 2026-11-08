@@ -133,6 +133,25 @@ class MediaAdapter(
         com.goodwy.gallery.helpers.FilaMiniaturas.enfileirar(activity.applicationContext, itens)
     }
 
+    // Video sem miniatura permanente: a grade pede a MESMA miniatura do sistema que a fila grava.
+    // Assim a imagem que aparece primeiro e a que fica gravada, e ela nao troca depois.
+    private fun carregarMiniaturaDoSistema(alvo: ImageView, medium: Medium, chave: String) {
+        ensureBackgroundThread {
+            val uri = ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), medium.mediaStoreId)
+            val bmp = try {
+                activity.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+            } catch (_: Exception) {
+                null
+            }
+            activity.runOnUiThread {
+                if (bmp != null && alvo.tag == chave) {
+                    alvo.scaleType = ImageView.ScaleType.CENTER_CROP
+                    alvo.setImageBitmap(bmp)
+                }
+            }
+        }
+    }
+
     override fun miniaturaPronta(caminho: String) {
         val posicao = keyToPositionCache[caminho.hashCode()]
             ?: media.indexOfFirst { (it as? Medium)?.path == caminho }.takeIf { it >= 0 }
@@ -1230,7 +1249,12 @@ class MediaAdapter(
             // certa - a piscada imagem -> preto -> imagem.
             // Celula reciclada nao entra aqui: onViewRecycled() zera tag e drawable, entao
             // jaMostrandoEsta volta a ser false e a carga acontece normalmente.
-            if (!jaMostrandoEsta)
+            val usarMiniaturaDoSistema = !jaMostrandoEsta && miniaturaPermanente == null &&
+                medium.isVideo() && medium.mediaStoreId > 0L &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+            if (usarMiniaturaDoSistema) {
+                carregarMiniaturaDoSistema(mediumThumbnail, medium, chaveDaCelula)
+            } else if (!jaMostrandoEsta)
                 activity.loadImage(
                     type = if (miniaturaPermanente != null) com.goodwy.gallery.helpers.TYPE_IMAGES else medium.type,
                 // AQUI estava o erro: o `path` e' o que o Glide abre. Ficava sempre
