@@ -735,7 +735,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mExoPlayer == null) return
         // UM UNICO SEEK AO SOLTAR, TAMBEM EM CLOSEST_SYNC. Era EXACT: pagava a
         // decodificacao ate o ponto exato e o usuario sentia como espera.
-        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
         mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
         mCurrTime = mSeekBar.progress.toLong()
         mUltimoSegundo = -1L
@@ -836,7 +836,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // salva e fechar o arrasto da barra. Com EXACT o decoder voltava ao keyframe
         // anterior e decodificava quadro por quadro ate o ponto, jogando tudo fora: era
         // essa a demora de 1-2 s. CLOSEST_SYNC pula direto para o keyframe mais proximo.
-        mExoPlayer?.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        mExoPlayer?.setSeekParameters(SeekParameters.EXACT)
         mExoPlayer?.seekTo(milliseconds); mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
         if (!mIsPlaying) mPositionAtPause = milliseconds
