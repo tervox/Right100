@@ -269,7 +269,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaRefreshLayout.setOnRefreshListener { getMedia(forceRefresh = true) }
         setupSelectAllFab()
         try {
-            mPath = intent.getStringExtra(DIRECTORY) ?: ""
+            mPath = savedInstanceState?.getString(DIRECTORY)?.takeIf { it.isNotEmpty() }
+                ?: intent.getStringExtra(DIRECTORY) ?: ""
         } catch (e: Exception) {
             showErrorToast(e)
             finish()
@@ -598,6 +599,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(DIRECTORY, mPath)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (config.showAll && !isChangingConfigurations) {
@@ -783,6 +789,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             ViewPagerActivity.pendingMediums = mediums
             Intent(this, ViewPagerActivity::class.java).apply {
                 putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
+                putExtra(DIRECTORY, mPath)
                 putExtra(PATH, item.path)
                 putExtra("pos", 0)
                 putExtra(SHOW_ALL, mShowAll)
@@ -2144,6 +2151,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         ViewPagerActivity.pendingMediums = mediums
         Intent(this, ViewPagerActivity::class.java).apply {
             putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
+            putExtra(DIRECTORY, mPath)
             putExtra(PATH, path)
             putExtra("pos", pos)
             putExtra(SHOW_ALL, mShowAll)
