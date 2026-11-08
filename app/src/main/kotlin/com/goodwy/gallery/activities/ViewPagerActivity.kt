@@ -145,9 +145,7 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             binding.viewPager.post { initSlideshow() }
         }
 
-        // Apos morte do processo, pendingMediums some e ficamos com 1 item sintetico.
-        // Recarrega a lista da pasta em segundo plano para restaurar navegacao.
-        if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
+if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
             reloadMediaListAfterRestore(path)
         }
     }

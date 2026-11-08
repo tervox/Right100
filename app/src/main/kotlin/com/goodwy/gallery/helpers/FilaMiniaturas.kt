@@ -50,6 +50,9 @@ object FilaMiniaturas {
     private const val PRAZO_MS = 6000L
     private const val TENTATIVAS_MAX = 2
     private const val MAX_THREADS = 2
+    // Interruptor da pausa durante a reproducao. false = a fila nunca para (comportamento
+    // anterior). true = para enquanto um video toca, para nao disputar o decoder.
+    private const val PAUSAR_FILA_NO_VIDEO = true
 
     // Varredura da galeria inteira. Lote baixo de proposito: a fila nunca enche com
     // coisa fora da tela e a pasta aberta depois entra na frente sem esperar tudo.
@@ -106,6 +109,8 @@ object FilaMiniaturas {
     private var desistencias = 0L
     private var tempoTotal = 0L
     private var rodando = 0
+    // Ligada enquanto um video esta sendo reproduzido (ver pausar/retomar).
+    private var pausada = false
 
     private val executor = Executors.newFixedThreadPool(MAX_THREADS) { alvo ->
         Thread(alvo, "Right100-fila-miniaturas").apply { priority = Thread.MIN_PRIORITY }
@@ -208,6 +213,28 @@ object FilaMiniaturas {
         }
     }
 
+    /**
+     * Para a geracao de miniaturas enquanto um video toca. Cada quadro de video da fila abre
+     * um decoder de video; no aparelho existe UM decoder de hardware, o mesmo que o player
+     * usa para responder ao seek. Com a fila rodando, cada seek espera o decoder ficar livre.
+     * Nao perde nada: o que nao foi feito continua na fila e sai no retomar().
+     */
+    fun pausar() {
+        if (!PAUSAR_FILA_NO_VIDEO) return
+        synchronized(lock) {
+            pausada = true
+        }
+    }
+
+    fun retomar() {
+        val estava = synchronized(lock) {
+            val antes = pausada
+            pausada = false
+            antes
+        }
+        if (estava) garantirThread()
+    }
+
     private fun jaNaFila(caminho: String): Boolean =
         urgentes.containsKey(caminho) || pasta.containsKey(caminho) || fotos.containsKey(caminho) || videos.containsKey(caminho)
 
@@ -245,6 +272,16 @@ object FilaMiniaturas {
     private fun laco() {
         var marcadorDiag = 0L
         while (true) {
+            // PAUSA ENQUANTO UM VIDEO TOCA. Dorme de 150 em 150 ms; ao retomar() o laco
+            // continua de onde parou, sem perder item da fila.
+            if (synchronized(lock) { pausada }) {
+                try {
+                    Thread.sleep(150)
+                } catch (_: InterruptedException) {
+                    break
+                }
+                continue
+            }
             // Fila da pasta baixou? Entrega o proximo lote da varredura da galeria.
             abastecerSePreciso()
             val par = proximo() ?: break

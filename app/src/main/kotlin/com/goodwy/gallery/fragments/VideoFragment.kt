@@ -79,6 +79,14 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         private const val TOUCH_HOLD_DURATION_MS = 500L
         private const val TOUCH_HOLD_SPEED_MULTIPLIER = 2.0f
         private const val TOUCH_SLOP_DIVIDER = 3
+        // Quanto tempo entre previas de seek durante o arrasto da barra. 200 ms = 5 por
+        // segundo, em vez de um por pixel. Com um seek EXATO por movimento o player
+        // cancelava cada um antes de terminar e NENHUM chegava ao fim: ao soltar o dedo
+        // todo o trabalho ainda estava por fazer, e a imagem demorava a aparecer.
+        private const val ARRASTO_PREVIA_MS = 200L
+        // false = o video continua tocando enquanto o dedo arrasta e mostra o quadro do
+        // ponto escolhido na hora. true = pausa durante o arrasto, como era antes.
+        private const val ARRASTO_PAUSA = false
     }
 
     private var mIsFullscreen = false
@@ -515,14 +523,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         // O Media3 abre o URI de forma assíncrona; o caminho anterior podia bloquear o
         // primeiro toque e ainda deixar a fonte inválida depois de uma troca animada.
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MIN_BUFFER_MS)
+            // 3o E 4o ARGUMENTOS EM ZERO. Eram EXOPLAYER_MIN_BUFFER_MS (500 ms): significam
+            // "so comece a tocar com 500 ms ja no buffer" e sao cobrados depois de CADA seek.
+            // Mesmo com o ponto pronto, o player esperava meio segundo de proposito.
+            .setBufferDurationsMs(EXOPLAYER_MIN_BUFFER_MS, EXOPLAYER_MAX_BUFFER_MS, 0, 0)
             .setPrioritizeTimeOverSizeThresholds(true).build()
         mExoPlayer = ExoPlayer.Builder(requireContext())
             .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
-            // CLOSEST_SYNC obriga o player a decodificar ATE o ponto exato do seek
-            // anterior. Como o player e recriado a cada troca nao ha historico
-            // aproveitavel, entao essa precisao so atrasa o primeiro frame.
-            .setSeekParameters(SeekParameters.PREVIOUS_SYNC).setLoadControl(loadControl).build().apply {
+            // CLOSEST_SYNC = PULA PARA O KEYFRAME MAIS PROXIMO, SEM DECODIFICAR ATE O PONTO.
+            // Era PREVIOUS_SYNC (keyframe anterior, errava sempre para tras).
+            .setSeekParameters(SeekParameters.CLOSEST_SYNC).setLoadControl(loadControl).build().apply {
                 if (mConfig.loopVideos && listener?.isSlideShowActive() == false) repeatMode = Player.REPEAT_MODE_ONE
                 setPlaybackSpeed(mConfig.playbackSpeed)
                 setMediaItem(MediaItem.fromUri(uri))
@@ -665,42 +675,71 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
 
     private fun doSkip(forward: Boolean) {
         if (mExoPlayer == null) return
+        // LIMITE SEGURO. Enquanto o container nao foi lido, duration devolve C.TIME_UNSET
+        // (negativo); maxOf(duration, 0) virava 0 e coerceIn(0, 0) devolvia 0 nas DUAS
+        // direcoes - avancar e retroceder 10 s jogavam o video para o inicio. Agora cai no
+        // maximo da barra, que ja tem a duracao lida do arquivo.
+        val dur = mExoPlayer!!.duration
+        val limite = if (dur > 0L) dur else mSeekBar.max.toLong()
+        if (limite <= 0L) return
         val curr = mExoPlayer!!.currentPosition
-        var newPosition = if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
-        newPosition = newPosition.coerceIn(0, maxOf(mExoPlayer!!.duration, 0))
-        setPosition(newPosition)
+        val destino = if (forward) curr + FAST_FORWARD_VIDEO_MS else curr - FAST_FORWARD_VIDEO_MS
+        setPosition(destino.coerceIn(0L, limite))
     }
 
     private var mLastSeekMs = 0L
     private val mSeekThrottleMs = 60L
 
     override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-        if (fromUser) {
-            val newPosition = progress.toLong()
-            if (mExoPlayer != null) {
-                if (!mWasPlayerInited) mPositionWhenInit = newPosition
-                mSeekBar.progress = newPosition.toInt(); mCurrTimeView.text = newPosition.getFormattedDuration()
-                if (!mIsPlaying) mPositionAtPause = newPosition
-                val now = android.os.SystemClock.elapsedRealtime()
-                if (now - mLastSeekMs >= mSeekThrottleMs) { mLastSeekMs = now; mExoPlayer?.seekTo(newPosition) }
-            }
-            if (mExoPlayer == null) { mPositionAtPause = newPosition; playVideo() }
+        if (!fromUser) return
+        val newPosition = progress.toLong()
+        // A BARRA E O TEMPO ACOMPANHAM O DEDO NA HORA - e so isso que acontece em cada
+        // movimento. O seek aqui era EXACT e disparado por pixel: o decoder voltava ao
+        // keyframe anterior e decodificava ate o ponto, o player cancelava o seek seguinte
+        // antes do fim e, ao soltar, nada tinha chegado. Era essa a demora.
+        mSeekBar.progress = progress
+        mCurrTimeView.text = newPosition.getFormattedDuration()
+        if (mExoPlayer == null) {
+            mPositionAtPause = newPosition
+            playVideo()
+            return
         }
+        if (!mWasPlayerInited) {
+            mPositionWhenInit = newPosition
+            return
+        }
+        if (!mIsPlaying) mPositionAtPause = newPosition
+        // PREVIA BARATA, NO MAXIMO A CADA ARRASTO_PREVIA_MS. CLOSEST_SYNC mostra o
+        // keyframe mais proximo sem decodificar ate o ponto exato - custa uma fracao.
+        val agora = android.os.SystemClock.elapsedRealtime()
+        if (agora - mLastSeekMs < ARRASTO_PREVIA_MS) return
+        mLastSeekMs = agora
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        mExoPlayer!!.seekTo(newPosition)
     }
 
     override fun onStartTrackingTouch(seekBar: SeekBar) {
         if (mExoPlayer == null) return
-        // PREVIOUS_SYNC e o parametro que o player ja usa desde a criacao (linha 481).
-        // Aqui voltava para CLOSEST_SYNC, que obriga a decodificar ATE o ponto exato e
-        // deixava o player travado depois de trocar de video. Erro meu: troquei o
-        // parametro na criacao sem ver que ele era redefinido aqui.
-        mExoPlayer!!.setSeekParameters(SeekParameters.PREVIOUS_SYNC); mExoPlayer!!.playWhenReady = false; mIsDragged = true
+        // O ARRASTO NAO DESLIGA MAIS O PLAYER. Antes daqui vinha
+        // setSeekParameters(PREVIOUS_SYNC) + playWhenReady = false, e nada religava antes
+        // de soltar: a barra andava e a imagem ficava parada. Se ARRASTO_PAUSA for true,
+        // a pausa volta - mas ela nao era a causa da demora, e sim o seek EXACT por pixel.
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        mIsDragged = true
+        mLastSeekMs = 0L
+        if (ARRASTO_PAUSA) mExoPlayer!!.playWhenReady = false
     }
 
     override fun onStopTrackingTouch(seekBar: SeekBar) {
         if (mIsPanorama) { openPanorama(); return }
         if (mExoPlayer == null) return
-        mExoPlayer!!.setSeekParameters(SeekParameters.EXACT); mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
+        // UM UNICO SEEK AO SOLTAR, TAMBEM EM CLOSEST_SYNC. Era EXACT: pagava a
+        // decodificacao ate o ponto exato e o usuario sentia como espera.
+        mExoPlayer!!.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
+        mCurrTime = mSeekBar.progress.toLong()
+        mUltimoSegundo = -1L
+        mLastSeekMs = 0L
         if (mIsPlaying) mExoPlayer!!.playWhenReady = true
         mIsDragged = false
     }
@@ -766,6 +805,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
             mSurface = Surface(mTextureView.surfaceTexture)
             mExoPlayer?.setVideoSurface(mSurface)
         }
+        // Enquanto o video toca, a fila de miniaturas fica parada. Cada quadro de video dela
+        // abre um decoder de video, e o aparelho tem UM decoder de hardware - o mesmo que o
+        // player precisa para responder ao seek. Volta em pauseVideo() e em cleanup().
+        FilaMiniaturas.pausar()
         mExoPlayer?.playWhenReady = true
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setupTimer()
@@ -775,6 +818,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
         if (mExoPlayer == null) return
         if (updateActivityControls) listener?.updatePlayPause(true)
         mIsPlaying = false
+        FilaMiniaturas.retomar()
         if (!videoEnded()) mExoPlayer?.playWhenReady = false
         mPlayPauseButton.setImageResource(R.drawable.ic_play_vector)
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -788,6 +832,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setPosition(milliseconds: Long) {
+        // CLOSEST_SYNC, NAO EXACT. Este e o ponto usado por pular 10 s, restaurar posicao
+        // salva e fechar o arrasto da barra. Com EXACT o decoder voltava ao keyframe
+        // anterior e decodificava quadro por quadro ate o ponto, jogando tudo fora: era
+        // essa a demora de 1-2 s. CLOSEST_SYNC pula direto para o keyframe mais proximo.
+        mExoPlayer?.setSeekParameters(SeekParameters.CLOSEST_SYNC)
         mExoPlayer?.seekTo(milliseconds); mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()
         if (!mIsPlaying) mPositionAtPause = milliseconds
@@ -946,6 +995,7 @@ fun releasePlayerForFileOp() = cleanup()
 
 
     private fun cleanup() {
+        FilaMiniaturas.retomar()
         mTimerRunnable?.let { mMainHandler.removeCallbacks(it) }
         mMainHandler.removeCallbacks(mPendingPlayRunnable)
         mPendingInstantTap?.let { mMainHandler.removeCallbacks(it) }

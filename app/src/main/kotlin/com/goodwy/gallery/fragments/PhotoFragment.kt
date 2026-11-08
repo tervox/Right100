@@ -426,11 +426,36 @@ class PhotoFragment : ViewPagerFragment() {
             if (isNotAnimatedContent) {
                 photoFragmentVisibilityChanged(menuVisible)
             } else if (menuVisible) {
-                // Reinicia animacao (WebP/APNG/AVIF) ao voltar para a pagina
-                restartAnimatedDrawable()
+restartAnimatedDrawable()
             }
         }
     }
+    private fun startAnimationIfNeeded(drawable: android.graphics.drawable.Drawable?) {
+        if (drawable !is android.graphics.drawable.Animatable || !::binding.isInitialized) return
+        binding.animatedImageView.postDelayed({
+            try {
+                (drawable as android.graphics.drawable.Animatable).stop()
+                (drawable as android.graphics.drawable.Animatable).start()
+            } catch (_: Exception) {}
+        }, 80)
+    }
+
+    private fun restartAnimatedDrawable() {
+        if (!::binding.isInitialized || !isAdded) return
+        try {
+            val d = binding.animatedImageView.drawable ?: binding.gesturesView.drawable
+            if (d is android.graphics.drawable.Animatable) {
+                val target = if (binding.animatedImageView.isVisible()) binding.animatedImageView else binding.gesturesView
+                target.postDelayed({
+                    try {
+                        (d as android.graphics.drawable.Animatable).stop()
+                        (d as android.graphics.drawable.Animatable).start()
+                    } catch (_: Exception) {}
+                }, 80)
+            }
+        } catch (_: Exception) {}
+    }
+
 
     private fun restartAnimatedDrawable() {
         if (!::binding.isInitialized || !isAdded) return
@@ -604,8 +629,8 @@ class PhotoFragment : ViewPagerFragment() {
             binding.apply {
                 gesturesView.beGone()
                 gifViewFrame.beVisible()
-                gifView.beVisible()
-                animatedImageView.beGone()
+binding.subsamplingView.beGone()
+                mIsSubsamplingVisible = false
                 gifViewFrame.controller.settings.isZoomEnabled = true
                 gifView.setInputSource(source)
             }
@@ -618,6 +643,8 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadSVG() {
         if (context != null) {
+            binding.subsamplingView.beGone()
+            mIsSubsamplingVisible = false
             Glide.with(requireContext())
                 .`as`(PictureDrawable::class.java)
                 .listener(SvgSoftwareLayerSetter())
@@ -629,6 +656,8 @@ class PhotoFragment : ViewPagerFragment() {
     private fun loadAPNG() {
         if (context != null) {
             val drawable = APNGDrawable.fromFile(mMedium.path)
+            mHasGifInitialZoom = false
+            mGifInitialZoom = 1f
             binding.gesturesView.beGone()
             binding.subsamplingView.beGone()
             mIsSubsamplingVisible = false
@@ -648,6 +677,8 @@ class PhotoFragment : ViewPagerFragment() {
                 loadBitmap()
                 return
             }
+            mHasGifInitialZoom = false
+            mGifInitialZoom = 1f
             binding.gesturesView.beGone()
             binding.subsamplingView.beGone()
             mIsSubsamplingVisible = false
@@ -673,7 +704,7 @@ class PhotoFragment : ViewPagerFragment() {
             if (drawable.intrinsicWidth == 0) {
                 loadWithGlide(path, addZoomableView)
             } else {
-                try {
+try {
                     mHasGifInitialZoom = false
                     mGifInitialZoom = 1f
                     binding.gesturesView.beGone()
@@ -686,9 +717,8 @@ class PhotoFragment : ViewPagerFragment() {
                     binding.gifViewFrame.controller.settings.isZoomEnabled = true
                     binding.animatedImageView.setImageDrawable(drawable)
                     startAnimationIfNeeded(drawable)
-                } catch (e: Exception) {
-                    // Fallback seguro: carrega via Glide (sem animacao, mas sem crash)
-                    try { binding.gifViewFrame.beGone() } catch (_: Exception) {}
+} catch (_: Exception) {
+                    try { binding.gifViewFrame.beGone(); binding.animatedImageView.beGone() } catch (_: Exception) {}
                     loadWithGlide(path, addZoomableView)
                 }
             }
@@ -718,10 +748,14 @@ class PhotoFragment : ViewPagerFragment() {
                 }
             }
 
-        Glide.with(requireContext())
+        val thumb = try { com.goodwy.gallery.helpers.MiniaturaPermanente.existente(requireContext(), mMedium.path) } catch (_: Exception) { null }
+        val req = Glide.with(requireContext())
             .load(path)
             .apply(options)
-            .listener(object : RequestListener<Drawable> {
+        if (thumb != null) {
+            req.thumbnail(Glide.with(requireContext()).load(thumb).apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE)))
+        }
+        req.listener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {
                     ColorModeHelper.resetColorMode(activity)
                     if (activity != null && !activity!!.isDestroyed && !activity!!.isFinishing) {
