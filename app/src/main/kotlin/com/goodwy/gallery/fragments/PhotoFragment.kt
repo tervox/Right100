@@ -554,6 +554,7 @@ restartAnimatedDrawable()
         // 2) Ainda nao existe (foto nova, ou pasta que nunca foi aberta na grade):
         //    desfoque na hora, como antes.
         com.goodwy.gallery.extensions.Right100Diag.add("viewer: fundo calculado na hora " + mMedium.path.substringAfterLast('/'))
+        com.goodwy.gallery.helpers.FilaMiniaturas.garantirFundo(ctx, mMedium.path)
         val larguraBase = 240
         // Mesmo aspecto de tela do arquivo .fundo7. O CenterCrop abaixo recorta
         // a foto na tela (como o CENTER_OUTSIDE do Glide no BestGallery) e o

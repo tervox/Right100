@@ -399,6 +399,20 @@ object FilaMiniaturas {
      * Gera o fundo a partir do arquivo da miniatura ja' gravado. Serve para as midias que
      * ja' tinham miniatura antes desta versao: nao precisa decodificar o original de novo.
      */
+    // Pedido da tela da foto: gera o fundo desfocado em segundo plano, para a proxima
+    // abertura dela ja encontrar o fundo salvo, sem calcular na hora.
+    fun garantirFundo(contexto: Context, caminho: String) {
+        consultor.execute {
+            try {
+                if (MiniaturaPermanente.existenteFundo(contexto, caminho) == null) {
+                    gerarFundoDoArquivo(contexto.applicationContext, caminho)
+                }
+            } catch (e: Throwable) {
+                com.goodwy.gallery.extensions.Right100Diag.add("fundo: falhou no pedido " + e.javaClass.simpleName + " " + e.message)
+            }
+        }
+    }
+
     private fun gerarFundoDoArquivo(contexto: Context, caminho: String) {
         val miniatura = try {
             MiniaturaPermanente.existente(contexto, caminho)
