@@ -113,10 +113,7 @@ object FilaMiniaturas {
 
     fun enfileirar(
         contexto: Context,
-        itens: List<Medium>,
-        @Suppress("UNUSED_PARAMETER") colunas: Int = 0,
-        @Suppress("UNUSED_PARAMETER") recortar: Boolean = true,
-        @Suppress("UNUSED_PARAMETER") cantos: Int = 0
+        itens: List<Medium>
     ) {
         if (itens.isEmpty()) return
         ligarObservador(contexto.applicationContext)

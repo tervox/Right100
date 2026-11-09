@@ -1083,14 +1083,7 @@ class MediaAdapter(
         try {
             com.goodwy.gallery.helpers.FilaMiniaturas.enfileirar(
                 contexto = activity.applicationContext,
-                itens = itens,
-                colunas = config.mediaColumnCnt,
-                recortar = cropThumbnails,
-                cantos = when {
-                    isListViewType -> ROUNDED_CORNERS_SMALL
-                    config.fileRoundedCorners -> ROUNDED_CORNERS_BIG
-                    else -> ROUNDED_CORNERS_NONE
-                }
+                itens = itens
             )
         } catch (_: Exception) {
         }

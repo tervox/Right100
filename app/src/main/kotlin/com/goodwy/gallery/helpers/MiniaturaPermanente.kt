@@ -106,10 +106,19 @@ object MiniaturaPermanente {
      * no visualizador. E' isso que tira o desfoque do caminho da troca de foto.
      */
     fun guardarFundo(context: Context, mediaPath: String, fonte: Bitmap, larguraAlvo: Int): Boolean {
-        if (mediaPath.startsWith("content://") || fonte.isRecycled) return false
-        if (fonte.width <= 0 || fonte.height <= 0) return false
+        if (mediaPath.startsWith("content://") || fonte.isRecycled) {
+            com.goodwy.gallery.extensions.Right100Diag.add("fundo nao gravado: origem invalida " + mediaPath.substringAfterLast('/'))
+            return false
+        }
+        if (fonte.width <= 0 || fonte.height <= 0) {
+            com.goodwy.gallery.extensions.Right100Diag.add("fundo nao gravado: bitmap vazio " + mediaPath.substringAfterLast('/'))
+            return false
+        }
         val mtime = mtimeDe(mediaPath)
-        if (mtime <= 0L) return false
+        if (mtime <= 0L) {
+            com.goodwy.gallery.extensions.Right100Diag.add("fundo nao gravado: sem data (mtime=0) " + mediaPath.substringAfterLast('/'))
+            return false
+        }
 
         val destino = arquivoFundo(context, mediaPath, mtime)
         if (destino.isFile && destino.length() > 0L) return true
