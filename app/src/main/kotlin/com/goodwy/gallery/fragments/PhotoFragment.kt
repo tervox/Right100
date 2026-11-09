@@ -543,7 +543,6 @@ restartAnimatedDrawable()
         }
 
         if (fundo != null) {
-            com.goodwy.gallery.extensions.Right100Diag.add("fundo: arquivo pronto " + mMedium.path.substringAfterLast('/'))
             Glide.with(ctx)
                 .load(fundo)
                 .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE))
@@ -553,7 +552,6 @@ restartAnimatedDrawable()
 
         // 2) Ainda nao existe (foto nova, ou pasta que nunca foi aberta na grade):
         //    desfoque na hora, como antes.
-        com.goodwy.gallery.extensions.Right100Diag.add("fundo: sem arquivo salvo " + mMedium.path.substringAfterLast('/'))
         val larguraBase = 240
         // Mesmo aspecto de tela do arquivo .fundo7. O CenterCrop abaixo recorta
         // a foto na tela (como o CENTER_OUTSIDE do Glide no BestGallery) e o
@@ -562,19 +560,11 @@ restartAnimatedDrawable()
         val alturaBase = (larguraBase.toFloat() * dm.heightPixels / dm.widthPixels)
             .toInt().coerceAtLeast(1)
 
-        // So usa a miniatura salva. Sem ela, nao decodifica a foto original: o fundo
-        // aparece quando a miniatura da pasta aberta ficar pronta.
         val fonte = try {
             MiniaturaPermanente.existente(ctx, mMedium.path)
         } catch (_: Exception) {
             null
-        }
-        if (fonte == null) {
-            com.goodwy.gallery.extensions.Right100Diag.add("fundo: sem miniatura, nada a desfocar")
-            binding.photoBlurBg.beGone()
-            binding.photoBlurOverlay.beGone()
-            return
-        }
+        } ?: File(mMedium.path)
 
         Glide.with(ctx)
             .load(fonte)
