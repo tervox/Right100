@@ -183,6 +183,218 @@ object FilaMiniaturas {
         }
     }
 
+    /**
+     * Para a geracao de miniaturas enquanto um video toca. Cada quadro de video da fila abre
+     * um decoder de video; no aparelho existe UM decoder de hardware, o mesmo que o player
+     * usa para responder ao seek. Com a fila rodando, cada seek espera o decoder ficar livre.
+     * Nao perde nada: o que nao foi feito continua na fila e sai no retomar().
+     */
+    fun pausar() {
+        if (!PAUSAR_FILA_NO_VIDEO) return
+        synchronized(lock) {
+            pausada = true
+        }
+    }
+
+    fun retomar() {
+        val estava = synchronized(lock) {
+            val antes = pausada
+            pausada = false
+            antes
+        }
+        if (estava) garantirThread()
+    }
+
+    private fun jaNaFila(caminho: String): Boolean =
+        urgentes.containsKey(caminho) || pasta.containsKey(caminho) || fotos.containsKey(caminho) || videos.containsKey(caminho)
+
+    private fun tamanho(): Int = synchronized(lock) { urgentes.size + pasta.size + fotos.size + videos.size }
+
+    private fun garantirThread() {
+        synchronized(lock) {
+            if (rodando >= MAX_THREADS) return
+            rodando++
+        }
+        executor.execute {
+            try {
+                laco()
+            } finally {
+                synchronized(lock) {
+                    rodando--
+                    if (urgentes.isNotEmpty() || pasta.isNotEmpty() || fotos.isNotEmpty() || videos.isNotEmpty()) garantirThread()
+                }
+            }
+        }
+    }
+
+    private fun proximo(): Pair<String, Medium>? = synchronized(lock) {
+        val filas = arrayOf(urgentes, pasta, fotos, videos)
+        for (fila in filas) {
+            val entrada = fila.entries.firstOrNull()
+            if (entrada != null) {
+                fila.remove(entrada.key)
+                return Pair(entrada.key, entrada.value)
+            }
+        }
+        return null
+    }
+
+    private fun laco() {
+        var marcadorDiag = 0L
+        while (true) {
+            // PAUSA ENQUANTO UM VIDEO TOCA. Dorme de 150 em 150 ms; ao retomar() o laco
+            // continua de onde parou, sem perder item da fila.
+            if (synchronized(lock) { pausada }) {
+                try {
+                    Thread.sleep(150)
+                } catch (_: InterruptedException) {
+                    break
+                }
+                continue
+            }
+            val par = proximo() ?: break
+            val contexto = app ?: break
+            val inicioMs = System.currentTimeMillis()
+
+            var temArquivo = false
+            // So' avisa a grade quando o arquivo nasceu AGORA. Antes avisava tambem
+            // quando ele ja' existia - e ao abrir uma pasta com o app recem-iniciado
+            // isso virava uma onda de rebinds, um a cada 20 ms, na ordem da pasta:
+            // a grade piscava celula por celula sem nada ter mudado na tela.
+            var gerouAgora = false
+            try {
+                if (MiniaturaPermanente.existente(contexto, par.first) != null) {
+                    temArquivo = true
+                } else {
+                    val bmp = decodificarComPrazo(contexto, par.second)
+                    if (bmp != null) {
+                        MiniaturaPermanente.guardar(contexto, par.first, bmp)
+                        bmp.recycle()
+                    }
+                    temArquivo = MiniaturaPermanente.existente(contexto, par.first) != null
+                    gerouAgora = temArquivo
+                }
+                // Fundo desfocado do visualizador: gerado aqui, em thread de prioridade
+                // minima, a partir do WebP de 320 px. Antes o desfoque rodava na thread
+                // principal a cada pagina criada do pager e travava a troca de foto.
+                if (temArquivo && MiniaturaPermanente.existenteFundo(contexto, par.first) == null) {
+                    gerarFundoDoArquivo(contexto, par.first)
+                }
+            } catch (_: Throwable) {
+                temArquivo = false
+            }
+
+            val gastoMs = System.currentTimeMillis() - inicioMs
+            var total = 0L
+            synchronized(lock) {
+                if (temArquivo) {
+                    prontas.add(par.first)
+                    tentativas.remove(par.first)
+                    geradas++
+                } else {
+                    val tentativa = (tentativas[par.first] ?: 0) + 1
+                    if (tentativa >= TENTATIVAS_MAX) {
+                        // Desistiu de verdade: nao fica tentando para sempre, mas avisa.
+                        prontas.add(par.first)
+                        tentativas.remove(par.first)
+                        desistencias++
+                        diag("miniaturas: DESISTI " + par.first.substringAfterLast('/') + " tentativas=" + tentativa)
+                    } else {
+                        // Devolve para o fim da fila: o travamento pode ter sido pontual.
+                        tentativas[par.first] = tentativa
+                        if (!jaNaFila(par.first)) {
+                            if (par.second.isVideo()) videos[par.first] = par.second else fotos[par.first] = par.second
+                        }
+                    }
+                }
+                tempoTotal += gastoMs
+                total = geradas
+            }
+
+            if (temArquivo && gerouAgora) {
+                val destino = synchronized(lock) { aviso?.get() }
+                try {
+                    destino?.miniaturaPronta(par.first)
+                } catch (_: Throwable) {
+                }
+            }
+
+            if (total - marcadorDiag >= DIAG_CADA) {
+                marcadorDiag = total
+                var media = 0L
+                synchronized(lock) { if (geradas > 0) media = tempoTotal / geradas }
+                diag(
+                    "miniaturas: geradas=" + total + " fila=" + tamanho() +
+                        " ms/med=" + media + " ultima=" + gastoMs + "ms desistencias=" + desistencias
+                )
+            }
+
+            try {
+                Thread.sleep(INTERVALO_MS)
+            } catch (_: InterruptedException) {
+                break
+            }
+        }
+
+        val contexto = app
+        if (contexto != null) {
+            var media = 0L
+            var total = 0L
+            synchronized(lock) {
+                total = geradas
+                if (geradas > 0) media = tempoTotal / geradas
+            }
+            diag("miniaturas: fila vazia geradas=" + total + " ms/med=" + media + " desistencias=" + desistencias)
+            try {
+                MiniaturaPermanente.limparOrfas(contexto)
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    /**
+     * O MediaStore mudou: so apaga a miniatura de midia que nao existe mais. Nao monta a
+     * lista de todas as midias, para nao pesar no aparelho.
+     */
+    private fun limparOrfasAposMudanca(contexto: Context) {
+        consultor.execute {
+            try {
+                val apagadas = MiniaturaPermanente.limparOrfasCompleto(contexto)
+                if (apagadas > 0) diag("miniaturas: orfas removidas=" + apagadas)
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    /**
+     * Escuta o MediaStore. Copiar 200 fotos dispara 200 avisos; sem o freio seriam
+     * 200 consultas a galeria inteira. O relogio reinicia a cada aviso, entao a
+     * consulta so' acontece quando o usuario para de mexer por 5 segundos - e e' uma
+     * unica consulta, cobrindo tudo que mudou naquela leva.
+     */
+    private fun ligarObservador(contexto: Context) {
+        if (observador != null) return
+        try {
+            val principal = android.os.Handler(android.os.Looper.getMainLooper())
+            val obs = object : android.database.ContentObserver(principal) {
+                private var agendado = false
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    if (agendado) return
+                    agendado = true
+                    principal.postDelayed({
+                        agendado = false
+                        limparOrfasAposMudanca(contexto)
+                    }, ESPERA_AVISO_MS)
+                }
+            }
+            contexto.contentResolver.registerContentObserver(
+                MediaStore.Files.getContentUri("external"), true, obs
+            )
+            observador = obs
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun larguraDoFundo(contexto: Context): Int =
         240
 
