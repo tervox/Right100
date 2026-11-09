@@ -1388,7 +1388,7 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
             if (i == position) continue
             val medium = mMediums.getOrNull(i) ?: continue
             if (medium.isVideo() || medium.isGIF() || medium.isSVG() || medium.isRaw() ||
-                medium.path.startsWith("content://")
+                medium.path.startsWith("content://") || medium.size > 8L * 1024 * 1024
             ) continue
             com.bumptech.glide.Glide.with(this)
                 .load(medium.path)

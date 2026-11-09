@@ -543,6 +543,7 @@ restartAnimatedDrawable()
         }
 
         if (fundo != null) {
+            com.goodwy.gallery.extensions.Right100Diag.add("viewer: fundo salvo " + mMedium.path.substringAfterLast('/'))
             Glide.with(ctx)
                 .load(fundo)
                 .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE))
@@ -552,6 +553,7 @@ restartAnimatedDrawable()
 
         // 2) Ainda nao existe (foto nova, ou pasta que nunca foi aberta na grade):
         //    desfoque na hora, como antes.
+        com.goodwy.gallery.extensions.Right100Diag.add("viewer: fundo calculado na hora " + mMedium.path.substringAfterLast('/'))
         val larguraBase = 240
         // Mesmo aspecto de tela do arquivo .fundo7. O CenterCrop abaixo recorta
         // a foto na tela (como o CENTER_OUTSIDE do Glide no BestGallery) e o
@@ -738,6 +740,7 @@ try {
             }
 
         val thumb = try { com.goodwy.gallery.helpers.MiniaturaPermanente.existente(requireContext(), mMedium.path) } catch (_: Exception) { null }
+        val inicioCarga = android.os.SystemClock.elapsedRealtime()
         val req = Glide.with(requireContext())
             .load(path)
             .apply(options)
@@ -760,6 +763,8 @@ try {
                     dataSource: DataSource,
                     isFirstResource: Boolean
                 ): Boolean {
+                    com.goodwy.gallery.extensions.Right100Diag.add("viewer: imagem pronta " + mMedium.path.substringAfterLast('/') +
+                        " em " + (android.os.SystemClock.elapsedRealtime() - inicioCarga) + " ms fonte=" + dataSource)
                     if (resource is android.graphics.drawable.BitmapDrawable) ColorModeHelper.setColorModeForImage(requireActivity(), resource.bitmap) else ColorModeHelper.resetColorMode(activity)
                     val allowZoomingImages = context?.config?.allowZoomingImages ?: true
                     binding.gesturesView.controller.settings.isZoomEnabled = mMedium.isRaw() || mCurrentRotationDegrees != 0 || allowZoomingImages == false
