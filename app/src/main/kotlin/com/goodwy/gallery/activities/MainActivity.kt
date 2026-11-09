@@ -822,7 +822,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun startNewPhotoFetcher() {
-        com.goodwy.gallery.helpers.FilaMiniaturas.iniciarPreload(this)
         val photoFetcher = NewPhotoFetcher()
         if (!photoFetcher.isScheduled(applicationContext)) {
             photoFetcher.scheduleJob(applicationContext)
@@ -942,7 +941,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         // datas guardadas das pastas deixam de valer.
         val signature = "${config.filterMedia}|${config.shouldShowHidden}|${config.temporarilyShowExcluded}|" +
             "${config.excludedFolders.hashCode()}|${config.includedFolders.hashCode()}|" +
-            "${config.directorySorting}|${config.showFolderSize}|${config.groupDirectSubfolders}|${config.mediaStoreListing}"
+            "${config.directorySorting}|${config.showFolderSize}|${config.groupDirectSubfolders}"
         if (signature != mScanSignature) {
             mScanSignature = signature
             mFolderMtimes.clear()
@@ -1791,7 +1790,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         // getFoldersToScan() consulta o MediaStore e confere cada pasta no disco (.nomedia, ocultas):
         // caro, e rodava a cada varredura. Se o conjunto de pastas com midia no MediaStore e o mesmo
         // da ultima varredura completa, nao ha pasta nova e a descoberta e pulada.
-        val folderKeys: Set<String>? = if (config.mediaStoreListing) android11Files?.keys?.toHashSet() else null
+        val folderKeys: Set<String>? = android11Files?.keys?.toHashSet()
         val skipDiscovery = folderKeys != null && folderKeys.isNotEmpty() && folderKeys == mLastFolderKeys
         // Pular a descoberta tambem PULAVA os contadores: com a lista vazia o laco abaixo
         // nao ia em nenhuma pasta e mediaCnt ficava com o valor da ultima varredura

@@ -126,17 +126,6 @@ object FilaMiniaturas {
         }
     }
 
-    /** Chamado pela tela principal: dispara a varredura de fundo sem precisar
-     *  abrir uma pasta. Se a primeira consulta voltou vazia (sem permissao ainda),
-     *  zera a flag e reconsulta. */
-    fun iniciarPreload(contexto: Context) {
-        synchronized(lock) {
-            if (app == null) app = contexto.applicationContext
-            if (varreduraPronta && varredura.isEmpty()) varreduraPronta = false
-        }
-        pedirVarredura(contexto.applicationContext, false)
-    }
-
     fun enfileirar(
         contexto: Context,
         itens: List<Medium>,
@@ -145,7 +134,6 @@ object FilaMiniaturas {
         @Suppress("UNUSED_PARAMETER") cantos: Int = 0
     ) {
         if (itens.isEmpty()) return
-        pedirVarredura(contexto, false)
         var novas = 0
         synchronized(lock) {
             if (app == null) app = contexto.applicationContext
@@ -403,6 +391,20 @@ object FilaMiniaturas {
     }
 
     /**
+     * O MediaStore mudou: so apaga a miniatura de midia que nao existe mais. Nao monta a
+     * lista de todas as midias, para nao pesar no aparelho.
+     */
+    private fun limparOrfasAposMudanca(contexto: Context) {
+        consultor.execute {
+            try {
+                val apagadas = MiniaturaPermanente.limparOrfasCompleto(contexto)
+                if (apagadas > 0) diag("miniaturas: orfas removidas=" + apagadas)
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    /**
      * Escuta o MediaStore. Copiar 200 fotos dispara 200 avisos; sem o freio seriam
      * 200 consultas a galeria inteira. O relogio reinicia a cada aviso, entao a
      * consulta so' acontece quando o usuario para de mexer por 5 segundos - e e' uma
@@ -419,7 +421,7 @@ object FilaMiniaturas {
                     agendado = true
                     principal.postDelayed({
                         agendado = false
-                        pedirVarredura(contexto, true)
+                        limparOrfasAposMudanca(contexto)
                     }, ESPERA_AVISO_MS)
                 }
             }

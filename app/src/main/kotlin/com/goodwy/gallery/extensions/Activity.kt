@@ -2007,7 +2007,6 @@ private fun android.app.Activity.buildDiagHeader(): String {
     sb.append("Android API: ").append(android.os.Build.VERSION.SDK_INT).append("\n")
     val manager = if (android.os.Build.VERSION.SDK_INT >= 30) android.os.Environment.isExternalStorageManager().toString() else "n/a"
     sb.append("Acesso total a arquivos: ").append(manager).append("\n")
-    sb.append("Listagem MediaStore: ").append(applicationContext.config.mediaStoreListing).append("\n")
     sb.append("Filtro de midia: ").append(applicationContext.config.filterMedia).append("\n")
     sb.append("Mostrar ocultas: ").append(applicationContext.config.shouldShowHidden).append("\n")
     sb.append("Subpastas agrupadas: ").append(applicationContext.config.groupDirectSubfolders)

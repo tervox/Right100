@@ -733,8 +733,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     override fun onStopTrackingTouch(seekBar: SeekBar) {
         if (mIsPanorama) { openPanorama(); return }
         if (mExoPlayer == null) return
-        // UM UNICO SEEK AO SOLTAR, TAMBEM EM CLOSEST_SYNC. Era EXACT: pagava a
-        // decodificacao ate o ponto exato e o usuario sentia como espera.
+        // UM UNICO SEEK AO SOLTAR, EM EXACT: o quadro mostrado e o do ponto da barra.
         mExoPlayer!!.setSeekParameters(SeekParameters.EXACT)
         mExoPlayer!!.seekTo(mSeekBar.progress.toLong())
         mCurrTime = mSeekBar.progress.toLong()
@@ -832,10 +831,8 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener,
     }
 
     private fun setPosition(milliseconds: Long) {
-        // CLOSEST_SYNC, NAO EXACT. Este e o ponto usado por pular 10 s, restaurar posicao
-        // salva e fechar o arrasto da barra. Com EXACT o decoder voltava ao keyframe
-        // anterior e decodificava quadro por quadro ate o ponto, jogando tudo fora: era
-        // essa a demora de 1-2 s. CLOSEST_SYNC pula direto para o keyframe mais proximo.
+        // EXACT: o quadro mostrado e o do ponto escolhido (pular 10 s, restaurar posicao e
+        // soltar a barra). Custa o tempo de decodificar desde o keyframe anterior.
         mExoPlayer?.setSeekParameters(SeekParameters.EXACT)
         mExoPlayer?.seekTo(milliseconds); mSeekBar.progress = milliseconds.toInt()
         mCurrTimeView.text = milliseconds.getFormattedDuration()

@@ -347,7 +347,6 @@
     <string name="fab_trash_ask">Perguntar sempre</string>
     <string name="fab_trash_bin">Mover para a lixeira</string>
     <string name="fab_trash_delete">Excluir de vez</string>
-    <string name="media_store_listing_setting">Listagem rápida pelo MediaStore (atualiza na hora)</string>
     <string name="selection_fab_setting">Atalhos flutuantes ao selecionar (copiar, mover, lixeira)</string>
     <string name="selection_fab_trash">Lixeira</string>
     <string name="select_all_fab_setting">Botao flutuante de selecionar todos</string>

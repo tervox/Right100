@@ -560,11 +560,18 @@ restartAnimatedDrawable()
         val alturaBase = (larguraBase.toFloat() * dm.heightPixels / dm.widthPixels)
             .toInt().coerceAtLeast(1)
 
+        // So usa a miniatura salva. Sem ela, nao decodifica a foto original: o fundo
+        // aparece quando a miniatura da pasta aberta ficar pronta.
         val fonte = try {
             MiniaturaPermanente.existente(ctx, mMedium.path)
         } catch (_: Exception) {
             null
-        } ?: File(mMedium.path)
+        }
+        if (fonte == null) {
+            binding.photoBlurBg.beGone()
+            binding.photoBlurOverlay.beGone()
+            return
+        }
 
         Glide.with(ctx)
             .load(fonte)

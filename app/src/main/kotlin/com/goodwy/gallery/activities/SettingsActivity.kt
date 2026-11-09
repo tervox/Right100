@@ -157,7 +157,6 @@ class SettingsActivity : SimpleActivity() {
         setupBottomActions()
         setupSelectAllFab()
         setupSelectionFab()
-        setupMediaStoreListing()
         setupDiagnostics()
         setupConflictAction()
         setupFabTrashAction()
@@ -1128,14 +1127,6 @@ class SettingsActivity : SimpleActivity() {
             else -> R.string.fab_trash_ask
         }
     )
-
-    private fun setupMediaStoreListing() {
-        binding.settingsMediaStoreListing.isChecked = config.mediaStoreListing
-        binding.settingsMediaStoreListingHolder.setOnClickListener {
-            binding.settingsMediaStoreListing.toggle()
-            config.mediaStoreListing = binding.settingsMediaStoreListing.isChecked
-        }
-    }
 
     private fun setupSelectionFab() {
         binding.settingsSelectionFab.isChecked = config.showSelectionFab

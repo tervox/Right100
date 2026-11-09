@@ -97,9 +97,7 @@ class MediaFetcher(val context: Context) {
             }
         } else {
             var reconciledWithDisk = false
-            if (curPath != FAVORITES && curPath != RECYCLE_BIN && isRPlus() &&
-                (!isExternalStorageManager() || context.config.mediaStoreListing)
-            ) {
+            if (curPath != FAVORITES && curPath != RECYCLE_BIN && isRPlus()) {
                 val key = curPath.lowercase(Locale.getDefault())
                 if (android11Files?.containsKey(key) == true) {
                     curMedia.addAll(android11Files[key]!!)
@@ -170,7 +168,7 @@ class MediaFetcher(val context: Context) {
     // arquivos de outro tipo (ex.: torrents) — era o que fazia o app levar ~20 s para abrir. Agora olha
     // so os NOMES: sem nome de midia, nao ha o que ler.
     private fun hasMediaNamesOnDisk(folder: String): Boolean {
-        if (!context.config.mediaStoreListing || folder == FAVORITES || folder == RECYCLE_BIN) return true
+        if (folder == FAVORITES || folder == RECYCLE_BIN) return true
         val names = (try {
             File(folder).list()
         } catch (_: Exception) {
@@ -710,9 +708,8 @@ class MediaFetcher(val context: Context) {
         nameQuery: String? = null     // quando não-null, só nomes que contêm este texto (pesquisa)
     ): HashMap<String, ArrayList<Medium>> {
         val media = HashMap<String, ArrayList<Medium>>()
-        // Com acesso total a arquivos o app lia o armazenamento arquivo por arquivo (lento em pastas
-        // grandes). Com mediaStoreListing ligado usa o MediaStore tambem nesse caso.
-        if (!isRPlus() || (Environment.isExternalStorageManager() && !context.config.mediaStoreListing && nameQuery == null)) {
+        // Consulta o indice do MediaStore: e o que mantem a lista rapida nas pastas grandes.
+        if (!isRPlus()) {
             return media
         }
 

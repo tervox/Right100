@@ -38,9 +38,6 @@ class Config(context: Context) : BaseConfig(context) {
 
     // Lista as midias pelo MediaStore (uma consulta, instantanea, como as outras galerias) em vez
     // de ler arquivo por arquivo. Desligar volta a leitura direta do armazenamento.
-    var mediaStoreListing: Boolean
-        get() = prefs.getBoolean("media_store_listing", true)
-        set(value) = prefs.edit { putBoolean("media_store_listing", value) }
 
     // Atalhos flutuantes (copiar / mover / lixeira) ao selecionar midias na grade.
     var showSelectionFab: Boolean
