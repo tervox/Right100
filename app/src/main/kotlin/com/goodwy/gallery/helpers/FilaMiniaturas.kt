@@ -75,7 +75,7 @@ object FilaMiniaturas {
     private val urgentes = LinkedHashMap<String, Medium>()
     private val fotos = LinkedHashMap<String, Medium>()
     private val videos = LinkedHashMap<String, Medium>()
-    // Itens da pasta ABERTA: entram na frente da varredura de fundo.
+    // Itens da pasta ABERTA: entram na frente de tudo o que ja esta na fila.
     private val pasta = LinkedHashMap<String, Medium>()
     private val prontas = HashSet<String>()
     private val tentativas = HashMap<String, Int>()
@@ -85,7 +85,7 @@ object FilaMiniaturas {
     // Consulta em executor proprio: no decodificador ela entraria na fila atras de N
     // decodes e levaria minutos para comecar.
     private val consultor = Executors.newSingleThreadExecutor { alvo ->
-        Thread(alvo, "Right100-varredura-miniaturas").apply { priority = Thread.MIN_PRIORITY }
+        Thread(alvo, "Right100-fila-miniaturas").apply { priority = Thread.MIN_PRIORITY }
     }
 
     private var app: Context? = null
