@@ -565,9 +565,12 @@ object FilaMiniaturas {
             val opcoes = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
             bmp = BitmapFactory.decodeFile(miniatura.absolutePath, opcoes)
             if (bmp != null) {
-                MiniaturaPermanente.guardarFundo(contexto, caminho, bmp, larguraDoFundo(contexto))
+                if (!MiniaturaPermanente.guardarFundo(contexto, caminho, bmp, larguraDoFundo(contexto))) {
+                    diag("fundo: nao gravado " + caminho.substringAfterLast('/'))
+                }
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            diag("fundo: falhou " + e.javaClass.simpleName + " " + e.message)
         } finally {
             try { bmp?.recycle() } catch (_: Throwable) {}
         }
