@@ -1400,6 +1400,14 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
                         .fitCenter()
                 )
                 .preload(dm.widthPixels, dm.heightPixels)
+            val fundo = com.goodwy.gallery.helpers.MiniaturaPermanente.existenteFundo(this, medium.path)
+            if (fundo != null) {
+                com.bumptech.glide.Glide.with(this)
+                    .load(fundo)
+                    .apply(com.bumptech.glide.request.RequestOptions()
+                        .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE))
+                    .preload(dm.widthPixels, dm.heightPixels)
+            }
         }
     }
 

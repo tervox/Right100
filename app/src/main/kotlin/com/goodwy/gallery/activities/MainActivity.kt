@@ -1764,7 +1764,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
                 dirs.removeAll(dirsToRemove)
             }
-            runOnUiThread { setupAdapter(dirs) }
+            runOnUiThread { setupAdapterAgrupado(dirs) }
         } catch (_: Exception) {
         }
 
@@ -1900,7 +1900,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         mLastFolderKeys = folderKeys
         // Atualização em batch após descobrir todas as novas pastas — evita jank por N chamadas dentro do loop
         if (dirs.isNotEmpty()) {
-            runOnUiThread { setupAdapter(dirs) }
+            runOnUiThread { setupAdapterAgrupado(dirs) }
         }
 
         mLoadedInitialPhotos = true
@@ -2021,6 +2021,23 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             checkPlaceholderVisibility(nova)
             setupAdapter(nova)
         }
+    }
+
+    // Atualizacoes da lista que chegam em sequencia (cache, varredura, fim) viram uma so:
+    // vale sempre a lista mais recente, sem redesenhar a grade a cada chamada.
+    private var mSetupPendente: ArrayList<Directory>? = null
+    private var mSetupAgendado = false
+
+    private fun setupAdapterAgrupado(dirs: ArrayList<Directory>) {
+        mSetupPendente = dirs
+        if (mSetupAgendado) return
+        mSetupAgendado = true
+        binding.directoriesGrid.postDelayed({
+            mSetupAgendado = false
+            val pendente = mSetupPendente ?: return@postDelayed
+            mSetupPendente = null
+            if (!isDestroyed && !isFinishing) setupAdapter(pendente)
+        }, 100L)
     }
 
     private fun setupAdapter(
@@ -2185,7 +2202,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         if (invalidDirs.isNotEmpty()) {
             dirs.removeAll(invalidDirs)
-            runOnUiThread { setupAdapter(dirs) }
+            runOnUiThread { setupAdapterAgrupado(dirs) }
             invalidDirs.forEach {
                 try {
                     directoryDB.deleteDirPath(it.path)
