@@ -1368,6 +1368,7 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
         val navT0 = android.os.SystemClock.uptimeMillis()
         mPos = position
         aquecerVizinhas(position)
+        preCarregarVizinhas(position)
         updateTitle()
         // A visibilidade dos botões dependia apenas do onResume. Depois de trocar
         // foto -> vídeo, o botão continuava oculto; depois de vídeo -> foto, ficava
@@ -1377,6 +1378,28 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
         scheduleSwipe()
         refreshCurrentPageState(position)
         com.goodwy.gallery.App.logGesture("NAVDIAG onPageSelected pos=$position tomou=${android.os.SystemClock.uptimeMillis() - navT0}ms")
+    }
+
+    // Foto grande das vizinhas decodificada antes da troca: a pagina nova abre pronta,
+    // em vez de comecar preta. Mesmas opcoes de PhotoFragment.loadWithGlide.
+    private fun preCarregarVizinhas(position: Int) {
+        val dm = resources.displayMetrics
+        for (i in listOf(position - 1, position + 1)) {
+            val medium = mMediums.getOrNull(i) ?: continue
+            if (medium.isVideo() || medium.isGIF() || medium.isSVG() || medium.isRaw() ||
+                medium.path.startsWith("content://")
+            ) continue
+            com.bumptech.glide.Glide.with(this)
+                .load(medium.path)
+                .apply(
+                    com.bumptech.glide.request.RequestOptions()
+                        .signature(medium.getKey())
+                        .format(com.bumptech.glide.load.DecodeFormat.PREFER_ARGB_8888)
+                        .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
+                        .fitCenter()
+                )
+                .preload(dm.widthPixels, dm.heightPixels)
+        }
     }
 
     // Miniatura e fundo das fotos vizinhas entram na fila antes de o usuario chegar nelas,

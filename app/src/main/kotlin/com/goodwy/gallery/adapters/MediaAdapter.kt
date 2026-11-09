@@ -133,7 +133,7 @@ class MediaAdapter(
         com.goodwy.gallery.helpers.FilaMiniaturas.enfileirar(activity.applicationContext, itens)
     }
 
-    // Video sem miniatura permanente: a grade pede a MESMA miniatura do sistema que a fila grava.
+    // Video ou foto sem miniatura permanente: a grade pede a MESMA miniatura do sistema que a fila grava.
     // Assim a imagem que aparece primeiro e a que fica gravada, e ela nao troca depois.
     private fun carregarMiniaturaDoSistema(alvo: ImageView, medium: Medium, chave: String) {
         ensureBackgroundThread {
@@ -1250,7 +1250,7 @@ class MediaAdapter(
             // Celula reciclada nao entra aqui: onViewRecycled() zera tag e drawable, entao
             // jaMostrandoEsta volta a ser false e a carga acontece normalmente.
             val usarMiniaturaDoSistema = !jaMostrandoEsta && miniaturaPermanente == null &&
-                medium.isVideo() && medium.mediaStoreId > 0L &&
+                (medium.isVideo() || medium.isImage()) && medium.mediaStoreId > 0L &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
             if (usarMiniaturaDoSistema) {
                 carregarMiniaturaDoSistema(mediumThumbnail, medium, chaveDaCelula)

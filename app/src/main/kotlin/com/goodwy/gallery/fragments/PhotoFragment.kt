@@ -719,6 +719,7 @@ try {
             return
         }
 
+        val dmTela = requireContext().resources.displayMetrics
         val priority = if (mIsFragmentVisible) Priority.IMMEDIATE else Priority.NORMAL
         val options = RequestOptions()
             .signature(mMedium.getKey())
@@ -726,6 +727,7 @@ try {
             .priority(priority)
             .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
             .fitCenter()
+            .override(dmTela.widthPixels, dmTela.heightPixels)
             .run {
                 if (mCurrentRotationDegrees != 0) {
                     transform(Rotate(mCurrentRotationDegrees))
