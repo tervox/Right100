@@ -149,43 +149,24 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
     }
     private var mScanSignature = ""
-    // Fingerprint do conteúdo direto da pasta. Inclui quantidade, nomes,
-    // tamanho total e datas dos arquivos, não somente o mtime do diretório.
+    // Resumo de cada pasta (ver resumoDaPasta): so muda quando a lista de midias muda.
     private val mFolderMtimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
-    private fun folderScanFingerprint(path: String): Long {
-        val folder = java.io.File(path)
-        if (!folder.isDirectory) return 0L
-
-        val files = folder.listFiles() ?: return 0L
-
-        var count = 0L
-        var totalBytes = 0L
-        var newestModified = 0L
-        var namesHash = 0L
-
-        for (file in files) {
-            if (!file.isFile) continue
-
-            count++
-            totalBytes += file.length()
-
-            val modified = file.lastModified()
-            if (modified > newestModified) {
-                newestModified = modified
-            }
-
-            namesHash += file.name.hashCode().toLong()
+    // Resumo de uma pasta feito SO com a lista do MediaStore, lida no inicio da varredura.
+    // Quantidade, soma dos IDs e dos tamanhos e a data mais nova: apagar, trocar ou acrescentar
+    // uma midia muda pelo menos um desses valores. Nao le o disco arquivo por arquivo.
+    private fun resumoDaPasta(lista: List<Medium>?): Long {
+        if (lista == null) return 1L shl 40
+        var ids = 0L
+        var tamanhos = 0L
+        var modificado = 0L
+        for (item in lista) {
+            ids += item.mediaStoreId
+            tamanhos += item.size
+            if (item.modified > modificado) modificado = item.modified
         }
-
-        var fingerprint = folder.lastModified()
-        fingerprint = fingerprint * 31L + count
-        fingerprint = fingerprint * 31L + totalBytes
-        fingerprint = fingerprint * 31L + newestModified
-        fingerprint = fingerprint * 31L + namesHash
-
-        fingerprint = fingerprint and Long.MAX_VALUE
-        return if (fingerprint == 0L) 1L else fingerprint
+        val texto = "${lista.size}|$ids|$tamanhos|$modificado"
+        return (texto.hashCode().toLong() and 0xFFFFFFFFL) or (1L shl 40)
     }
 
     // Guarda as datas das pastas e as chaves do MediaStore entre sessoes.
@@ -1588,7 +1569,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 // ter mudado. O modo da listagem diz de ONDE vem a lista de midia, nao
                 // se a pasta pode ser reaproveitada.
                 val folderMtime = try {
-                    folderScanFingerprint(directory.path)
+                    resumoDaPasta(android11Files?.get(directory.path.lowercase(java.util.Locale.getDefault())))
                 } catch (_: Exception) {
                     0L
                 }
@@ -1827,7 +1808,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 return
             }
 
-            val newFolderFingerprint = folderScanFingerprint(folder)
+            val newFolderFingerprint = resumoDaPasta(android11Files?.get(folder.lowercase(java.util.Locale.getDefault())))
             // Só pula a pasta se a assinatura do conteúdo continuar igual.
             // Assim, mudanças de tamanho dos arquivos também invalidam o cache.
             if (
@@ -2531,11 +2512,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 android11Files = null
             )
 
-            val partialMtime = try {
-                java.io.File(path).lastModified()
-            } catch (_: Exception) {
-                0L
-            }
             var curMedia = listFolder()
             if (curMedia.isEmpty() && dirFile.exists()) {
                 // Pasta vazia pode ser momentanea (outro app esta movendo/copiando): confere de novo.
@@ -2627,7 +2603,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
             }
 
-            if (partialMtime != 0L) mFolderMtimes[path] = partialMtime
+            mFolderMtimes[path] = resumoDaPasta(curMedia)
             com.goodwy.gallery.extensions.Right100Diag.add("principal: atualizacao parcial " + path + " midias=" + curMedia.size + " acao=" +
                 (if (curMedia.isEmpty()) "remover" else if (existing == null) "adicionar" else "atualizar"))
             val toApply = changedDir

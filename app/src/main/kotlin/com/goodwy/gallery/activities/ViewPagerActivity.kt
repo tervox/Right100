@@ -1384,7 +1384,8 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
     // em vez de comecar preta. Mesmas opcoes de PhotoFragment.loadWithGlide.
     private fun preCarregarVizinhas(position: Int) {
         val dm = resources.displayMetrics
-        for (i in listOf(position - 1, position + 1)) {
+        for (i in (position - 2)..(position + 3)) {
+            if (i == position) continue
             val medium = mMediums.getOrNull(i) ?: continue
             if (medium.isVideo() || medium.isGIF() || medium.isSVG() || medium.isRaw() ||
                 medium.path.startsWith("content://")
