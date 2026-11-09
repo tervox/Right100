@@ -75,6 +75,8 @@ class DirectoryAdapter(
 
     // Resultado da conferencia "(oculto)" por caminho, calculada fora da thread principal.
     private val ocultosCalculados = HashMap<String, Boolean>()
+    // Ultima combinacao de pastas, incluidas e .nomedia ja calculada: repeticoes nao refazem a conta.
+    @Volatile private var ultimaChaveOcultos = ""
 
     // Lista de pastas com .nomedia vinda do proprio app (getNoMediaFoldersSync, MediaStore).
     // E a mesma fonte que o MediaFetcher usa em getFoldersToScan() para decidir visibilidade,
@@ -1215,6 +1217,11 @@ class DirectoryAdapter(
             } catch (_: Exception) {
                 ArrayList<String>()
             }
+
+            val chave = caminhos.joinToString("\n") + "\u0001" + incluidos.sorted().joinToString("\n") +
+                "\u0001" + lista.sorted().joinToString("\n")
+            if (chave == ultimaChaveOcultos) return@ensureBackgroundThread
+            ultimaChaveOcultos = chave
 
             val mapa = HashMap<String, Boolean>(caminhos.size * 2)
             val detalhes = StringBuilder()

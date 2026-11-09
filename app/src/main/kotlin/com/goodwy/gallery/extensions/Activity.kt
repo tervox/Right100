@@ -1283,7 +1283,7 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                 val restantes = com.goodwy.gallery.helpers.MiniaturaPermanente.limparOrfasCompleto(applicationContext)
                 Right100Diag.add(
                     "lixeira esvaziada: itens=" + quantos + " originais=" + originais.size +
-                        " miniaturas apagadas=" + apagadas + " orfas restantes=" + restantes
+                        " miniaturas apagadas=" + apagadas + " miniaturas orfas removidas agora=" + restantes
                 )
             } catch (_: Exception) {
             }
