@@ -1257,7 +1257,7 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             trashed.forEach { m ->
                 val rel = m.path.removePrefix(RECYCLE_BIN).trimStart('/')
                 try {
-                    TrashStore.resolveTrashedFile(this, rel).deleteRecursively()
+                    if (!TrashStore.resolveTrashedFile(this, rel).deleteRecursively()) Right100Diag.add("lixeira: nao apagou " + rel)
                 } catch (_: Exception) {
                 }
             }
@@ -1270,6 +1270,7 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             } catch (_: Exception) {
             }
             quantos = trashed.size
+            Right100Diag.add("lixeira: exclusao comecou, itens no banco=" + quantos + " raiz=" + TrashStore.root(this).absolutePath)
             // Esvaziar a lixeira e' o caso em que a midia sai DE VEZ: o arquivo nao esta
             // mais em disco nem na lixeira, entao a miniatura permanente e o fundo
             // desfocado dela nao servem mais para nada. Antes ficavam para sempre em
@@ -1288,8 +1289,18 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                 )
             } catch (_: Exception) {
             }
-            mediaDB.clearRecycleBin()
-            directoryDB.deleteRecycleBin()
+            val sobrando = try {
+                TrashStore.root(this).walkTopDown().count { it.isFile }
+            } catch (_: Exception) {
+                -1
+            }
+            Right100Diag.add("lixeira: exclusao terminou, arquivos ainda no disco=" + sobrando)
+            // So limpa o banco quando o disco esvaziou de verdade: senao a lixeira some da tela
+            // e volta depois, com os arquivos ainda la.
+            if (sobrando == 0) {
+                mediaDB.clearRecycleBin()
+                directoryDB.deleteRecycleBin()
+            }
         } catch (e: Exception) {
             falhou = true
         } finally {
