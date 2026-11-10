@@ -1247,17 +1247,21 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
         var quantos = 0
         var falhou = false
         try {
-            // Apaga item por item resolvendo o caminho real: a lixeira antiga ficava dentro
-            // de filesDir, e apagar filesDir inteiro levaria o banco e as preferencias do app.
             val trashed = try {
                 mediaDB.getDeletedMedia()
             } catch (_: Exception) {
                 emptyList()
             }
+            quantos = trashed.size
+            Right100Diag.add("lixeira: exclusao comecou, itens no banco=" + quantos)
+
+            // 1. Apaga os arquivos: item por item, depois as pastas da lixeira
             trashed.forEach { m ->
                 val rel = m.path.removePrefix(RECYCLE_BIN).trimStart('/')
                 try {
-                    if (!TrashStore.resolveTrashedFile(this, rel).deleteRecursively()) Right100Diag.add("lixeira: nao apagou " + rel)
+                    if (!TrashStore.resolveTrashedFile(this, rel).deleteRecursively()) {
+                        Right100Diag.add("lixeira: nao apagou " + rel)
+                    }
                 } catch (_: Exception) {
                 }
             }
@@ -1269,12 +1273,34 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                 TrashStore.publicRoot(this).deleteRecursively()
             } catch (_: Exception) {
             }
-            quantos = trashed.size
-            Right100Diag.add("lixeira: exclusao comecou, itens no banco=" + quantos + " raiz=" + TrashStore.root(this).absolutePath)
-            // Esvaziar a lixeira e' o caso em que a midia sai DE VEZ: o arquivo nao esta
-            // mais em disco nem na lixeira, entao a miniatura permanente e o fundo
-            // desfocado dela nao servem mais para nada. Antes ficavam para sempre em
-            // files/miniaturas e so' o "Limpar cache" removia.
+
+            // 2. Limpa o banco logo depois: o registro so faz sentido enquanto o arquivo existe.
+            // Isto vem ANTES da limpeza de miniaturas, que e lenta e pode ser interrompida.
+            val sobrando = try {
+                TrashStore.root(this).walkTopDown().count { it.isFile } +
+                    TrashStore.publicRoot(this).walkTopDown().count { it.isFile }
+            } catch (_: Exception) {
+                -1
+            }
+            if (sobrando == 0) {
+                mediaDB.clearRecycleBin()
+                directoryDB.deleteRecycleBin()
+            } else {
+                trashed.forEach { m ->
+                    val rel = m.path.removePrefix(RECYCLE_BIN).trimStart('/')
+                    val arquivo = try { TrashStore.resolveTrashedFile(this, rel) } catch (_: Exception) { null }
+                    if (arquivo == null || !arquivo.exists()) {
+                        try {
+                            mediaDB.deleteMediumPath(m.path)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+            }
+            Right100Diag.add("lixeira: banco atualizado, arquivos ainda no disco=" + sobrando)
+            com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
+
+            // 3. Miniaturas e fundos dos itens que sairam de vez (pode demorar; o banco ja esta certo)
             try {
                 val originais = ArrayList<String>(trashed.size)
                 trashed.forEach { m ->
@@ -1285,55 +1311,14 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                 val restantes = com.goodwy.gallery.helpers.MiniaturaPermanente.limparOrfasCompleto(applicationContext)
                 Right100Diag.add(
                     "lixeira esvaziada: itens=" + quantos + " originais=" + originais.size +
-                        " miniaturas apagadas=" + apagadas + " miniaturas orfas removidas agora=" + restantes
+                        " miniaturas apagadas=" + apagadas + " orfas restantes=" + restantes
                 )
             } catch (_: Exception) {
             }
-            var removidas = 0
-            trashed.forEach { item ->
-                val rel = item.path.removePrefix(RECYCLE_BIN).trimStart('/')
-                val arquivo = try { TrashStore.resolveTrashedFile(this, rel) } catch (_: Exception) { null }
-                if (arquivo == null || !arquivo.exists()) {
-                    try {
-                        mediaDB.deleteMediumPath(item.path)
-                        removidas++
-                    } catch (_: Exception) {
-                    }
-                }
-            }
-            val sobrando = try {
-                TrashStore.root(this).walkTopDown().count { it.isFile }
-            } catch (_: Exception) {
-                -1
-            }
-            Right100Diag.add("lixeira: exclusao terminou, registros removidos do banco=" + removidas +
-                " arquivos ainda no disco=" + sobrando)
-            directoryDB.deleteRecycleBin()
         } catch (e: Exception) {
             falhou = true
+            Right100Diag.add("lixeira: falha na exclusao: " + e)
         } finally {
-            // Remove do banco os registros cujo arquivo ja nao existe: senao a lixeira aparece vazia.
-            try {
-                val registros = mediaDB.getDeletedMedia()
-                var limpos = 0
-                registros.forEach { item ->
-                    val rel = item.path.removePrefix(RECYCLE_BIN).trimStart('/')
-                    val arquivo = try { TrashStore.resolveTrashedFile(this, rel) } catch (_: Exception) { null }
-                    if (arquivo == null || !arquivo.exists()) {
-                        try {
-                            mediaDB.deleteMediumPath(item.path)
-                            limpos++
-                        } catch (_: Exception) {
-                        }
-                    }
-                }
-                Right100Diag.add("lixeira: fim da exclusao, registros limpos=" + limpos +
-                    " restantes=" + (registros.size - limpos))
-            } catch (e: Exception) {
-                Right100Diag.add("lixeira: falha na limpeza do banco: " + e)
-            }
-            // A lista de pastas consome esta marca ao voltar e tira a lixeira da tela.
-            com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
             // Antes, uma excecao no meio pulava o callback: quem dependia dele (a tela da
             // lixeira) nao recebia aviso nenhum e ficava aberta. Agora o aviso sai sempre.
             runOnUiThread {
