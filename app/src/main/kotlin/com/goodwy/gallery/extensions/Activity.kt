@@ -1312,6 +1312,26 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
         } catch (e: Exception) {
             falhou = true
         } finally {
+            // Remove do banco os registros cujo arquivo ja nao existe: senao a lixeira aparece vazia.
+            try {
+                val registros = mediaDB.getDeletedMedia()
+                var limpos = 0
+                registros.forEach { item ->
+                    val rel = item.path.removePrefix(RECYCLE_BIN).trimStart('/')
+                    val arquivo = try { TrashStore.resolveTrashedFile(this, rel) } catch (_: Exception) { null }
+                    if (arquivo == null || !arquivo.exists()) {
+                        try {
+                            mediaDB.deleteMediumPath(item.path)
+                            limpos++
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+                Right100Diag.add("lixeira: fim da exclusao, registros limpos=" + limpos +
+                    " restantes=" + (registros.size - limpos))
+            } catch (e: Exception) {
+                Right100Diag.add("lixeira: falha na limpeza do banco: " + e)
+            }
             // A lista de pastas consome esta marca ao voltar e tira a lixeira da tela.
             com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
             // Antes, uma excecao no meio pulava o callback: quem dependia dele (a tela da
