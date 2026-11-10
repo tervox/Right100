@@ -519,6 +519,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         // Esvaziou a lixeira dentro da pasta: a pasta sai da lista neste instante.
         tirarLixeiraVaziaDaLista()
+        inserirLixeiraSeCheia()
 
         if (!binding.mainMenu.isSearchOpen) {
             refreshMenuItems()
@@ -2038,6 +2039,32 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             mSetupPendente = null
             if (!isDestroyed && !isFinishing) setupAdapter(pendente)
         }, 100L)
+    }
+
+    // Mover para a lixeira: a pasta Lixeira entra na lista na hora, sem esperar a varredura.
+    private fun inserirLixeiraSeCheia() {
+        if (!com.goodwy.gallery.helpers.LixeiraCheia.consumir()) return
+        if (!config.showRecycleBinAtFolders || config.showRecycleBinLast) return
+        Thread {
+            val temItens = try { mediaDB.getDeletedMediaCount() > 0 } catch (_: Exception) { false }
+            if (!temItens) return@Thread
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
+                if (base.any { it.path == RECYCLE_BIN }) return@runOnUiThread
+                val lixeira = Directory().apply {
+                    path = RECYCLE_BIN
+                    name = getString(com.goodwy.commons.R.string.recycle_bin)
+                    location = LOCATION_INTERNAL
+                }
+                val nova = ArrayList(base)
+                nova.add(0, lixeira)
+                mDirs.removeAll { it.path == RECYCLE_BIN }
+                mDirs.add(0, lixeira)
+                checkPlaceholderVisibility(nova)
+                setupAdapter(nova)
+            }
+        }.start()
     }
 
     private fun setupAdapter(

@@ -126,6 +126,33 @@ class ViewPagerActivity : BaseViewerActivity(), ViewPager.OnPageChangeListener, 
             if (idx >= 0) mPos = idx
         }
 
+        // Depois que o Android fecha o app, a lista da pasta se perde. Busca a pasta de novo,
+        // em vez de mostrar uma foto solta com aviso de erro.
+        if (savedInstanceState != null && !hadPending && mMediums.size <= 1) {
+            val savedPath = savedInstanceState.getString(SAVED_PATH)
+            try {
+                val lista = com.goodwy.gallery.helpers.MediaFetcher(applicationContext).getFilesFrom(
+                    curPath = mDirectory ?: path.getParentPath(),
+                    isPickImage = false,
+                    isPickVideo = false,
+                    getProperDateTaken = false,
+                    getProperLastModified = false,
+                    getProperFileSize = false,
+                    favoritePaths = ArrayList(),
+                    getVideoDurations = false,
+                    lastModifieds = HashMap(),
+                    dateTakens = HashMap(),
+                    android11Files = null
+                )
+                if (lista.isNotEmpty()) {
+                    mMediums = lista
+                    val idx = savedPath?.let { q -> lista.indexOfFirst { it.path == q } } ?: -1
+                    mPos = if (idx >= 0) idx else mPos.coerceIn(0, lista.size - 1)
+                }
+            } catch (_: Exception) {
+            }
+        }
+
         binding.mediumViewerToolbar.title = mMediums.getOrNull(mPos)?.name ?: path.getFilenameFromPath()
 
         setupOptionsMenu()

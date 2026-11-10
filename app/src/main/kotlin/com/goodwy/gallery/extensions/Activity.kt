@@ -957,6 +957,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
         } else if (totalMovidos - falhas > 0) {
             Right100Toast.mostrar(this, getString(R.string.lixeira_movidos_parcial, totalMovidos - falhas, falhas))
         }
+        if (totalMovidos - falhas > 0) com.goodwy.gallery.helpers.LixeiraCheia.marcar()
         callback?.invoke(pathsCnt == 0)
     }
 }

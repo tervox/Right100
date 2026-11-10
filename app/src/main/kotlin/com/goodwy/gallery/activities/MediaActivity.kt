@@ -841,7 +841,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         return@runOnUiThread
                     }
 
-                    if (grouped.isEmpty()) {
+                    if (grouped.isEmpty() && mLoadedInitialPhotos) {
                         binding.mediaEmptyTextPlaceholder.text =
                             getString(com.goodwy.commons.R.string.no_items_found)
                         binding.mediaEmptyTextPlaceholder.beVisible()
