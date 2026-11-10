@@ -2044,7 +2044,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // Mover para a lixeira: a pasta Lixeira entra na lista na hora, sem esperar a varredura.
     private fun inserirLixeiraSeCheia() {
         if (!com.goodwy.gallery.helpers.LixeiraCheia.consumir()) return
-        if (!config.showRecycleBinAtFolders || config.showRecycleBinLast) return
+        if (!config.showRecycleBinAtFolders) return
         Thread {
             val temItens = try { mediaDB.getDeletedMediaCount() > 0 } catch (_: Exception) { false }
             if (!temItens) return@Thread
@@ -2058,9 +2058,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     location = LOCATION_INTERNAL
                 }
                 val nova = ArrayList(base)
-                nova.add(0, lixeira)
+                if (config.showRecycleBinLast) nova.add(lixeira) else nova.add(0, lixeira)
                 mDirs.removeAll { it.path == RECYCLE_BIN }
-                mDirs.add(0, lixeira)
+                if (config.showRecycleBinLast) mDirs.add(lixeira) else mDirs.add(0, lixeira)
                 checkPlaceholderVisibility(nova)
                 setupAdapter(nova)
             }

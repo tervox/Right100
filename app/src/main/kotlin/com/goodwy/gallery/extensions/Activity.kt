@@ -1289,18 +1289,26 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                 )
             } catch (_: Exception) {
             }
+            var removidas = 0
+            trashed.forEach { item ->
+                val rel = item.path.removePrefix(RECYCLE_BIN).trimStart('/')
+                val arquivo = try { TrashStore.resolveTrashedFile(this, rel) } catch (_: Exception) { null }
+                if (arquivo == null || !arquivo.exists()) {
+                    try {
+                        mediaDB.deleteMediumPath(item.path)
+                        removidas++
+                    } catch (_: Exception) {
+                    }
+                }
+            }
             val sobrando = try {
                 TrashStore.root(this).walkTopDown().count { it.isFile }
             } catch (_: Exception) {
                 -1
             }
-            Right100Diag.add("lixeira: exclusao terminou, arquivos ainda no disco=" + sobrando)
-            // So limpa o banco quando o disco esvaziou de verdade: senao a lixeira some da tela
-            // e volta depois, com os arquivos ainda la.
-            if (sobrando == 0) {
-                mediaDB.clearRecycleBin()
-                directoryDB.deleteRecycleBin()
-            }
+            Right100Diag.add("lixeira: exclusao terminou, registros removidos do banco=" + removidas +
+                " arquivos ainda no disco=" + sobrando)
+            directoryDB.deleteRecycleBin()
         } catch (e: Exception) {
             falhou = true
         } finally {
