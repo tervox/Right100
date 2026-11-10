@@ -1492,7 +1492,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         if (
             config.showRecycleBinAtFolders
-            && !config.showRecycleBinLast
             && !dirs.map { it.path }.contains(RECYCLE_BIN)
         ) {
             try {

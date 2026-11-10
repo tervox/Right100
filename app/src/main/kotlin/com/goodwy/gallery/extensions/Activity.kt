@@ -1312,6 +1312,8 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
         } catch (e: Exception) {
             falhou = true
         } finally {
+            // A lista de pastas consome esta marca ao voltar e tira a lixeira da tela.
+            com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
             // Antes, uma excecao no meio pulava o callback: quem dependia dele (a tela da
             // lixeira) nao recebia aviso nenhum e ficava aberta. Agora o aviso sai sempre.
             runOnUiThread {
