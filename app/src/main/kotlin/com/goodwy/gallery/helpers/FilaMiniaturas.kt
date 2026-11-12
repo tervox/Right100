@@ -469,6 +469,12 @@ object FilaMiniaturas {
     private fun decodificar(contexto: Context, item: Medium): Bitmap? {
         var bmp: Bitmap? = null
 
+        // HEIC/HEIF primeiro: o ImageDecoder gera na escala da grade. Nos logs, o visualizador
+        // abre o mesmo arquivo em 149 a 562 ms, e o loadThumbnail do sistema leva 513 a 873 ms.
+        if (!item.isVideo()) {
+            bmp = decodificarHeic(item.path)
+        }
+
         // VIDEO PRIMEIRO, e pela mesma fonte que a grade usa. Quem desenha a celula e' o
         // Glide, e no video ele pega o primeiro sync sample do arquivo (VideoDecoder,
         // getFrameAtTime(-1)). O loadThumbnail do MediaStore entrega OUTRO instante do
@@ -531,11 +537,6 @@ object FilaMiniaturas {
             }
         }
 
-        // HEIC/HEIF: se o provedor e o ThumbnailUtils falharam, tenta o ImageDecoder (Android 9+).
-        if (bmp == null && !item.isVideo()) {
-            bmp = decodificarHeic(item.path)
-        }
-
         // Revalida quase-preto DEPOIS de cada fallback, nao so' no primeiro quadro.
         // Antes, um quadro preto vindo do loadThumbnail do provedor ou do ThumbnailUtils era
         // devolvido como sucesso e gravado como WebP - e como o WebP e' lido como imagem
@@ -575,6 +576,7 @@ object FilaMiniaturas {
         val arquivo = File(path)
         if (!arquivo.isFile || arquivo.length() <= 0L) return null
 
+        val inicio = android.os.SystemClock.elapsedRealtime()
         return try {
             val bmp = ImageDecoder.decodeBitmap(ImageDecoder.createSource(arquivo)) { decoder, info, _ ->
                 val largura = info.size.width
@@ -586,7 +588,7 @@ object FilaMiniaturas {
                     (altura * escala).toInt().coerceAtLeast(1)
                 )
             }
-            com.goodwy.gallery.extensions.Right100Diag.add("miniaturas: HEIC nativo OK " + arquivo.name)
+            com.goodwy.gallery.extensions.Right100Diag.add("miniaturas: HEIC nativo OK " + arquivo.name + " em " + (android.os.SystemClock.elapsedRealtime() - inicio) + " ms")
             bmp
         } catch (e: Exception) {
             com.goodwy.gallery.extensions.Right100Diag.add("miniaturas: HEIC nativo falhou " + arquivo.name + " " + e.javaClass.simpleName)

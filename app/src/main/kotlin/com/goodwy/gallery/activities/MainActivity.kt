@@ -351,7 +351,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             // sumia e a lista nao tinha mudado.
             binding.directoriesRefreshLayout.isRefreshing = true
             mPendingSwipeRefresh = true
-            if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 20_000L) {
+            if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 120_000L) {
                 return@setOnRefreshListener
             }
             getDirectories()
@@ -883,7 +883,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
             if (config.showAll) {
                 showAllMedia()
-            } else if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 20_000L) {
+            } else if (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 120_000L) {
                 // A varredura em andamento entrega a lista COMPLETA de pastas - nao ha motivo
                 // para enfileirar outra atras dela. Era esta linha que produzia o laco do
                 // diagnostico: 4 varreduras completas em 40 s, todas iniciadas por tryLoadGallery.
@@ -907,7 +907,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun getDirectories() {
-        if (mIsGettingDirs) {
+        // Varredura ja em andamento: nao inicia outra por cima. Quando a atual terminar,
+        // a lista e atualizada de novo (mRescanPending).
+        if (mIsGettingDirs || (mScanRunning && android.os.SystemClock.elapsedRealtime() - mScanStartedAt < 120_000L)) {
+            mRescanPending = true
             return
         }
 
