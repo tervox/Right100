@@ -4,6 +4,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.media.MediaMetadataRetriever
 import android.media.ThumbnailUtils
 import android.net.Uri
@@ -530,6 +531,11 @@ object FilaMiniaturas {
             }
         }
 
+        // HEIC/HEIF: se o provedor e o ThumbnailUtils falharam, tenta o ImageDecoder (Android 9+).
+        if (bmp == null && !item.isVideo()) {
+            bmp = decodificarHeic(item.path)
+        }
+
         // Revalida quase-preto DEPOIS de cada fallback, nao so' no primeiro quadro.
         // Antes, um quadro preto vindo do loadThumbnail do provedor ou do ThumbnailUtils era
         // devolvido como sucesso e gravado como WebP - e como o WebP e' lido como imagem
@@ -556,6 +562,36 @@ object FilaMiniaturas {
         }
 
         return bmp
+    }
+
+    // Gera a miniatura do HEIC/HEIF ja na escala da grade, sem decodificar o tamanho
+    // original inteiro. So' atua em arquivos .heic/.heif de Android 9 ou mais novo.
+    private fun decodificarHeic(path: String): Bitmap? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
+
+        val extensao = path.substringAfterLast('.', "").lowercase()
+        if (extensao != "heic" && extensao != "heif") return null
+
+        val arquivo = File(path)
+        if (!arquivo.isFile || arquivo.length() <= 0L) return null
+
+        return try {
+            val bmp = ImageDecoder.decodeBitmap(ImageDecoder.createSource(arquivo)) { decoder, info, _ ->
+                val largura = info.size.width
+                val altura = info.size.height
+                if (largura <= 0 || altura <= 0) return@decodeBitmap
+                val escala = minOf(LADO_PX.toFloat() / largura, LADO_PX.toFloat() / altura, 1f)
+                decoder.setTargetSize(
+                    (largura * escala).toInt().coerceAtLeast(1),
+                    (altura * escala).toInt().coerceAtLeast(1)
+                )
+            }
+            com.goodwy.gallery.extensions.Right100Diag.add("miniaturas: HEIC nativo OK " + arquivo.name)
+            bmp
+        } catch (e: Exception) {
+            com.goodwy.gallery.extensions.Right100Diag.add("miniaturas: HEIC nativo falhou " + arquivo.name + " " + e.javaClass.simpleName)
+            null
+        }
     }
 
     private fun duracaoMs(path: String): Long {
