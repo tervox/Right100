@@ -1781,8 +1781,40 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         // completa — o numero so se mexia quando o observador de arquivos batia na pasta
         // certa (por isso as vezes "acertava sozinho depois de um tempo"). A parte cara da
         // descoberta continua pulada; em vez de vazio, passa as pastas que ja estao no banco.
+        val anteriorKeys: Set<String>? = mLastFolderKeys
         val foldersToScan: ArrayList<String> = if (skipDiscovery) {
             ArrayList(directoryDB.getAll().map { it.path })
+        } else if (folderKeys != null && folderKeys.isNotEmpty() && anteriorKeys != null) {
+            // Mudou so o conjunto de pastas: nao refaz a descoberta completa (le o MediaStore
+            // inteiro e confere cada pasta, ~15 s). Trata so as diferencas. As chaves do MediaStore
+            // estao em minusculas: o caminho real da pasta vem da primeira midia dela.
+            val sumidas = HashSet<String>()
+            anteriorKeys.forEach { if (!folderKeys.contains(it)) sumidas.add(it) }
+            val bancoAgora = directoryDB.getAll()
+            val lista = ArrayList<String>()
+            bancoAgora.forEach { dir ->
+                if (sumidas.contains(dir.path.lowercase(java.util.Locale.getDefault()))) {
+                    directoryDB.deleteDirPath(dir.path)
+                } else {
+                    lista.add(dir.path)
+                }
+            }
+            val noMediaStatuses = HashMap<String, Boolean>()
+            getNoMediaFoldersSync().forEach { noMediaStatuses["$it/$NOMEDIA"] = true }
+            val excluded: MutableSet<String> = if (config.temporarilyShowExcluded) HashSet() else config.excludedFolders
+            folderKeys.forEach { chave ->
+                if (anteriorKeys.contains(chave)) return@forEach
+                val primeira = android11Files?.get(chave)?.firstOrNull() ?: return@forEach
+                val caminho = primeira.path.substringBeforeLast('/')
+                val visivel = caminho.shouldFolderBeVisible(
+                    excluded, config.includedFolders, config.shouldShowHidden, noMediaStatuses
+                ) { p, hasNoMedia -> noMediaStatuses[p] = hasNoMedia }
+                if (visivel) lista.add(caminho)
+            }
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "principal: descoberta incremental: sumidas=" + sumidas.size + " pastas=" + lista.size
+            )
+            lista
         } else {
             mLastMediaFetcher!!.getFoldersToScan()
         }

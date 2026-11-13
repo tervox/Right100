@@ -370,6 +370,7 @@ object FilaMiniaturas {
      * consulta so' acontece quando o usuario para de mexer por 5 segundos - e e' uma
      * unica consulta, cobrindo tudo que mudou naquela leva.
      */
+    @Synchronized
     private fun ligarObservador(contexto: Context) {
         if (observador != null) return
         try {

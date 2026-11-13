@@ -1278,7 +1278,8 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             // Isto vem ANTES da limpeza de miniaturas, que e lenta e pode ser interrompida.
             val sobrando = try {
                 TrashStore.root(this).walkTopDown().count { it.isFile } +
-                    TrashStore.publicRoot(this).walkTopDown().count { it.isFile }
+                    TrashStore.publicRoot(this).walkTopDown().count { it.isFile } +
+                    TrashStore.privateRoot(this).walkTopDown().count { it.isFile }
             } catch (_: Exception) {
                 -1
             }

@@ -189,8 +189,6 @@ dependencies {
     implementation(libs.picasso) {
         exclude(group = "com.squareup.okhttp3", module = "okhttp")
     }
-    implementation(libs.androidx.print)
-    implementation(libs.androidx.documentfile)
     compileOnly(libs.okhttp)
 
     ksp(libs.glide.compiler)
