@@ -444,6 +444,14 @@ object MiniaturaPermanente {
         acrescenta { TrashStore.publicRoot(context) }
         acrescenta { TrashStore.legacyRoot(context) }
 
+        // Le o indice da lixeira uma vez so (antes era lido para cada arquivo).
+        val indiceUnico = try { TrashStore.readFlatIndex(context) } catch (_: Exception) { HashMap<String, String>() }
+        val raizesDaLixeira = try {
+            TrashStore.rootsFor(context).map { it.absolutePath }.toHashSet()
+        } catch (_: Exception) {
+            HashSet<String>()
+        }
+
         val vistas = HashSet<String>()
         for (raizTrash in raizes) {
             val absoluto = try {
@@ -457,11 +465,8 @@ object MiniaturaPermanente {
                     if (!f.isFile) return@caso
                     if (f.name == ".nomedia") return@caso
                     if (f.name.endsWith(".tmp")) return@caso
-                    val original = try {
-                        TrashStore.originalPathOfFlat(context, f)
-                    } catch (_: Exception) {
-                        null
-                    }
+                    val paiArquivo = f.parentFile?.absolutePath
+                    val original = if (paiArquivo != null && raizesDaLixeira.contains(paiArquivo)) indiceUnico[f.name] else null
                     nomes.add(if (original.isNullOrEmpty()) f.name else original.substringAfterLast('/'))
                 }
             } catch (_: Exception) {

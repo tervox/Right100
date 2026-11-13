@@ -994,7 +994,7 @@ private fun BaseSimpleActivity.moveIntoTrash(source: File): File? {
     for (raiz in ordem) {
         try {
             raiz.mkdirs()
-            val nome = TrashStore.flatNameFor(this, raiz, source)
+            val nome = TrashStore.flatNameFor(this, raiz, source, source.absolutePath)
             val target = File(raiz, nome)
             val tMkdir = android.os.SystemClock.elapsedRealtime()
             if (target.exists()) continue

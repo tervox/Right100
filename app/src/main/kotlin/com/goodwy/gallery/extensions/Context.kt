@@ -202,17 +202,24 @@ object TrashStore {
     }
 
     /** Nome livre dentro da raiz: "video.mp4", depois "video~1.mp4", "video~2.mp4"... */
-    fun flatNameFor(context: Context, raiz: File, source: File): String {
-        val usados = readFlatIndexFor(context, raiz).keys
-        var nome = source.name
-        if (!File(raiz, nome).exists() && !usados.contains(nome)) return nome
-        val base = if (nome.contains('.')) nome.substringBeforeLast('.') else nome
-        val ext = if (nome.contains('.')) "." + nome.substringAfterLast('.') else ""
-        var n = 1
-        while (true) {
-            nome = "$base~$n$ext"
-            if (!File(raiz, nome).exists() && !usados.contains(nome)) return nome
-            n++
+    fun flatNameFor(context: Context, raiz: File, source: File, originalPath: String): String {
+        // Escolhe o nome e ja reserva no indice, tudo sob a mesma trava: duas exclusoes
+        // simultaneas nao podem pegar o mesmo nome.
+        return synchronized(indexLock) {
+            val usados = readFlatIndexFor(context, raiz).keys
+            var nome = source.name
+            if (File(raiz, nome).exists() || usados.contains(nome)) {
+                val base = if (nome.contains('.')) nome.substringBeforeLast('.') else nome
+                val ext = if (nome.contains('.')) "." + nome.substringAfterLast('.') else ""
+                var n = 1
+                while (true) {
+                    nome = "$base~$n$ext"
+                    if (!File(raiz, nome).exists() && !usados.contains(nome)) break
+                    n++
+                }
+            }
+            rememberFlat(context, raiz, nome, originalPath)
+            nome
         }
     }
 
@@ -2018,7 +2025,7 @@ fun Context.flattenTrashLayout() {
             aninhados.forEach { f ->
                 try {
                     val original = "/" + f.absolutePath.removePrefix(raiz.absolutePath).trimStart('/')
-                    val nome = TrashStore.flatNameFor(this, raiz, f)
+                    val nome = TrashStore.flatNameFor(this, raiz, f, original)
                     val destino = File(raiz, nome)
                     if (f.renameTo(destino)) {
                         TrashStore.rememberFlat(this, raiz, nome, original)
@@ -2051,7 +2058,7 @@ fun Context.migrateTrashToPrivate() {
                     val original = origemIndex[f.name]
                         ?: ("/" + f.absolutePath.removePrefix(raiz.absolutePath).trimStart('/'))
                     destino.mkdirs()
-                    val nome = TrashStore.flatNameFor(this, destino, f)
+                    val nome = TrashStore.flatNameFor(this, destino, f, original)
                     val alvo = File(destino, nome)
                     val temporario = File(destino, nome + ".tmp")
                     val copiou = try {

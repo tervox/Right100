@@ -940,8 +940,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val getVideos = mIsPickVideoIntent || mIsGetVideoContentIntent
 
         try {
+            val geracaoDaVarredura = mScanGeneration
             getCachedDirectories(getVideos && !getImages, getImages && !getVideos) {
-                gotDirectories(addTempFolderIfNeeded(it))
+                gotDirectories(addTempFolderIfNeeded(it), geracaoDaVarredura)
             }
         } catch (e: Exception) {
             mIsGettingDirs = false
@@ -1412,8 +1413,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         hideKeyboard()
     }
 
-    private fun gotDirectories(newDirs: ArrayList<Directory>) {
-        val generation = mScanGeneration
+    private fun gotDirectories(newDirs: ArrayList<Directory>, geracao: Int = mScanGeneration) {
+        val generation = geracao
+        if (generation != mScanGeneration) {
+            // Varredura antiga, ja substituida por outra: nao mostra a lista dela.
+            return
+        }
         try {
             gotDirectoriesInternal(newDirs)
         } finally {
@@ -1724,7 +1729,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
                 // update directories and media files in the local db, delete invalid items. Intentionally creating a new thread
                 uiDirty = true
+                val tDb = android.os.SystemClock.elapsedRealtime()
                 updateDBDirectory(directory)
+                com.goodwy.gallery.extensions.Right100Diag.add(
+                    "DIRDIAG updateDB " + directory.path.substringAfterLast('/') + " " +
+                        (android.os.SystemClock.elapsedRealtime() - tDb) + " ms"
+                )
                 if (!directory.isRecycleBin() && !directory.areFavorites()) {
                     Thread {
                         try {
@@ -1792,11 +1802,19 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             anteriorKeys.forEach { if (!folderKeys.contains(it)) sumidas.add(it) }
             val bancoAgora = directoryDB.getAll()
             val lista = ArrayList<String>()
+            val restantes = ArrayList<Directory>()
             bancoAgora.forEach { dir ->
                 if (sumidas.contains(dir.path.lowercase(java.util.Locale.getDefault()))) {
                     directoryDB.deleteDirPath(dir.path)
                 } else {
                     lista.add(dir.path)
+                    restantes.add(dir)
+                }
+            }
+            if (sumidas.isNotEmpty()) {
+                val visiveis = getSortedDirectories(restantes)
+                runOnUiThread {
+                    if (!isDestroyed && !isFinishing) setupAdapterAgrupado(visiveis)
                 }
             }
             val noMediaStatuses = HashMap<String, Boolean>()

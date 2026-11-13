@@ -15,7 +15,7 @@ import java.io.File
 //   2) MediaExtractor         - le a duracao da trilha de VIDEO. Acerta nesses casos
 //      e tambem nos videos sem nenhuma trilha de audio.
 object DuracaoVideos {
-    private val cache = HashMap<String, Int>()
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val emAndamento = HashSet<String>()
 
     @Synchronized
