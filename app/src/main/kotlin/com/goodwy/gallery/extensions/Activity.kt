@@ -906,6 +906,14 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                     out?.flush()
 
                     if (fileDocument.getItemSize(true) == copiedSize && getDoesFilePathExist(destination)) {
+                        if (movedTo != null) {
+                            // A miniatura do original nao e' encontrada no caminho da lixeira, e a
+                            // fonte do MediaStore nao existe mais para gera-la de novo.
+                            val levadas = com.goodwy.gallery.helpers.MiniaturaPermanente.copiar(
+                                applicationContext, source, movedTo.absolutePath
+                            )
+                            Right100Diag.add("lixeira: miniatura levada " + file.name + " arquivos=" + levadas)
+                        }
                         mediaDB.updateDeleted("$RECYCLE_BIN$source", System.currentTimeMillis(), source)
                         pathsCnt--
                         // remove o original: antes so copiava e ele continuava na pasta
@@ -1271,6 +1279,10 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             }
             try {
                 TrashStore.publicRoot(this).deleteRecursively()
+            } catch (_: Exception) {
+            }
+            try {
+                TrashStore.privateRoot(this).deleteRecursively()
             } catch (_: Exception) {
             }
 
