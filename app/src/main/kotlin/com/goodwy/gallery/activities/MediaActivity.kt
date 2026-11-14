@@ -1323,8 +1323,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         val folderCacheFresh = folderCacheState.second > 0L && !folderChangedOnDisk(mPath)
         if (!forceRefresh && folderCached != null && folderCacheFresh) {
             com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": mostrando cache em memoria n=" + folderCached.size + " fresco=" + folderCacheFresh)
+            val ordenadaCache = ordenarListaDaPasta(folderCached)
             synchronized(mediaLock) {
-                mMedia = folderCached
+                mMedia = ordenadaCache
                 mMediaPath = mPath
             }
             mMediaInvalidated = !folderCacheFresh
@@ -1371,12 +1372,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         persisted.isNotEmpty() &&
                         persistedIsFresh
                     ) {
+                        val ordenadaPersistida = ordenarListaDaPasta(persisted)
                         synchronized(mediaLock) {
-                            mMedia = persisted
+                            mMedia = ordenadaPersistida
                             mMediaPath = requestedPath
                         }
                         synchronized(mFolderMediaCache) {
-                            mFolderMediaCache[requestedPath] = ArrayList(persisted)
+                            mFolderMediaCache[requestedPath] = ArrayList(ordenadaPersistida)
                             mFolderMediaCacheUpdatedAt[requestedPath] = System.currentTimeMillis()
                             mFolderMtime[requestedPath] = folderMtimeNow(requestedPath)
                         mFolderNewestFile[requestedPath] = newestFileInFolder(requestedPath)}
@@ -2212,6 +2214,16 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     // Se esta Activity ja fez a primeira rolagem para o topo. Evita pular para o
     // comeco a cada atualizacao da lista depois que a pasta ja foi aberta.
     private var didInitialScrollToTop = false
+
+    // Ordena a lista com a opcao atual da pasta (ou da visualizacao 'mostrar tudo').
+    // Usada tambem quando a lista vem do cache, para ela nunca ficar na ordem antiga.
+    private fun ordenarListaDaPasta(lista: ArrayList<ThumbnailItem>): ArrayList<ThumbnailItem> {
+        val sortPath = if (mShowAll) SHOW_ALL else mPath
+        val mediaFetcher = MediaFetcher(applicationContext)
+        val sortedMedia = ArrayList(lista.filterIsInstance<Medium>())
+        mediaFetcher.sortMedia(sortedMedia, config.getFolderSorting(sortPath))
+        return mediaFetcher.groupMedia(sortedMedia, sortPath)
+    }
 
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         // A lixeira enche em segundo plano. Entrar nela antes de a copia terminar gravava
