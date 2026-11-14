@@ -149,6 +149,7 @@ object FilaMiniaturas {
                 fotos.remove(caminho)
                 videos.remove(caminho)
                 pasta.remove(caminho)
+                urgentes.remove(caminho)
                 urgentes[caminho] = item
             }
             garantirThread()
@@ -226,8 +227,13 @@ object FilaMiniaturas {
     }
 
     private fun proximo(): Pair<String, Medium>? = synchronized(lock) {
-        val filas = arrayOf(urgentes, pasta, fotos, videos)
-        for (fila in filas) {
+        // Visivel primeiro: a urgente mais nova sai antes das que o usuario ja passou.
+        val urgente = urgentes.entries.lastOrNull()
+        if (urgente != null) {
+            urgentes.remove(urgente.key)
+            return Pair(urgente.key, urgente.value)
+        }
+        for (fila in arrayOf(pasta, fotos, videos)) {
             val entrada = fila.entries.firstOrNull()
             if (entrada != null) {
                 fila.remove(entrada.key)
