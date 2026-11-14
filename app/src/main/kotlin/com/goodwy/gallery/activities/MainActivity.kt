@@ -915,6 +915,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         mIsGettingDirs = true
+        // Puxar para atualizar ou voltar ao app: lixeira esvaziada sai e lixeira com itens entra, na hora.
+        tirarLixeiraVaziaDaLista()
+        inserirLixeiraSeCheia()
         mMediaStoreDirty = false
         mShouldStopFetching = false
         mScanRunning = true
@@ -1839,6 +1842,10 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         com.goodwy.gallery.extensions.Right100Diag.add("principal: descoberta de pastas " + (if (skipDiscovery) "PULADA (mesmas " + folderKeys?.size + " pastas do MediaStore)" else "feita") + " (" + (android.os.SystemClock.elapsedRealtime() - diagT0) + " ms desde o inicio)")
         foldersToScan.remove(FAVORITES)
         foldersToScan.add(0, FAVORITES)
+        // Lixeira com itens entra na varredura mesmo quando a lista de pastas nao mudou
+        if (config.showRecycleBinAtFolders && !foldersToScan.contains(RECYCLE_BIN) && mediaDB.getDeletedMediaCount() > 0) {
+            foldersToScan.add(RECYCLE_BIN)
+        }
         if (config.showRecycleBinAtFolders) {
             if (foldersToScan.contains(RECYCLE_BIN)) {
                 foldersToScan.remove(RECYCLE_BIN)
