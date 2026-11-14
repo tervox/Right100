@@ -1314,7 +1314,8 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             Right100Diag.add("lixeira: banco atualizado, arquivos ainda no disco=" + sobrando)
             com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
 
-            // 3. Miniaturas e fundos dos itens que sairam de vez (pode demorar; o banco ja esta certo)
+            // 3. Miniaturas e fundos: em segundo plano, para a notificacao sair logo (o banco ja esta certo)
+            ensureBackgroundThread {
             try {
                 val originais = ArrayList<String>(trashed.size)
                 trashed.forEach { m ->
@@ -1328,6 +1329,7 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                         " miniaturas apagadas=" + apagadas + " orfas restantes=" + restantes
                 )
             } catch (_: Exception) {
+            }
             }
         } catch (e: Exception) {
             falhou = true
