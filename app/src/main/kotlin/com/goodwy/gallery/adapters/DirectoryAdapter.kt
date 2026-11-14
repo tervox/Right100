@@ -1070,7 +1070,8 @@ class DirectoryAdapter(
                     onError = {
                         if (dirThumbnail.tag == thumbnailKey) {
                             dirThumbnail.scaleType = ImageView.ScaleType.CENTER
-                            dirThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, R.drawable.ic_vector_warning_colored))
+                            val icone = if (directory.path == RECYCLE_BIN) R.drawable.ic_folder_open_vector else R.drawable.ic_vector_warning_colored
+                            dirThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, icone))
                         }
                     }
                 )

@@ -746,7 +746,7 @@ try {
             .load(path)
             .apply(options)
         if (thumb != null) {
-            req.thumbnail(Glide.with(requireContext()).load(thumb).apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE)))
+            req.thumbnail(Glide.with(requireContext()).load(thumb).apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE).priority(Priority.IMMEDIATE)))
         }
         req.listener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {

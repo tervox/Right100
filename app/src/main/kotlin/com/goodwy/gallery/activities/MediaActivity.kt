@@ -2220,7 +2220,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun ordenarListaDaPasta(lista: ArrayList<ThumbnailItem>): ArrayList<ThumbnailItem> {
         val sortPath = if (mShowAll) SHOW_ALL else mPath
         val mediaFetcher = MediaFetcher(applicationContext)
-        val sortedMedia = ArrayList(lista.filterIsInstance<Medium>())
+        // Cache so' mostra arquivos que ainda existem: midia excluida nao volta ao reabrir o app.
+        // Itens da lixeira (deletedTS) e de provedores (content://) sao mantidos.
+        val sortedMedia = ArrayList(lista.filterIsInstance<Medium>().filter {
+            it.deletedTS != 0L || it.path.startsWith("content://") || java.io.File(it.path).exists()
+        })
         mediaFetcher.sortMedia(sortedMedia, config.getFolderSorting(sortPath))
         return mediaFetcher.groupMedia(sortedMedia, sortPath)
     }
