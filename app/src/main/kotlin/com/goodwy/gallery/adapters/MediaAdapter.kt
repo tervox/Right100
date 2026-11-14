@@ -135,14 +135,22 @@ class MediaAdapter(
 
     // Video ou foto sem miniatura permanente: a grade pede a MESMA miniatura do sistema que a fila grava.
     // Assim a imagem que aparece primeiro e a que fica gravada, e ela nao troca depois.
+    // Miniaturas do sistema: 8 por vez, e o pedido de uma celula que saiu da tela e cancelado.
+    private val executorMiniaturasSistema = java.util.concurrent.Executors.newFixedThreadPool(8)
+    private val sinaisMiniaturas = java.util.WeakHashMap<ImageView, android.os.CancellationSignal>()
+
     private fun carregarMiniaturaDoSistema(alvo: ImageView, medium: Medium, chave: String) {
-        ensureBackgroundThread {
+        synchronized(sinaisMiniaturas) { sinaisMiniaturas.remove(alvo)?.cancel() }
+        val sinal = android.os.CancellationSignal()
+        synchronized(sinaisMiniaturas) { sinaisMiniaturas[alvo] = sinal }
+        executorMiniaturasSistema.execute {
             val uri = ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), medium.mediaStoreId)
             val bmp = try {
-                activity.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), null)
+                activity.contentResolver.loadThumbnail(uri, android.util.Size(320, 320), sinal)
             } catch (_: Exception) {
                 null
             }
+            if (sinal.isCanceled) return@execute
             activity.runOnUiThread {
                 if (bmp != null && alvo.tag == chave) {
                     alvo.scaleType = ImageView.ScaleType.CENTER_CROP
@@ -382,6 +390,7 @@ class MediaAdapter(
                     try { if (it.isRunning) it.stop() } catch (_: Exception) {}
                 }
                 thumbnail.tag = null
+                synchronized(sinaisMiniaturas) { sinaisMiniaturas.remove(thumbnail)?.cancel() }
                 Glide.with(thumbnail).clear(thumbnail)
                 // Glide e Picasso escrevem na MESMA ImageView (o fallback de PNG grande usa
                 // Picasso). Aqui so' o Glide era cancelado; um resultado tardio do Picasso

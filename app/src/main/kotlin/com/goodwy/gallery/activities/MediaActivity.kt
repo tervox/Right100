@@ -1455,9 +1455,32 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun loadMediaFromDatabaseAndScan(requestedPath: String) {
         if (requestedPath.startsWith("/")) {
-            // Em pastas reais, não mostre a lista antiga do Room antes da
-            // varredura atual. Isso evitava o salto de mídias surgindo depois.
-            startAsyncTask()
+            // Pasta real: mostra logo a lista do MediaStore so' dessa pasta (consulta filtrada,
+            // rapida), e depois a varredura do disco atualiza. A entrada nao espera o disco.
+            ensureBackgroundThread {
+                val rapida = try {
+                    val mapa = com.goodwy.gallery.helpers.MediaFetcher(applicationContext).getAndroid11FolderMedia(
+                        isPickImage = mIsGetImageIntent && !mIsGetVideoIntent,
+                        isPickVideo = mIsGetVideoIntent && !mIsGetImageIntent,
+                        favoritePaths = ArrayList(),
+                        getFavoritePathsOnly = false,
+                        getProperDateTaken = true,
+                        dateTakens = HashMap(),
+                        folderPath = requestedPath
+                    )
+                    val lista = ArrayList<ThumbnailItem>()
+                    mapa.values.forEach { lista.addAll(it) }
+                    lista
+                } catch (_: Exception) {
+                    ArrayList<ThumbnailItem>()
+                }
+                runOnUiThread {
+                    if (requestedPath == mPath && !isDestroyed && !isFinishing && rapida.isNotEmpty()) {
+                        gotMedia(rapida, true)
+                    }
+                    startAsyncTask()
+                }
+            }
             return
         }
 
