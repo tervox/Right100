@@ -943,6 +943,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                                 applicationContext, source, movedTo.absolutePath
                             )
                             Right100Diag.add("lixeira: miniatura levada " + file.name + " arquivos=" + levadas)
+                            recoverOrphanTrashItems(force = true)
                         }
                         mediaDB.updateDeleted("$RECYCLE_BIN$source", System.currentTimeMillis(), source)
                         pathsCnt--

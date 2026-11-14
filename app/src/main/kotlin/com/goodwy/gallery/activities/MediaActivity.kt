@@ -1455,30 +1455,43 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun loadMediaFromDatabaseAndScan(requestedPath: String) {
         if (requestedPath.startsWith("/")) {
-            // Pasta real: mostra logo a lista do MediaStore so' dessa pasta (consulta filtrada,
-            // rapida), e depois a varredura do disco atualiza. A entrada nao espera o disco.
-            ensureBackgroundThread {
-                val rapida = try {
-                    val mapa = com.goodwy.gallery.helpers.MediaFetcher(applicationContext).getAndroid11FolderMedia(
-                        isPickImage = mIsGetImageIntent && !mIsGetVideoIntent,
-                        isPickVideo = mIsGetVideoIntent && !mIsGetImageIntent,
-                        favoritePaths = ArrayList(),
-                        getFavoritePathsOnly = false,
-                        getProperDateTaken = true,
-                        dateTakens = HashMap(),
-                        folderPath = requestedPath
-                    )
-                    val lista = ArrayList<ThumbnailItem>()
-                    mapa.values.forEach { lista.addAll(it) }
-                    lista
-                } catch (_: Exception) {
-                    ArrayList<ThumbnailItem>()
-                }
-                runOnUiThread {
-                    if (requestedPath == mPath && !isDestroyed && !isFinishing && rapida.isNotEmpty()) {
-                        gotMedia(rapida, true)
-                    }
+            // Pasta real: se o banco ja tem a pasta, mostra essa lista na hora (com duracoes e
+            // miniaturas ja calculadas). Se a pasta nunca foi aberta, mostra a lista do MediaStore
+            // dela. Em todo caso, a varredura do disco atualiza a lista depois.
+            getCachedMedia(
+                requestedPath,
+                mIsGetVideoIntent && !mIsGetImageIntent,
+                mIsGetImageIntent && !mIsGetVideoIntent
+            ) { cached ->
+                if (requestedPath != mPath || isDestroyed || isFinishing) return@getCachedMedia
+                if (cached.isNotEmpty()) {
+                    gotMedia(cached, true)
                     startAsyncTask()
+                    return@getCachedMedia
+                }
+                ensureBackgroundThread {
+                    val rapida = try {
+                        val mapa = com.goodwy.gallery.helpers.MediaFetcher(applicationContext).getAndroid11FolderMedia(
+                            isPickImage = mIsGetImageIntent && !mIsGetVideoIntent,
+                            isPickVideo = mIsGetVideoIntent && !mIsGetImageIntent,
+                            favoritePaths = ArrayList(),
+                            getFavoritePathsOnly = false,
+                            getProperDateTaken = true,
+                            dateTakens = HashMap(),
+                            folderPath = requestedPath
+                        )
+                        val lista = ArrayList<ThumbnailItem>()
+                        mapa.values.forEach { lista.addAll(it) }
+                        lista
+                    } catch (_: Exception) {
+                        ArrayList<ThumbnailItem>()
+                    }
+                    runOnUiThread {
+                        if (requestedPath == mPath && !isDestroyed && !isFinishing && rapida.isNotEmpty()) {
+                            gotMedia(rapida, true)
+                        }
+                        startAsyncTask()
+                    }
                 }
             }
             return
