@@ -2373,6 +2373,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // pelo scan novo do MediaStore.
         fillMissingVideoDurations(filteredMedia)
 
+        // Lista chegou vazia: confere o disco e fecha a pasta real (ex.: depois de mover tudo).
+        if (filteredMedia.none { it is Medium } && !mShowAll && mPath.startsWith("/") && mPath != FAVORITES && mPath != RECYCLE_BIN) {
+            runOnUiThread { if (!isDestroyed && !isFinishing) isDirEmpty() }
+        }
 
         // Arquivo criado ou movido por fora do app (Termux, PC, outro gerenciador) nao entra no
         // MediaStore sozinho, e a lista da pasta vem do banco: ele ficaria invisivel. Aqui a pasta
