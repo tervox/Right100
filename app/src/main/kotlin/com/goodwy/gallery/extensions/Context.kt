@@ -1083,8 +1083,8 @@ fun Context.loadImageBase(
     if (shouldAnimateDrawable) {
         // this is required to make glide cache aware of changes
         options.decode(Drawable::class.java)
-        if (isGif || path.isGif()) {
-            // Decodifica cada frame do GIF no tamanho do thumbnail (não no tamanho original do arquivo).
+        if (isGif || path.isGif() || path.isWebP()) {
+            // GIF e WebP animado: cada frame no tamanho do thumbnail (não no tamanho original do arquivo).
             // Ex: GIF 500×500 em thumbnail 220×220 → bem menos memória por frame, sem
             // reduzir a capa a um bitmap visivelmente pixelado.
             options.downsample(
@@ -1097,7 +1097,7 @@ fun Context.loadImageBase(
             options.priority(Priority.NORMAL)
             val gifSize = maxThumbSize.coerceAtMost(320)
             options.override(gifSize, gifSize)
-            options.format(DecodeFormat.PREFER_ARGB_8888)
+            options.format(DecodeFormat.PREFER_RGB_565)
         }
     } else {
         options.dontAnimate()
