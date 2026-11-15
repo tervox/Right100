@@ -2066,6 +2066,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // varredura e' justamente pulada no retorno ("lista ja carregada") - a pasta vazia ficava na
     // tela ate uma varredura acontecer. O aviso vem em memoria (LixeiraEsvaziada), entao a pasta
     // some no mesmo quadro, sem varrer nada e sem consultar o banco.
+    private fun lixeiraTemArquivoNoDisco(): Boolean = try {
+        com.goodwy.gallery.extensions.TrashStore.rootsFor(applicationContext).any { raiz ->
+            raiz.listFiles()?.any { it.isFile && !it.name.startsWith('.') && !it.name.endsWith(".tmp") } == true
+        }
+    } catch (_: Exception) {
+        true
+    }
+
     private fun tirarLixeiraVaziaDaLista() {
         if (!com.goodwy.gallery.helpers.LixeiraEsvaziada.consumir()) return
         val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
@@ -2279,7 +2287,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (config.useRecycleBin) {
             try {
                 val binFolder = dirs.firstOrNull { it.path == RECYCLE_BIN }
-                if (binFolder != null && mediaDB.getDeletedMedia().isEmpty()) {
+                // Lixeira so sai da lista se o banco E o disco estiverem vazios. Uma leitura
+                // momentanea vazia (registros sendo recuperados do disco) nao pode tirar a pasta.
+                if (binFolder != null && mediaDB.getDeletedMedia().isEmpty() && !lixeiraTemArquivoNoDisco()) {
                     invalidDirs.add(binFolder)
                 }
             } catch (_: Exception) {
