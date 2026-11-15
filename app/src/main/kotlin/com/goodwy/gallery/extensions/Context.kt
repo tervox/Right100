@@ -1039,7 +1039,7 @@ fun Context.loadImageBase(
         // explicitamente abaixo, onde a economia de memória é mais importante.
         .format(DecodeFormat.PREFER_ARGB_8888)
         .placeholder(R.drawable.placeholder_square)
-        .error(R.drawable.ic_vector_warning_colored)
+        .error(if (path.contains("/.trash/")) R.drawable.ic_folder_open_vector else R.drawable.ic_vector_warning_colored)
 
     // Para thumbnails recortadas, a imagem precisa ser decodificada por fora do
     // quadrado. CENTER_INSIDE primeiro reduzia uma foto 16:9 para 360x203 e depois

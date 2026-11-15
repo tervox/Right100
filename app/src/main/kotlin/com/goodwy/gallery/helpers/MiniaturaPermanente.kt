@@ -597,7 +597,11 @@ object MiniaturaPermanente {
         for (f in filhos) {
             // Pega a miniatura, o fundo desfocado e o .tmp da mesma midia.
             if (!f.name.startsWith(prefixo)) continue
-            val novo = File(dirDestino, nomeDestino + "@" + f.name.substring(prefixo.length))
+            val resto = f.name.substring(prefixo.length)
+            val tail = resto.dropWhile { it.isDigit() }
+            val mtimeAtual = mtimeDe(destino)
+            val novoSufixo = if (mtimeAtual > 0L && tail.isNotEmpty()) mtimeAtual.toString() + tail else resto
+            val novo = File(dirDestino, nomeDestino + "@" + novoSufixo)
             try {
                 if (novo.exists()) continue
                 if (copiar) {
