@@ -1316,6 +1316,8 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
 
             // 3. Miniaturas e fundos: em segundo plano, para a notificacao sair logo (o banco ja esta certo)
             ensureBackgroundThread {
+            val tLimpeza = android.os.SystemClock.elapsedRealtime()
+            Right100Diag.add("lixeira: limpando miniaturas de " + trashed.size + " item(ns)...")
             try {
                 val originais = ArrayList<String>(trashed.size)
                 trashed.forEach { m ->
@@ -1326,9 +1328,11 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                 val restantes = com.goodwy.gallery.helpers.MiniaturaPermanente.limparOrfasCompleto(applicationContext)
                 Right100Diag.add(
                     "lixeira esvaziada: itens=" + quantos + " originais=" + originais.size +
-                        " miniaturas apagadas=" + apagadas + " orfas restantes=" + restantes
+                        " miniaturas apagadas=" + apagadas + " orfas restantes=" + restantes +
+                        " em " + (android.os.SystemClock.elapsedRealtime() - tLimpeza) + " ms"
                 )
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Right100Diag.add("lixeira: falha na limpeza de miniaturas: " + e)
             }
             }
         } catch (e: Exception) {

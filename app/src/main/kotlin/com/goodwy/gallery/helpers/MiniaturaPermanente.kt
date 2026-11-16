@@ -539,7 +539,7 @@ object MiniaturaPermanente {
      * `limitePorPassada` arquivos; quando uma passada checa menos que isso, a arvore
      * inteira ja' foi percorrida e para.
      */
-    fun limparOrfasCompleto(context: Context, limitePorPassada: Int = 4000, maxPassadas: Int = 20): Int {
+    fun limparOrfasCompleto(context: Context, limitePorPassada: Int = Int.MAX_VALUE, maxPassadas: Int = 1): Int {
         var total = 0
         var passada = 0
         while (passada < maxPassadas) {
