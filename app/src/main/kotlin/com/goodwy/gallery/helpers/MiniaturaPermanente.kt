@@ -69,6 +69,48 @@ object MiniaturaPermanente {
         return destino
     }
 
+    // Diagnostico (so leitura): quanto ocupa o cache, quanto e de fundo e quanto e de midia que nao existe mais.
+    fun resumoCache(context: Context, rotulo: String) {
+        try {
+            val base = raiz(context)
+            var total = 0L
+            var arquivos = 0
+            var fundos = 0L
+            var orfas = 0
+            var orfasBytes = 0L
+            val pilha = ArrayDeque<File>()
+            pilha.addLast(base)
+            while (pilha.isNotEmpty()) {
+                val pasta = pilha.removeLast()
+                val filhos = pasta.listFiles() ?: continue
+                for (f in filhos) {
+                    if (f.isDirectory) {
+                        pilha.addLast(f)
+                        continue
+                    }
+                    total += f.length()
+                    arquivos++
+                    if (!f.name.endsWith(".webp")) continue
+                    if (f.name.endsWith(SUFIXO_FUNDO + ".webp")) fundos += f.length()
+                    val semExt = f.name.removeSuffix(".webp").removeSuffix(SUFIXO_FUNDO)
+                    val corte = semExt.lastIndexOf('@')
+                    if (corte <= 0) continue
+                    val relPasta = pasta.absolutePath.removePrefix(base.absolutePath).trim('/')
+                    val midia = "/" + (if (relPasta.isEmpty()) "" else relPasta + "/") + semExt.substring(0, corte)
+                    if (!File(midia).exists()) {
+                        orfas++
+                        orfasBytes += f.length()
+                    }
+                }
+            }
+            com.goodwy.gallery.extensions.Right100Diag.add(
+                "cache " + rotulo + ": total=" + (total / 1048576) + "MB arquivos=" + arquivos +
+                    " fundos=" + (fundos / 1048576) + "MB orfas=" + orfas + " (" + (orfasBytes / 1048576) + "MB)"
+            )
+        } catch (_: Exception) {
+        }
+    }
+
     private fun mtimeDe(mediaPath: String): Long = try {
         val original = File(mediaPath)
         if (original.isFile) original.lastModified() else 0L
