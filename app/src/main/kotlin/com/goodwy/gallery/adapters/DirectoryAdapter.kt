@@ -110,7 +110,7 @@ class DirectoryAdapter(
         setHasStableIds(true)
         attachedRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                setVisibleAnimatablesRunning(newState == RecyclerView.SCROLL_STATE_IDLE)
+                setVisibleAnimatablesRunning(true)
             }
         })
     }
@@ -287,9 +287,7 @@ class DirectoryAdapter(
 
     override fun onViewAttachedToWindow(holder: ViewHolder) {
         super.onViewAttachedToWindow(holder)
-        if (attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
-            setVisibleAnimatablesRunning(true)
-        }
+        setVisibleAnimatablesRunning(true)
     }
 
     override fun onViewDetachedFromWindow(holder: ViewHolder) {
@@ -1077,7 +1075,7 @@ class DirectoryAdapter(
                     onReady = {
                         if (dirThumbnail.tag == thumbnailKey) {
                             (dirThumbnail.drawable as? android.graphics.drawable.Animatable)?.let {
-                                if (!it.isRunning && attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) it.start()
+                                if (!it.isRunning) it.start()
                             }
                         }
                     }

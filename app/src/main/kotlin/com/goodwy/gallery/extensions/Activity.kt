@@ -1318,7 +1318,6 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             ensureBackgroundThread {
             val tLimpeza = android.os.SystemClock.elapsedRealtime()
             Right100Diag.add("lixeira: limpando miniaturas de " + trashed.size + " item(ns)...")
-            com.goodwy.gallery.helpers.MiniaturaPermanente.resumoCache(applicationContext, "antes")
             try {
                 val originais = ArrayList<String>(trashed.size)
                 trashed.forEach { m ->
@@ -1327,7 +1326,6 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
                 }
                 val apagadas = com.goodwy.gallery.helpers.MiniaturaPermanente.esquecerVarios(applicationContext, originais)
                 val restantes = com.goodwy.gallery.helpers.MiniaturaPermanente.limparOrfasCompleto(applicationContext)
-                com.goodwy.gallery.helpers.MiniaturaPermanente.resumoCache(applicationContext, "depois")
                 Right100Diag.add(
                     "lixeira esvaziada: itens=" + quantos + " originais=" + originais.size +
                         " miniaturas apagadas=" + apagadas + " orfas restantes=" + restantes +

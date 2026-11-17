@@ -1508,7 +1508,13 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
         }
     }
 
+    // Um toque pode chegar duas vezes (clique real + clique simulado do zoom). O segundo e' ignorado.
+    private var mUltimoToqueInterface = 0L
+
     override fun fragmentClicked() {
+        val agora = System.currentTimeMillis()
+        if (agora - mUltimoToqueInterface < 300L) return
+        mUltimoToqueInterface = agora
         mIsFullScreen = !mIsFullScreen
         if (mIsFullScreen) hideSystemUI() else { stopSlideshow(); showSystemUI() }
         (binding.viewPager.adapter as? MyPagerAdapter)?.toggleFullscreen(mIsFullScreen)
