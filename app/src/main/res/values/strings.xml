@@ -410,4 +410,7 @@
         <item quantity="one">Lixeira esvaziada: %d item</item>
         <item quantity="other">Lixeira esvaziada: %d itens</item>
     </plurals>
+    <string name="cache_miniaturas">Miniaturas da grade</string>
+    <string name="cache_fundos">Fundos do visualizador</string>
+    <string name="cache_glide">Imagens em cache (Glide)</string>
 </resources>

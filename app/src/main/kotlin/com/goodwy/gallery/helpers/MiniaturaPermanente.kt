@@ -581,6 +581,36 @@ object MiniaturaPermanente {
      * `limitePorPassada` arquivos; quando uma passada checa menos que isso, a arvore
      * inteira ja' foi percorrida e para.
      */
+    // Tamanho e limpeza por tipo (botoes em Configuracoes). Fundos sao os arquivos .fundo8.webp.
+    private fun listarPorTipo(context: Context, fundo: Boolean): List<File> {
+        val achados = ArrayList<File>()
+        val pilha = ArrayDeque<File>()
+        pilha.addLast(raiz(context))
+        while (pilha.isNotEmpty()) {
+            val pasta = pilha.removeLast()
+            for (f in pasta.listFiles() ?: continue) {
+                if (f.isDirectory) {
+                    pilha.addLast(f)
+                } else if (f.name.endsWith(".webp") && f.name.endsWith(SUFIXO_FUNDO + ".webp") == fundo) {
+                    achados.add(f)
+                }
+            }
+        }
+        return achados
+    }
+
+    fun tamanhoMiniaturasBytes(context: Context): Long = listarPorTipo(context, false).sumOf { it.length() }
+
+    fun tamanhoFundosBytes(context: Context): Long = listarPorTipo(context, true).sumOf { it.length() }
+
+    fun limparMiniaturas(context: Context) {
+        listarPorTipo(context, false).forEach { it.delete() }
+    }
+
+    fun limparFundos(context: Context) {
+        listarPorTipo(context, true).forEach { it.delete() }
+    }
+
     fun limparOrfasCompleto(context: Context, limitePorPassada: Int = Int.MAX_VALUE, maxPassadas: Int = 1): Int {
         var total = 0
         var passada = 0

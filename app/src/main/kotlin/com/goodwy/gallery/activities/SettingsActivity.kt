@@ -183,6 +183,7 @@ class SettingsActivity : SimpleActivity() {
         setupImportSettings()
 
         setupClearCache()
+        setupCacheDetails()
         setupTipJar()
         setupAbout()
 
@@ -1251,6 +1252,42 @@ class SettingsActivity : SimpleActivity() {
                 runOnUiThread {
                     binding.settingsClearCacheSize.text = (cacheDir.getProperSize(true) + com.goodwy.gallery.helpers.MiniaturaPermanente.tamanhoBytes(this@SettingsActivity)).formatSize()
                 }
+            }
+        }
+    }
+
+    private fun setupCacheDetails() {
+        refreshCacheDetails()
+        binding.settingsCacheMiniaturasHolder.setOnClickListener {
+            ensureBackgroundThread {
+                com.goodwy.gallery.helpers.MiniaturaPermanente.limparMiniaturas(this@SettingsActivity)
+                com.goodwy.gallery.helpers.FilaMiniaturas.esquecerTudo()
+                runOnUiThread { refreshCacheDetails() }
+            }
+        }
+        binding.settingsCacheFundosHolder.setOnClickListener {
+            ensureBackgroundThread {
+                com.goodwy.gallery.helpers.MiniaturaPermanente.limparFundos(this@SettingsActivity)
+                runOnUiThread { refreshCacheDetails() }
+            }
+        }
+        binding.settingsCacheGlideHolder.setOnClickListener {
+            ensureBackgroundThread {
+                cacheDir.deleteRecursively()
+                runOnUiThread { refreshCacheDetails() }
+            }
+        }
+    }
+
+    private fun refreshCacheDetails() {
+        ensureBackgroundThread {
+            val miniaturas = com.goodwy.gallery.helpers.MiniaturaPermanente.tamanhoMiniaturasBytes(this@SettingsActivity)
+            val fundos = com.goodwy.gallery.helpers.MiniaturaPermanente.tamanhoFundosBytes(this@SettingsActivity)
+            val glide = cacheDir.getProperSize(true)
+            runOnUiThread {
+                binding.settingsCacheMiniaturasSize.text = miniaturas.formatSize()
+                binding.settingsCacheFundosSize.text = fundos.formatSize()
+                binding.settingsCacheGlideSize.text = glide.formatSize()
             }
         }
     }

@@ -1522,6 +1522,66 @@
                     </RelativeLayout>
 
                     <RelativeLayout
+                        android:id="@+id/settings_cache_miniaturas_holder"
+                        style="@style/SettingsHolderStyle">
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_cache_miniaturas_label"
+                            style="@style/SettingsTextLabelStyle"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@+id/settings_cache_miniaturas_size"
+                            android:text="@string/cache_miniaturas" />
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_cache_miniaturas_size"
+                            style="@style/SettingsTextValueStyle"
+                            android:layout_alignParentEnd="true"
+                            android:layout_marginEnd="@dimen/settings_margin"
+                            tools:text="0 B" />
+                    </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_cache_fundos_holder"
+                        style="@style/SettingsHolderStyle">
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_cache_fundos_label"
+                            style="@style/SettingsTextLabelStyle"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@+id/settings_cache_fundos_size"
+                            android:text="@string/cache_fundos" />
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_cache_fundos_size"
+                            style="@style/SettingsTextValueStyle"
+                            android:layout_alignParentEnd="true"
+                            android:layout_marginEnd="@dimen/settings_margin"
+                            tools:text="0 B" />
+                    </RelativeLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/settings_cache_glide_holder"
+                        style="@style/SettingsHolderStyle">
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_cache_glide_label"
+                            style="@style/SettingsTextLabelStyle"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:layout_toStartOf="@+id/settings_cache_glide_size"
+                            android:text="@string/cache_glide" />
+
+                        <com.goodwy.commons.views.MyTextView
+                            android:id="@+id/settings_cache_glide_size"
+                            style="@style/SettingsTextValueStyle"
+                            android:layout_alignParentEnd="true"
+                            android:layout_marginEnd="@dimen/settings_margin"
+                            tools:text="0 B" />
+                    </RelativeLayout>
+
+                    <RelativeLayout
                         android:id="@+id/settingsTipJarHolder"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
