@@ -32,7 +32,7 @@ object MiniaturaPermanente {
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
     private const val LARGURA_FUNDO = 240
     private const val RAIO_FUNDO = 30
-    private const val SUFIXO_FUNDO = ".fundo8"
+    private const val SUFIXO_FUNDO = ".fundo9"
 
     private var limpezaVersaoFeita = false
     // A pasta da versao so e' criada uma vez por processo; a escrita garante o caminho.
@@ -187,7 +187,7 @@ object MiniaturaPermanente {
             val passo = RAIO_FUNDO
             var atual: Bitmap = Bitmap.createScaledBitmap(recorte, largura, altura, true)
             if (recorte !== fonte) recorte.recycle()
-            repeat(1) {
+            repeat(3) {
                 val proximo = desfocar(atual, passo)
                 if (atual !== fonte) atual.recycle()
                 atual = proximo
@@ -423,7 +423,7 @@ object MiniaturaPermanente {
                 }
                 // Fundos da geracao anterior (".fundo.webp") nao sao mais servidos:
                 // o sufixo mudou para ".fundo2". Apagar em vez de deixar ocupando espaco.
-                if (f.name.endsWith(".fundo.webp") && !f.name.endsWith(SUFIXO_FUNDO + ".webp")) {
+                if ((f.name.endsWith(".fundo.webp") || f.name.endsWith(".fundo8.webp")) && !f.name.endsWith(SUFIXO_FUNDO + ".webp")) {
                     f.delete()
                     continue
                 }
