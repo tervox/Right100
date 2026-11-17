@@ -1073,6 +1073,13 @@ class DirectoryAdapter(
                             val icone = if (directory.path == RECYCLE_BIN) R.drawable.ic_folder_open_vector else R.drawable.ic_vector_warning_colored
                             dirThumbnail.setImageDrawable(AppCompatResources.getDrawable(activity, icone))
                         }
+                    },
+                    onReady = {
+                        if (dirThumbnail.tag == thumbnailKey) {
+                            (dirThumbnail.drawable as? android.graphics.drawable.Animatable)?.let {
+                                if (!it.isRunning && attachedRecyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) it.start()
+                            }
+                        }
                     }
                 )
             }

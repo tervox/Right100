@@ -880,7 +880,8 @@ fun Context.loadImage(
     // "consegue" decodificar o primeiro quadro de um fade-in, o load nao falha, e o
     // onError com toda a cadeia de fallback de video nunca rodava). Capas de pasta e
     // outros chamadores continuam com o comportamento antigo (default false).
-    detectarQuadroPreto: Boolean = false
+    detectarQuadroPreto: Boolean = false,
+    onReady: (() -> Unit)? = null
 ) {
     target.isHorizontalScrolling = horizontalScroll
     if (type == TYPE_SVGS) {
@@ -908,7 +909,8 @@ fun Context.loadImage(
             columnCount = columnCount,
             fallbackPath = fallbackPath,
             onError = onError,
-            detectarQuadroPreto = detectarQuadroPreto
+            detectarQuadroPreto = detectarQuadroPreto,
+            onReady = onReady
         )
     }
 }
@@ -982,7 +984,8 @@ fun Context.loadImageBase(
     allowMediaStoreFallback: Boolean = true,
     onError: (() -> Unit)? = null,
     detectarQuadroPreto: Boolean = false,
-    retryCount: Int = 0
+    retryCount: Int = 0,
+    onReady: (() -> Unit)? = null
 ) {
     val requestToken = target.tag
     // MySquareImageView define apenas a área quadrada da célula; ele não deve esticar
@@ -1248,6 +1251,7 @@ fun Context.loadImageBase(
             dataSource: DataSource,
             isFirstResource: Boolean,
         ): Boolean {
+            onReady?.let { callback -> target.post { callback() } }
             // Video "quase GIF" (X/Twitter, GIF convertido) costuma comecar com um quadro
             // PRETO. O Glide decodifica esse quadro com "sucesso" - o load nao falha, e a
             // cadeia de fallback do MediaAdapter (loadThumbnail, ThumbnailUtils,
@@ -1406,7 +1410,7 @@ fun Context.loadSVG(
     val options = RequestOptions()
         .signature(signature)
         .placeholder(R.drawable.placeholder_square)
-        .error(R.drawable.ic_vector_warning_colored)
+        .error(if (path.contains("/.trash/")) R.drawable.ic_folder_open_vector else R.drawable.ic_vector_warning_colored)
     val imageModel: Any = when {
         path.startsWith("content://") || path.startsWith("file://") -> path.toUri()
         else -> File(path)
@@ -1449,7 +1453,7 @@ fun Context.tryLoadingWithPicasso(
             .load(pathToLoad)
             .stableKey(signature.toString())
             .placeholder(R.drawable.placeholder_square)
-            .error(R.drawable.ic_vector_warning_colored)
+            .error(if (path.contains("/.trash/")) R.drawable.ic_folder_open_vector else R.drawable.ic_vector_warning_colored)
 
         builder = if (cropThumbnails) {
             builder.centerCrop().fit()
