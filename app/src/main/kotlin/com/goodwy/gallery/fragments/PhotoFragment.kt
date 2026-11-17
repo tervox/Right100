@@ -161,7 +161,9 @@ class PhotoFragment : ViewPagerFragment() {
                 mView.apply {
                     if (subsamplingView.isVisible()) {
                         subsamplingView.sendFakeClick(x, y)
-                    } else {
+                    } else if (!animatedImageView.isVisible()) {
+                        // WebP animado: o clique real ja chega em animatedImageView.
+                        // Sem isto a interface era invertida duas vezes (abria e fechava).
                         gesturesView.sendFakeClick(x, y)
                     }
                 }
