@@ -2115,6 +2115,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         Thread {
             val temItens = try { mediaDB.getDeletedMediaCount() > 0 } catch (_: Exception) { false }
             if (!temItens) return@Thread
+            // Capa da lixeira: um arquivo que esta dentro dela (nao o caminho do registro antigo).
+            val capaLixeira = try {
+                mediaDB.getDeletedMedia().firstOrNull { !it.path.startsWith(RECYCLE_BIN) && java.io.File(it.path).exists() }?.path ?: ""
+            } catch (_: Exception) {
+                ""
+            }
             runOnUiThread {
                 if (isDestroyed || isFinishing) return@runOnUiThread
                 val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
@@ -2123,6 +2129,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     path = RECYCLE_BIN
                     name = getString(com.goodwy.commons.R.string.recycle_bin)
                     location = LOCATION_INTERNAL
+                    tmb = capaLixeira
                 }
                 val nova = ArrayList(base)
                 if (config.showRecycleBinLast) nova.add(lixeira) else nova.add(0, lixeira)
