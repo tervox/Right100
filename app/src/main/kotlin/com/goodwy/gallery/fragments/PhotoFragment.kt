@@ -515,10 +515,16 @@ restartAnimatedDrawable()
     // Fundo igual ao BestGallery: preview em 20% da foto, BlurTransformation(60, 3) da biblioteca
     // que o projeto ja usa, e crossfade. Aparece antes da foto em tamanho completo.
     private fun loadBlurBackgroundBest(ctx: android.content.Context) {
+        // Fonte: a miniatura permanente (320 px, ja gravada), que decodifica quase instantaneo
+        // e aparece uma vez so. So cai na foto original se a miniatura ainda nao existe.
+        val fonte: Any = try {
+            MiniaturaPermanente.existente(ctx, mMedium.path) ?: File(mMedium.path)
+        } catch (_: Exception) {
+            File(mMedium.path)
+        }
         Glide.with(ctx)
             .asBitmap()
-            .load(mMedium.path)
-            .thumbnail(0.2f)
+            .load(fonte)
             .transition(com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions.withCrossFade())
             .apply(RequestOptions.bitmapTransform(jp.wasabeef.glide.transformations.BlurTransformation(60, 3)))
             .into(binding.photoBlurBg)

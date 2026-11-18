@@ -1493,6 +1493,23 @@ fun Context.getCachedDirectories(
             ArrayList()
         }
 
+        // Lixeira com itens (no banco ou no disco) sempre aparece, mesmo sem linha gravada no banco:
+        // assim ela nao some ao reabrir o app.
+        if (directories.none { it.isRecycleBin() } && (try {
+                mediaDB.getDeletedMediaCount() > 0
+            } catch (_: Exception) {
+                false
+            } || TrashStore.rootsFor(this).any { raiz ->
+                raiz.listFiles()?.any { it.isFile && !it.name.startsWith('.') } == true
+            })
+        ) {
+            directories.add(0, Directory().apply {
+                path = RECYCLE_BIN
+                name = getString(com.goodwy.commons.R.string.recycle_bin)
+                location = LOCATION_INTERNAL
+            })
+        }
+
         // Capa da lixeira vem do disco (a gravada no banco pode estar vazia).
         directories.filter { it.isRecycleBin() }.forEach { lixeira ->
             lixeira.tmb = try {

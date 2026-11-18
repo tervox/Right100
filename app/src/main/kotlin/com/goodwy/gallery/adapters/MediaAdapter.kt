@@ -1269,6 +1269,7 @@ class MediaAdapter(
                 animateGifs = if (miniaturaPermanente != null) false else animateGifs,
                 cropThumbnails = cropThumbnails,
                 roundCorners = roundedCorners,
+                crossFadeDuration = 300,
                 signature = if (miniaturaPermanente != null) {
                     ObjectKey("perm-v2-" + miniaturaPermanente.name)
                 } else {

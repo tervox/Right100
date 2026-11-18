@@ -1488,12 +1488,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     } catch (_: Exception) {
                         ArrayList<ThumbnailItem>()
                     }
-                    runOnUiThread {
-                        if (requestedPath == mPath && !isDestroyed && !isFinishing && rapida.isNotEmpty()) {
-                            gotMedia(rapida, true)
-                        }
-                        startAsyncTask()
+                    // gotMedia percorre a lista (existencia de arquivo) em segundo plano;
+                    // a thread principal so' atualiza a grade.
+                    if (requestedPath == mPath && !isDestroyed && !isFinishing && rapida.isNotEmpty()) {
+                        gotMedia(rapida, true)
                     }
+                    runOnUiThread { startAsyncTask() }
                 }
             }
             return
