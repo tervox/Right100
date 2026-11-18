@@ -514,7 +514,7 @@ restartAnimatedDrawable()
 
     // Fundo igual ao BestGallery: preview em 20% da foto, BlurTransformation(60, 3) da biblioteca
     // que o projeto ja usa, e crossfade. Aparece antes da foto em tamanho completo.
-    private fun loadBlurBackgroundBest(ctx: Context) {
+    private fun loadBlurBackgroundBest(ctx: android.content.Context) {
         Glide.with(ctx)
             .asBitmap()
             .load(mMedium.path)
