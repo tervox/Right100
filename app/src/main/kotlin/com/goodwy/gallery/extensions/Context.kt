@@ -881,7 +881,9 @@ fun Context.loadImage(
     // onError com toda a cadeia de fallback de video nunca rodava). Capas de pasta e
     // outros chamadores continuam com o comportamento antigo (default false).
     detectarQuadroPreto: Boolean = false,
-    onReady: (() -> Unit)? = null
+    onReady: (() -> Unit)? = null,
+    // Crossfade das miniaturas da grade (0 = sem fade). Repassado ao loadImageBase.
+    crossFadeDuration: Int = 0
 ) {
     target.isHorizontalScrolling = horizontalScroll
     if (type == TYPE_SVGS) {
@@ -910,7 +912,8 @@ fun Context.loadImage(
             fallbackPath = fallbackPath,
             onError = onError,
             detectarQuadroPreto = detectarQuadroPreto,
-            onReady = onReady
+            onReady = onReady,
+            crossFadeDuration = crossFadeDuration
         )
     }
 }
