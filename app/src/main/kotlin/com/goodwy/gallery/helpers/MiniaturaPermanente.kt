@@ -663,6 +663,28 @@ object MiniaturaPermanente {
         }
     }
 
+    // Fundo do visualizador: a mesma requisicao (fonte, transformacao, tamanho) e' usada ao
+    // exibir e ao pre-carregar as fotos vizinhas, para o cache do Glide reaproveitar.
+    fun fundoFonteBlur(context: Context, path: String): Any = try {
+        existente(context, path) ?: File(path)
+    } catch (_: Exception) {
+        File(path)
+    }
+
+    fun fundoAlturaBlur(context: Context): Int {
+        val dm = context.resources.displayMetrics
+        return (240f * dm.heightPixels / dm.widthPixels).toInt().coerceAtLeast(1)
+    }
+
+    fun preCarregarFundoBlur(context: Context, path: String) {
+        com.bumptech.glide.Glide.with(context)
+            .asBitmap()
+            .load(fundoFonteBlur(context, path))
+            .apply(com.bumptech.glide.request.RequestOptions.bitmapTransform(jp.wasabeef.glide.transformations.BlurTransformation(60, 3))
+                .override(240, fundoAlturaBlur(context)))
+            .preload()
+    }
+
     fun limparOrfasCompleto(context: Context, limitePorPassada: Int = Int.MAX_VALUE, maxPassadas: Int = 1): Int {
         var total = 0
         var passada = 0

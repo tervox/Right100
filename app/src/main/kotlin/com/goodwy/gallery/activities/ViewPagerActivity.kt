@@ -1391,11 +1391,22 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
     
 
 
+    // Pre-carrega o fundo (blur) das fotos vizinhas, para aparecer pronto ao trocar de pagina.
+    private fun preCarregarFundosVizinhos(position: Int) {
+        if (config.blackBackground || !config.blurBackgroundPhoto) return
+        for (p in listOf(position - 1, position + 1)) {
+            val medium = mMediums.getOrNull(p) ?: continue
+            if (medium.isVideo() || medium.isSVG()) continue
+            com.goodwy.gallery.helpers.MiniaturaPermanente.preCarregarFundoBlur(this, medium.path)
+        }
+    }
+
     override fun onPageSelected(position: Int) {
         val navT0 = android.os.SystemClock.uptimeMillis()
         mPos = position
         aquecerVizinhas(position)
         preCarregarVizinhas(position)
+        preCarregarFundosVizinhos(position)
         updateTitle()
         // A visibilidade dos botões dependia apenas do onResume. Depois de trocar
         // foto -> vídeo, o botão continuava oculto; depois de vídeo -> foto, ficava

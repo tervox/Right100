@@ -1667,7 +1667,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
 
                 val newDir = if (curMedia.isEmpty()) {
-                    if (directory.path != tempFolderPath) {
+                    if (directory.path != tempFolderPath && !directory.isRecycleBin()) {
                         dirPathsToRemove.add(directory.path)
                     }
                     directory
