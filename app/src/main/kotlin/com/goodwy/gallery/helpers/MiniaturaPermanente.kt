@@ -25,7 +25,7 @@ import java.io.FileOutputStream
  */
 object MiniaturaPermanente {
 
-    private const val VERSAO = "v2"
+    private const val VERSAO = "v3"
     private const val QUALIDADE = 80
     private const val QUALIDADE_FUNDO = 100
     // Forca do desfoque do fundo, em pixels na resolucao de trabalho (~320-360).
@@ -339,19 +339,19 @@ object MiniaturaPermanente {
         val destino = arquivoPara(context, mediaPath, mtime)
         if (destino.isFile && destino.length() > 0L) return true
 
-        if (gravarArquivo(destino, bmp, QUALIDADE)) {
+        if (gravarArquivo(destino, bmp, QUALIDADE, comPerda = true)) {
             apagarVersoesAntigas(destino)
             return true
         }
         return false
     }
 
-    private fun gravarArquivo(destino: File, bmp: Bitmap, qualidade: Int): Boolean {
+    private fun gravarArquivo(destino: File, bmp: Bitmap, qualidade: Int, comPerda: Boolean = false): Boolean {
         return try {
             // .tmp e so' depois renomeia: se o app morrer no meio da escrita, nunca fica um
             // arquivo truncado sendo servido como valido.
             val tmp = File(destino.parentFile, destino.name + ".tmp")
-            FileOutputStream(tmp).use { saida -> comprimir(bmp, saida, qualidade) }
+            FileOutputStream(tmp).use { saida -> comprimir(bmp, saida, qualidade, comPerda) }
             if (tmp.length() > 0L && tmp.renameTo(destino)) {
                 true
             } else {
@@ -364,7 +364,17 @@ object MiniaturaPermanente {
         }
     }
 
-    private fun comprimir(bmp: Bitmap, saida: FileOutputStream, qualidade: Int) {
+    private fun comprimir(bmp: Bitmap, saida: FileOutputStream, qualidade: Int, comPerda: Boolean = false) {
+        if (comPerda) {
+            // Miniatura da grade: com perda, qualidade 80 (arquivo bem menor, quase igual ao olho).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                bmp.compress(Bitmap.CompressFormat.WEBP_LOSSY, qualidade, saida)
+            } else {
+                @Suppress("DEPRECATION")
+                bmp.compress(Bitmap.CompressFormat.WEBP, qualidade, saida)
+            }
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             bmp.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, qualidade, saida)
         } else {
