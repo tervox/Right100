@@ -1493,6 +1493,18 @@ fun Context.getCachedDirectories(
             ArrayList()
         }
 
+        // Capa da lixeira vem do disco (a gravada no banco pode estar vazia).
+        directories.filter { it.isRecycleBin() }.forEach { lixeira ->
+            lixeira.tmb = try {
+                TrashStore.rootsFor(this).asSequence()
+                    .flatMap { raiz -> (raiz.listFiles()?.toList() ?: emptyList()).asSequence() }
+                    .firstOrNull { it.isFile && !it.name.startsWith('.') && !it.name.endsWith(".tmp") }
+                    ?.absolutePath ?: lixeira.tmb
+            } catch (_: Exception) {
+                lixeira.tmb
+            }
+        }
+
         if (!config.showRecycleBinAtFolders) {
             directories.removeAll { it.isRecycleBin() }
         }
