@@ -38,6 +38,13 @@ object MiniaturaPermanente {
     // A pasta da versao so e' criada uma vez por processo; a escrita garante o caminho.
     private var pastaVersaoCriada = false
 
+    // Fundos do visualizador ficam numa pasta propria: trocar a versao da grade nao os apaga.
+    private fun fundosRaiz(context: Context): File {
+        val pasta = File(context.filesDir, "fundos")
+        pasta.mkdirs()
+        return pasta
+    }
+
     private fun raiz(context: Context): File {
         val base = File(context.filesDir, "miniaturas")
         val atual = File(base, VERSAO)
@@ -130,7 +137,10 @@ object MiniaturaPermanente {
 
     private fun arquivoFundo(context: Context, mediaPath: String, mtime: Long): File {
         val base = arquivoPara(context, mediaPath, mtime)
-        return File(base.parentFile, base.name.removeSuffix(".webp") + SUFIXO_FUNDO + ".webp")
+        val relativo = base.relativeTo(raiz(context)).path.removeSuffix(".webp") + SUFIXO_FUNDO + ".webp"
+        val destino = File(fundosRaiz(context), relativo)
+        destino.parentFile?.mkdirs()
+        return destino
     }
 
     /** Fundo desfocado ja' gravado, ou null se ainda nao existe (ou a midia mudou). */
@@ -595,7 +605,7 @@ object MiniaturaPermanente {
     private fun listarPorTipo(context: Context, fundo: Boolean): List<File> {
         val achados = ArrayList<File>()
         val pilha = ArrayDeque<File>()
-        pilha.addLast(raiz(context))
+        pilha.addLast(if (fundo) fundosRaiz(context) else raiz(context))
         while (pilha.isNotEmpty()) {
             val pasta = pilha.removeLast()
             for (f in pasta.listFiles() ?: continue) {
@@ -621,6 +631,38 @@ object MiniaturaPermanente {
         listarPorTipo(context, true).forEach { it.delete() }
     }
 
+    // Fundos de midias que nao existem mais; e fundos antigos que ficaram na pasta da grade.
+    private fun limparFundosOrfaos(context: Context) {
+        val raizFundos = fundosRaiz(context)
+        val pilha = ArrayDeque<File>()
+        pilha.addLast(raizFundos)
+        while (pilha.isNotEmpty()) {
+            val pasta = pilha.removeLast()
+            for (f in pasta.listFiles() ?: continue) {
+                if (f.isDirectory) {
+                    pilha.addLast(f)
+                    continue
+                }
+                if (!f.name.endsWith(SUFIXO_FUNDO + ".webp")) continue
+                val semExt = f.name.removeSuffix(".webp").removeSuffix(SUFIXO_FUNDO)
+                val corte = semExt.lastIndexOf('@')
+                if (corte <= 0) continue
+                val relPasta = pasta.absolutePath.removePrefix(raizFundos.absolutePath).trim('/')
+                val midia = "/" + (if (relPasta.isEmpty()) "" else relPasta + "/") + semExt.substring(0, corte)
+                if (!File(midia).exists()) f.delete()
+            }
+        }
+        val pilhaGrade = ArrayDeque<File>()
+        pilhaGrade.addLast(raiz(context))
+        while (pilhaGrade.isNotEmpty()) {
+            val pasta = pilhaGrade.removeLast()
+            for (f in pasta.listFiles() ?: continue) {
+                if (f.isDirectory) pilhaGrade.addLast(f)
+                else if (f.name.endsWith(SUFIXO_FUNDO + ".webp")) f.delete()
+            }
+        }
+    }
+
     fun limparOrfasCompleto(context: Context, limitePorPassada: Int = Int.MAX_VALUE, maxPassadas: Int = 1): Int {
         var total = 0
         var passada = 0
@@ -630,6 +672,7 @@ object MiniaturaPermanente {
             passada++
             if (r.second < limitePorPassada) break
         }
+        limparFundosOrfaos(context)
         return total
     }
 
@@ -700,7 +743,9 @@ object MiniaturaPermanente {
         return feitos
     }
 
-    fun tamanhoBytes(context: Context): Long {
+    fun tamanhoBytes(context: Context): Long = tamanhoRaiz(context) + tamanhoFundosBytes(context)
+
+    private fun tamanhoRaiz(context: Context): Long {
         var total = 0L
         val pilha = ArrayDeque<File>()
         pilha.addLast(raiz(context))
@@ -716,5 +761,6 @@ object MiniaturaPermanente {
 
     fun limparTudo(context: Context) {
         try { raiz(context).deleteRecursively() } catch (_: Exception) {}
+        try { fundosRaiz(context).deleteRecursively() } catch (_: Exception) {}
     }
 }
