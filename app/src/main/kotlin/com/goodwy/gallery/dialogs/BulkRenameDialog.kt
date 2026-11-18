@@ -31,6 +31,11 @@ class BulkRenameDialog(
     init {
         keepExtCheck.isChecked = true
         keepExtCheck.setOnCheckedChangeListener { _, _ -> updateList() }
+        // O campo vem com 1 escrito: ao tocar, seleciona tudo para o numero digitado substituir.
+        listOf(startNumInput, paddingInput).forEach { campo ->
+            campo.setOnClickListener { campo.selectAll() }
+            campo.setOnFocusChangeListener { v, temFoco -> if (temFoco) (v as EditText).selectAll() }
+        }
         setupTextWatcher()
         updateList()
 
