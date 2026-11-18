@@ -415,6 +415,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) (binding.directoriesGrid.adapter as? com.goodwy.gallery.adapters.DirectoryAdapter)?.retomarAnimacoes()
         if (hasFocus && mMediaStoreDirty) {
             mRefreshHandler.removeCallbacks(mDirtyRefreshRunnable)
             mRefreshHandler.postDelayed(mDirtyRefreshRunnable, 300L)

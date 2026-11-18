@@ -115,6 +115,11 @@ class DirectoryAdapter(
         })
     }
 
+    // Chamada quando o app volta para frente: o Android para os desenhos animados ao ir para o segundo plano.
+    fun retomarAnimacoes() {
+        setVisibleAnimatablesRunning(true)
+    }
+
     private fun setVisibleAnimatablesRunning(running: Boolean) {
         for (i in 0 until attachedRecyclerView.childCount) {
             val child = attachedRecyclerView.getChildAt(i) ?: continue
