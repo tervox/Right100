@@ -1251,6 +1251,7 @@ class SettingsActivity : SimpleActivity() {
                 com.goodwy.gallery.helpers.FilaMiniaturas.esquecerTudo()
                 runOnUiThread {
                     binding.settingsClearCacheSize.text = (cacheDir.getProperSize(true) + com.goodwy.gallery.helpers.MiniaturaPermanente.tamanhoBytes(this@SettingsActivity)).formatSize()
+                    refreshCacheDetails()
                 }
             }
         }
