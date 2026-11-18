@@ -1506,11 +1506,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             && !dirs.map { it.path }.contains(RECYCLE_BIN)
         ) {
             try {
-                if (mediaDB.getDeletedMediaCount() > 0) {
+                if (mediaDB.getDeletedMediaCount() > 0 || lixeiraTemArquivoNoDisco()) {
                     val recycleBin = Directory().apply {
                         path = RECYCLE_BIN
                         name = getString(com.goodwy.commons.R.string.recycle_bin)
                         location = LOCATION_INTERNAL
+                        tmb = capaLixeiraDoDisco()
                     }
 
                     dirs.add(0, recycleBin)
@@ -1843,7 +1844,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         foldersToScan.remove(FAVORITES)
         foldersToScan.add(0, FAVORITES)
         // Lixeira com itens entra na varredura mesmo quando a lista de pastas nao mudou
-        if (config.showRecycleBinAtFolders && !foldersToScan.contains(RECYCLE_BIN) && mediaDB.getDeletedMediaCount() > 0) {
+        if (config.showRecycleBinAtFolders && !foldersToScan.contains(RECYCLE_BIN) && (mediaDB.getDeletedMediaCount() > 0 || lixeiraTemArquivoNoDisco())) {
             foldersToScan.add(RECYCLE_BIN)
         }
         if (config.showRecycleBinAtFolders) {
@@ -2066,6 +2067,16 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     // varredura e' justamente pulada no retorno ("lista ja carregada") - a pasta vazia ficava na
     // tela ate uma varredura acontecer. O aviso vem em memoria (LixeiraEsvaziada), entao a pasta
     // some no mesmo quadro, sem varrer nada e sem consultar o banco.
+    // Capa da lixeira direto do disco: um arquivo que esta dentro dela (nao depende do banco).
+    private fun capaLixeiraDoDisco(): String = try {
+        com.goodwy.gallery.extensions.TrashStore.rootsFor(applicationContext).asSequence()
+            .flatMap { raiz -> (raiz.listFiles()?.toList() ?: emptyList()).asSequence() }
+            .firstOrNull { it.isFile && !it.name.startsWith('.') && !it.name.endsWith(".tmp") }
+            ?.absolutePath ?: ""
+    } catch (_: Exception) {
+        ""
+    }
+
     private fun lixeiraTemArquivoNoDisco(): Boolean = try {
         com.goodwy.gallery.extensions.TrashStore.rootsFor(applicationContext).any { raiz ->
             raiz.listFiles()?.any { it.isFile && !it.name.startsWith('.') && !it.name.endsWith(".tmp") } == true
@@ -2116,11 +2127,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             val temItens = try { mediaDB.getDeletedMediaCount() > 0 } catch (_: Exception) { false }
             if (!temItens) return@Thread
             // Capa da lixeira: um arquivo que esta dentro dela (nao o caminho do registro antigo).
-            val capaLixeira = try {
-                mediaDB.getDeletedMedia().firstOrNull { !it.path.startsWith(RECYCLE_BIN) && java.io.File(it.path).exists() }?.path ?: ""
-            } catch (_: Exception) {
-                ""
-            }
+            val capaLixeira = capaLixeiraDoDisco()
             runOnUiThread {
                 if (isDestroyed || isFinishing) return@runOnUiThread
                 val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
