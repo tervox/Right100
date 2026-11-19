@@ -533,8 +533,6 @@ restartAnimatedDrawable()
         }
         binding.photoBlurBg.beVisible()
         binding.photoBlurOverlay.beVisible()
-        loadBlurBackgroundBest(ctx)
-        return
         // ANTES: Glide carregava o ARQUIVO ORIGINAL de novo (segundo decode completo da
         // mesma foto, com chave de cache diferente da imagem principal), sem override de
         // tamanho, e aplicava BlurTransformation(60, 3) - raio 60 em TRES passadas, o

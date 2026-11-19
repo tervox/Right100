@@ -210,7 +210,21 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             0L
         }
 
-        fun folderChangedOnDisk(path: String): Boolean {
+        // Checagem completa (lista de arquivos e data de cada um) fora da interface. Roda depois que a
+        // pasta ja apareceu com o cache; se algo mudou, a grade e' atualizada em seguida.
+        private fun verificarPastaEmSegundoPlano() {
+            val caminho = mPath
+            if (!caminho.startsWith("/")) return
+            ensureBackgroundThread {
+                val mudou = try { folderChangedOnDisk(caminho) } catch (_: Exception) { false }
+                if (mudou && !isDestroyed && !isFinishing && caminho == mPath) {
+                    mMediaInvalidated = true
+                    startAsyncTask()
+                }
+            }
+        }
+
+        fun folderChangedOnDisk(path: String, cheapOnly: Boolean = false): Boolean {
             // Pastas virtuais (favoritos e lixeira) nao existem no disco: folderMtimeNow()
             // devolvia 0 sempre, entao esta funcao respondia "nao mudou" para sempre e a
             // lixeira ficava ate 5 min (MEDIA_CACHE_TTL_MS) mostrando a lista de antes.
@@ -219,6 +233,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             val saved = state.first
             val savedNewest = state.second
             if (saved == null || saved != folderMtimeNow(path)) return true
+            if (cheapOnly) return false
             if (savedNewest == null) return false
             val diskNewest = newestFileInFolder(path)
             return diskNewest != savedNewest
@@ -283,8 +298,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLastSuccessfulMediaLoadAt = sharedCacheUpdatedAt
         mMediaInvalidated = sharedCacheUpdatedAt == 0L
             || System.currentTimeMillis() - sharedCacheUpdatedAt >= MEDIA_CACHE_TTL_MS
-            || folderChangedOnDisk(mPath)
+            || folderChangedOnDisk(mPath, true)
 
+        verificarPastaEmSegundoPlano()
         storeStateVariables()
         setupOptionsMenu()
         refreshMenuItems()
@@ -1299,7 +1315,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // nao mudar no disco.
         val hasFreshCurrentMedia = mMediaPath == mPath
             && !mMediaInvalidated
-            && !folderChangedOnDisk(mPath)
+            && !folderChangedOnDisk(mPath, true)
         if (hasFreshCurrentMedia) {
             // A lista e os requests do Glide já estão vivos; não reinicie o scanner
             // só porque a Activity voltou do visualizador ou foi recriada.
@@ -1320,7 +1336,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         // Sem prazo de validade: a lista vale enquanto o conteudo da pasta nao mudar. Antes o
         // MEDIA_CACHE_TTL_MS (5 min) derrubava o cache so porque o tempo passou e disparava uma
         // revarredura da pasta inteira sem nada ter mudado.
-        val folderCacheFresh = folderCacheState.second > 0L && !folderChangedOnDisk(mPath)
+        val folderCacheFresh = folderCacheState.second > 0L && !folderChangedOnDisk(mPath, true)
         if (!forceRefresh && folderCached != null && folderCacheFresh) {
             com.goodwy.gallery.extensions.Right100Diag.add("pasta " + mPath + ": mostrando cache em memoria n=" + folderCached.size + " fresco=" + folderCacheFresh)
             val ordenadaCache = ordenarListaDaPasta(folderCached)
@@ -1441,7 +1457,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             !forceRefresh &&
             mMedia.isNotEmpty() &&
             mMediaPath == mPath &&
-            !folderChangedOnDisk(mPath)
+            !folderChangedOnDisk(mPath, true)
         ) {
             mIsGettingMedia = false
             runOnUiThread { setupAdapter(); binding.loadingIndicator.hide(); binding.mediaRefreshLayout.isRefreshing = false }
