@@ -1749,6 +1749,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                         } catch (_: Exception) {
                         }
                     }
+                    // Duracoes resolvidas: regrava o snapshot para a proxima abertura (mesmo
+                    // apos reiniciar o processo) ja mostrar o tempo certo, sem 00:00 temporario.
+                    if (videosWithout.any { it.videoDuration > 0 }) {
+                        try {
+                            val atual = synchronized(mediaLock) { ArrayList(mMedia) }
+                            if (requestedPath == mPath && atual.isNotEmpty()) {
+                                applicationContext.saveMediaSnapshot(requestedPath, atual)
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
                 } finally {
                     executor.shutdownNow()
                 }
@@ -1927,7 +1938,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             }
         }
 
-        if (mPath == RECYCLE_BIN && lixeiraVaziaTentativas < 3) {
+        if (mPath == RECYCLE_BIN && mMedia.none { it is Medium } && lixeiraVaziaTentativas < 3) {
             lixeiraVaziaTentativas++
             com.goodwy.gallery.extensions.Right100Diag.add(
                 "lixeira: lista vazia, tentativa " + lixeiraVaziaTentativas + " de 3"
@@ -2669,7 +2680,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     if (newThumbnailCandidate != null) {
                         directoryDB.updateDirectoryThumbnail(folderPath, newThumbnailCandidate.path)
                     } else {
-                        directoryDB.deleteDirPath(folderPath)
+                        if (folderPath != RECYCLE_BIN && folderPath != FAVORITES) directoryDB.deleteDirPath(folderPath)
                     }
                     App.logGesture("directoryDB thumbnail refreshed for folder=$folderPath new=${newThumbnailCandidate?.path}")
                 }

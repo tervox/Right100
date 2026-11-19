@@ -1463,6 +1463,19 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
         }
 
+        // A Lixeira e' virtual: a linha dela no banco pode ter sido apagada (capa removida,
+        // esvaziamento parcial). Se ha arquivo no disco, ela precisa estar na lista desde a
+        // primeira pintura - senao aparece so' depois da varredura (o "sai e volta").
+        if (config.showRecycleBinAtFolders && newDirs.none { it.path == RECYCLE_BIN } && lixeiraTemArquivoNoDisco()) {
+            val capaCustom = config.parseAlbumCovers().firstOrNull { it.path == RECYCLE_BIN }?.tmb
+            val capa = if (capaCustom != null && File(capaCustom).exists()) capaCustom else capaLixeiraDoDisco()
+            newDirs.add(Directory().apply {
+                path = RECYCLE_BIN
+                name = getString(com.goodwy.commons.R.string.recycle_bin)
+                location = LOCATION_INTERNAL
+                tmb = capa
+            })
+        }
         val dirs = getSortedDirectories(newDirs)
         if (config.groupDirectSubfolders) {
             mDirs = dirs.clone() as ArrayList<Directory>
