@@ -697,10 +697,8 @@ object MiniaturaPermanente {
         com.bumptech.glide.Glide.with(context)
             .asBitmap()
             .load(if (path.startsWith("content://")) android.net.Uri.parse(path) else File(path))
-            .apply(com.bumptech.glide.request.RequestOptions()
-                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
-                .override(360, fundoAlturaBest(context))
-                .transform(jp.wasabeef.glide.transformations.BlurTransformation(60, 1)))
+            .thumbnail(0.2f)
+            .apply(com.bumptech.glide.request.RequestOptions.bitmapTransform(jp.wasabeef.glide.transformations.BlurTransformation(60, 3)))
 
     fun preCarregarFundoBest(context: Context, path: String) {
         fundoRequisicaoBest(context, path).preload()
