@@ -210,20 +210,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             0L
         }
 
-        // Checagem completa (lista de arquivos e data de cada um) fora da interface. Roda depois que a
-        // pasta ja apareceu com o cache; se algo mudou, a grade e' atualizada em seguida.
-        private fun verificarPastaEmSegundoPlano() {
-            val caminho = mPath
-            if (!caminho.startsWith("/")) return
-            ensureBackgroundThread {
-                val mudou = try { folderChangedOnDisk(caminho) } catch (_: Exception) { false }
-                if (mudou && !isDestroyed && !isFinishing && caminho == mPath) {
-                    mMediaInvalidated = true
-                    startAsyncTask()
-                }
-            }
-        }
-
         fun folderChangedOnDisk(path: String, cheapOnly: Boolean = false): Boolean {
             // Pastas virtuais (favoritos e lixeira) nao existem no disco: folderMtimeNow()
             // devolvia 0 sempre, entao esta funcao respondia "nao mudou" para sempre e a
@@ -266,6 +252,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     mMedia = ArrayList()
                     mMediaPath = ""
                 }
+            }
+        }
+    }
+
+    // Checagem completa (lista de arquivos e data de cada um) fora da interface. Roda depois que a
+    // pasta ja apareceu com o cache; se algo mudou, a grade e' atualizada em seguida.
+    private fun verificarPastaEmSegundoPlano() {
+        val caminho = mPath
+        if (!caminho.startsWith("/")) return
+        ensureBackgroundThread {
+            val mudou = try { folderChangedOnDisk(caminho) } catch (_: Exception) { false }
+            if (mudou && !isDestroyed && !isFinishing && caminho == mPath) {
+                mMediaInvalidated = true
+                startAsyncTask()
             }
         }
     }
