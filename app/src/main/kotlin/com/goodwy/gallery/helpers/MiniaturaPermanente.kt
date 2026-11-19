@@ -32,7 +32,7 @@ object MiniaturaPermanente {
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
     private const val LARGURA_FUNDO = 240
     private const val RAIO_FUNDO = 30
-    private const val SUFIXO_FUNDO = ".fundo9"
+    private const val SUFIXO_FUNDO = ".fundo10"
 
     private var limpezaVersaoFeita = false
     // A pasta da versao so e' criada uma vez por processo; a escrita garante o caminho.
@@ -197,7 +197,7 @@ object MiniaturaPermanente {
             val passo = RAIO_FUNDO
             var atual: Bitmap = Bitmap.createScaledBitmap(recorte, largura, altura, true)
             if (recorte !== fonte) recorte.recycle()
-            repeat(3) {
+            repeat(1) {
                 val proximo = desfocar(atual, passo)
                 if (atual !== fonte) atual.recycle()
                 atual = proximo
@@ -443,7 +443,7 @@ object MiniaturaPermanente {
                 }
                 // Fundos da geracao anterior (".fundo.webp") nao sao mais servidos:
                 // o sufixo mudou para ".fundo2". Apagar em vez de deixar ocupando espaco.
-                if ((f.name.endsWith(".fundo.webp") || f.name.endsWith(".fundo8.webp")) && !f.name.endsWith(SUFIXO_FUNDO + ".webp")) {
+                if ((f.name.endsWith(".fundo.webp") || f.name.endsWith(".fundo8.webp") || f.name.endsWith(".fundo9.webp")) && !f.name.endsWith(SUFIXO_FUNDO + ".webp")) {
                     f.delete()
                     continue
                 }
@@ -593,6 +593,13 @@ object MiniaturaPermanente {
             } catch (_: Exception) {
             }
         }
+        val dirFundos = if (pasta.isEmpty()) fundosRaiz(context) else File(fundosRaiz(context), pasta)
+        try {
+            dirFundos.listFiles()?.forEach { f ->
+                if (f.name.startsWith(prefixo) && f.isFile && f.delete()) apagados++
+            }
+        } catch (_: Exception) {
+        }
         return apagados
     }
 
@@ -633,6 +640,7 @@ object MiniaturaPermanente {
 
     // Fundos de midias que nao existem mais; e fundos antigos que ficaram na pasta da grade.
     private fun limparFundosOrfaos(context: Context) {
+        val naLixeira = nomesNaLixeira(context)
         val raizFundos = fundosRaiz(context)
         val pilha = ArrayDeque<File>()
         pilha.addLast(raizFundos)
@@ -649,7 +657,7 @@ object MiniaturaPermanente {
                 if (corte <= 0) continue
                 val relPasta = pasta.absolutePath.removePrefix(raizFundos.absolutePath).trim('/')
                 val midia = "/" + (if (relPasta.isEmpty()) "" else relPasta + "/") + semExt.substring(0, corte)
-                if (!File(midia).exists()) f.delete()
+                if (!File(midia).exists() && !naLixeira.contains(midia.substringAfterLast('/'))) f.delete()
             }
         }
         val pilhaGrade = ArrayDeque<File>()
@@ -781,6 +789,22 @@ object MiniaturaPermanente {
             } catch (_: Exception) {
             }
         }
+        val po=origem.trimStart('/').substringBeforeLast('/', ""); val pd=destino.trimStart('/').substringBeforeLast('/', "")
+        val oF=if(po.isEmpty()) fundosRaiz(context) else File(fundosRaiz(context),po)
+        val dF=if(pd.isEmpty()) fundosRaiz(context) else File(fundosRaiz(context),pd)
+        try {
+            dF.mkdirs()
+            oF.listFiles()?.forEach { f ->
+                if (!f.name.startsWith(prefixo)) return@forEach
+                val resto=f.name.substring(prefixo.length); val tail=resto.dropWhile { it.isDigit() }
+                val mt=mtimeDe(destino); val ns=if(mt>0L && tail.isNotEmpty()) mt.toString()+tail else resto
+                val novo=File(dF,nomeDestino+"@"+ns)
+                if (novo.exists()) return@forEach
+                if (copiar) { f.copyTo(novo,false); if(novo.length()>0L) feitos++ }
+                else if (f.renameTo(novo)) feitos++
+                else if (f.copyTo(novo,false).length()>0L && f.delete()) feitos++
+            }
+        } catch (_: Exception) {}
         return feitos
     }
 

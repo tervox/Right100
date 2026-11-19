@@ -136,7 +136,10 @@ class MediaAdapter(
     // Video ou foto sem miniatura permanente: a grade pede a MESMA miniatura do sistema que a fila grava.
     // Assim a imagem que aparece primeiro e a que fica gravada, e ela nao troca depois.
     // Miniaturas do sistema: 8 por vez, e o pedido de uma celula que saiu da tela e cancelado.
-    private val executorMiniaturasSistema = java.util.concurrent.Executors.newFixedThreadPool(8)
+    private val executorMiniaturasSistema = (java.util.concurrent.Executors.newFixedThreadPool(8) as java.util.concurrent.ThreadPoolExecutor).apply {
+        setKeepAliveTime(30L, java.util.concurrent.TimeUnit.SECONDS)
+        allowCoreThreadTimeOut(true)
+    }
     private val sinaisMiniaturas = java.util.WeakHashMap<ImageView, android.os.CancellationSignal>()
 
     private fun carregarMiniaturaDoSistema(alvo: ImageView, medium: Medium, chave: String) {

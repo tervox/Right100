@@ -2188,6 +2188,7 @@ fun Context.recoverOrphanTrashItems(force: Boolean = false) {
             dir.walkTopDown().forEach { file ->
                 if (!file.isFile || file.name == NOMEDIA) return@forEach
                 if (file.name == TrashStore.FLAT_INDEX_NAME) return@forEach
+                if (file.name.endsWith(".tmp")) return@forEach
                 // Item plano: a origem vem do indice, nao do nome do arquivo.
                 val rel = TrashStore.originalPathOfFlat(this, file)?.trimStart('/')
                     ?: file.absolutePath.removePrefix(base.absolutePath).trimStart('/')

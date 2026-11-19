@@ -2088,6 +2088,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun tirarLixeiraVaziaDaLista() {
         if (!com.goodwy.gallery.helpers.LixeiraEsvaziada.consumir()) return
+        if (lixeiraTemArquivoNoDisco()) return
         val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
         if (base.none { it.path == RECYCLE_BIN }) return
 
@@ -2127,8 +2128,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         Thread {
             val temItens = try { mediaDB.getDeletedMediaCount() > 0 } catch (_: Exception) { false }
             if (!temItens) return@Thread
-            // Capa da lixeira: um arquivo que esta dentro dela (nao o caminho do registro antigo).
-            val capaLixeira = capaLixeiraDoDisco()
+            // Capa personalizada do usuario tem prioridade; senao um arquivo do disco.
+            val capaCustom = config.parseAlbumCovers().firstOrNull { it.path == RECYCLE_BIN }?.tmb
+            val capaLixeira = if (capaCustom != null && File(capaCustom).exists()) capaCustom else capaLixeiraDoDisco()
             runOnUiThread {
                 if (isDestroyed || isFinishing) return@runOnUiThread
                 val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs

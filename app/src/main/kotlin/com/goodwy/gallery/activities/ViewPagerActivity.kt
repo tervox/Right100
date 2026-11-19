@@ -1397,7 +1397,12 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
         for (p in listOf(position - 1, position + 1)) {
             val medium = mMediums.getOrNull(p) ?: continue
             if (medium.isVideo() || medium.isSVG()) continue
-            com.goodwy.gallery.helpers.MiniaturaPermanente.preCarregarFundoBest(this, medium.path)
+            val fundoSalvo = com.goodwy.gallery.helpers.MiniaturaPermanente.existenteFundo(this, medium.path)
+            if (fundoSalvo != null) {
+                com.bumptech.glide.Glide.with(this).load(fundoSalvo)
+                    .apply(com.bumptech.glide.request.RequestOptions().diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE))
+                    .preload()
+            }
         }
     }
 
@@ -1688,6 +1693,11 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
     override fun launchViewVideoIntent(path: String) {}
 
     override fun onDestroy() {
+        mTapAnimator?.cancel()
+        mTapAnimator = null
+        pagerTransitionAnimator?.cancel()
+        pagerTransitionAnimator = null
+        mSlideshowHandler.removeCallbacksAndMessages(null)
         mTextRecognizer?.close()
         mTextRecognizer = null
         super.onDestroy()

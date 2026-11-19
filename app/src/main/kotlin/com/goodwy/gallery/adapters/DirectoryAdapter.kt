@@ -97,6 +97,17 @@ class DirectoryAdapter(
 
     private val keyToPositionCache = mutableMapOf<Int, Int>()
 
+    private var capasRawCache: String? = null
+    private var capasCache: ArrayList<AlbumCover> = ArrayList()
+    private fun capasAtuais(): ArrayList<AlbumCover> {
+        val raw = config.albumCovers
+        if (raw != capasRawCache) {
+            capasRawCache = raw
+            capasCache = config.parseAlbumCovers()
+        }
+        return capasCache
+    }
+
 
     init {
         // Mantém snapshots independentes para o DiffUtil comparar
@@ -1067,7 +1078,7 @@ class DirectoryAdapter(
                     // assinatura, mudar a capa passa a ser chave nova e o Glide rele do disco.
                     signature = ObjectKey(
                         "directory-thumbnail-v11-${directory.getKey()}-"
-                            + (config.parseAlbumCovers().firstOrNull { it.path == directory.path }?.tmb ?: "")
+                            + (capasAtuais().firstOrNull { it.path == directory.path }?.tmb ?: "")
                     ),
                     columnCount = config.dirColumnCnt,
                     onError = {
