@@ -1397,7 +1397,7 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
         for (p in listOf(position - 1, position + 1)) {
             val medium = mMediums.getOrNull(p) ?: continue
             if (medium.isVideo() || medium.isSVG()) continue
-            com.goodwy.gallery.helpers.MiniaturaPermanente.preCarregarFundoBlur(this, medium.path)
+            com.goodwy.gallery.helpers.MiniaturaPermanente.preCarregarFundoBest(this, medium.path)
         }
     }
 

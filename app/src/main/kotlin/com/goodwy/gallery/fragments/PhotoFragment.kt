@@ -514,7 +514,14 @@ restartAnimatedDrawable()
 
     // Fundo igual ao BestGallery: preview em 20% da foto, BlurTransformation(60, 3) da biblioteca
     // que o projeto ja usa, e crossfade. Aparece antes da foto em tamanho completo.
+    // Fundo igual ao BestGallery: mesma requisicao do pre-carregamento (MiniaturaPermanente.fundoRequisicaoBest).
     private fun loadBlurBackgroundBest(ctx: android.content.Context) {
+        MiniaturaPermanente.fundoRequisicaoBest(ctx, mMedium.path)
+            .transition(com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions.withCrossFade())
+            .into(binding.photoBlurBg)
+    }
+
+    private fun loadBlurBackgroundAntiga(ctx: android.content.Context) {
         Glide.with(ctx)
             .asBitmap()
             .load(MiniaturaPermanente.fundoFonteBlur(ctx, mMedium.path))
@@ -533,6 +540,8 @@ restartAnimatedDrawable()
         }
         binding.photoBlurBg.beVisible()
         binding.photoBlurOverlay.beVisible()
+        loadBlurBackgroundBest(ctx)
+        return
         // ANTES: Glide carregava o ARQUIVO ORIGINAL de novo (segundo decode completo da
         // mesma foto, com chave de cache diferente da imagem principal), sem override de
         // tamanho, e aplicava BlurTransformation(60, 3) - raio 60 em TRES passadas, o

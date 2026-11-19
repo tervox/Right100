@@ -685,6 +685,27 @@ object MiniaturaPermanente {
             .preload()
     }
 
+    // Fundo igual ao BestGallery: o Best desfoca a foto reduzida a 1/3 (cerca de 360 px) com raio 60.
+    // Aqui a foto ja vem em 360 px e o desfoque usa BlurTransformation(60, 1): o mesmo efeito.
+    // O resultado vai para o cache do Glide em disco, entao a proxima vez aparece na hora.
+    fun fundoAlturaBest(context: Context): Int {
+        val dm = context.resources.displayMetrics
+        return (360f * dm.heightPixels / dm.widthPixels).toInt().coerceAtLeast(1)
+    }
+
+    fun fundoRequisicaoBest(context: Context, path: String): com.bumptech.glide.RequestBuilder<android.graphics.Bitmap> =
+        com.bumptech.glide.Glide.with(context)
+            .asBitmap()
+            .load(if (path.startsWith("content://")) android.net.Uri.parse(path) else File(path))
+            .apply(com.bumptech.glide.request.RequestOptions()
+                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.RESOURCE)
+                .override(360, fundoAlturaBest(context))
+                .transform(jp.wasabeef.glide.transformations.BlurTransformation(60, 1)))
+
+    fun preCarregarFundoBest(context: Context, path: String) {
+        fundoRequisicaoBest(context, path).preload()
+    }
+
     fun limparOrfasCompleto(context: Context, limitePorPassada: Int = Int.MAX_VALUE, maxPassadas: Int = 1): Int {
         var total = 0
         var passada = 0
