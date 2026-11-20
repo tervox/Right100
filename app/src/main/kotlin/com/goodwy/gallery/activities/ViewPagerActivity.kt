@@ -1399,8 +1399,9 @@ if (!hadPending && (savedInstanceState != null || mDirectory.isNotEmpty())) {
             if (medium.isVideo() || medium.isSVG()) continue
             val fundoSalvo = com.goodwy.gallery.helpers.MiniaturaPermanente.existenteFundo(this, medium.path)
             if (fundoSalvo != null) {
+                val dmViz = resources.displayMetrics
                 com.bumptech.glide.Glide.with(this).load(fundoSalvo)
-                    .apply(com.bumptech.glide.request.RequestOptions().diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE))
+                    .apply(com.bumptech.glide.request.RequestOptions().override(dmViz.widthPixels, dmViz.heightPixels))
                     .preload()
             }
         }

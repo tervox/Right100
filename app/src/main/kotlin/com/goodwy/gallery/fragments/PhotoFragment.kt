@@ -384,7 +384,6 @@ class PhotoFragment : ViewPagerFragment() {
             try {
                 if (context != null) {
                     Glide.with(requireContext()).clear(binding.gesturesView)
-                    Glide.with(requireContext()).clear(binding.photoBlurBg)
                 }
             } catch (_: Exception) {
             }
@@ -547,9 +546,11 @@ restartAnimatedDrawable()
 
         if (fundo != null) {
             com.goodwy.gallery.extensions.Right100Diag.add("viewer: fundo salvo " + mMedium.path.substringAfterLast('/'))
+            val dmFundo = ctx.resources.displayMetrics
             Glide.with(ctx)
                 .load(fundo)
-                .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.NONE))
+                .apply(RequestOptions().override(dmFundo.widthPixels, dmFundo.heightPixels))
+                .transition(com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions.withCrossFade())
                 .into(binding.photoBlurBg)
             return
         }
