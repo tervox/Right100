@@ -550,7 +550,7 @@ restartAnimatedDrawable()
             Glide.with(ctx)
                 .load(fundo)
                 .apply(RequestOptions().override(dmFundo.widthPixels, dmFundo.heightPixels))
-                .transition(com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions.withCrossFade())
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade())
                 .into(binding.photoBlurBg)
             return
         }
