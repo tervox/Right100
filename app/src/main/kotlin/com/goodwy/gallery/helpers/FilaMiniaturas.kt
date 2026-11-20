@@ -422,22 +422,9 @@ object FilaMiniaturas {
     }
 
     private fun gerarFundoDoArquivo(contexto: Context, caminho: String) {
-        val miniatura = try {
-            MiniaturaPermanente.existente(contexto, caminho)
-        } catch (_: Throwable) {
-            null
-        } ?: return
-
-        var bmp: Bitmap? = null
         try {
-            val opcoes = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
-            bmp = BitmapFactory.decodeFile(miniatura.absolutePath, opcoes)
-            if (bmp != null) {
-                MiniaturaPermanente.guardarFundo(contexto, caminho, bmp, larguraDoFundo(contexto))
-            }
+            MiniaturaPermanente.gerarFundoBest(contexto, caminho)
         } catch (_: Throwable) {
-        } finally {
-            try { bmp?.recycle() } catch (_: Throwable) {}
         }
     }
 

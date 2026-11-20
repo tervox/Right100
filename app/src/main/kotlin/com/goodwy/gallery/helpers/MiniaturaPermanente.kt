@@ -32,7 +32,7 @@ object MiniaturaPermanente {
     // 66 = aparencia do BestGallery (quase uniforme). 40 = medio. 24 = sutil.
     private const val LARGURA_FUNDO = 240
     private const val RAIO_FUNDO = 30
-    private const val SUFIXO_FUNDO = ".fundo10"
+    private const val SUFIXO_FUNDO = ".fundo11"
 
     private var limpezaVersaoFeita = false
     // A pasta da versao so e' criada uma vez por processo; a escrita garante o caminho.
@@ -710,6 +710,33 @@ object MiniaturaPermanente {
 
     fun preCarregarFundoBest(context: Context, path: String) {
         fundoRequisicaoBest(context, path).preload()
+    }
+
+    // Gera o fundo permanente com a MESMA requisicao do BestGallery: original decodado no
+    // tamanho da tela, BlurTransformation(60,3). O bitmap salvo tem os mesmos pixels que o
+    // Best mostra, mas abre instantaneo do disco (cache permanente).
+    fun gerarFundoBest(context: Context, mediaPath: String): Boolean {
+        if (mediaPath.startsWith("content://")) return false
+        val mtime = mtimeDe(mediaPath)
+        if (mtime <= 0L) return false
+        val destino = arquivoFundo(context, mediaPath, mtime)
+        if (destino.isFile && destino.length() > 0L) return true
+        return try {
+            val dm = context.resources.displayMetrics
+            val target = com.bumptech.glide.Glide.with(context).asBitmap()
+                .load(File(mediaPath))
+                .apply(com.bumptech.glide.request.RequestOptions()
+                    .override(dm.widthPixels, dm.heightPixels)
+                    .transform(jp.wasabeef.glide.transformations.BlurTransformation(60, 3)))
+                .submit()
+            val bmp = target.get()
+            val ok = bmp != null && gravarArquivo(destino, bmp, QUALIDADE_FUNDO)
+            com.bumptech.glide.Glide.with(context).clear(target)
+            if (ok) apagarFundosAntigos(destino)
+            ok
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun limparOrfasCompleto(context: Context, limitePorPassada: Int = Int.MAX_VALUE, maxPassadas: Int = 1): Int {

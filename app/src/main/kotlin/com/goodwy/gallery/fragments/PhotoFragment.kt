@@ -558,26 +558,8 @@ restartAnimatedDrawable()
         //    desfoque na hora, como antes.
         com.goodwy.gallery.extensions.Right100Diag.add("viewer: fundo calculado na hora " + mMedium.path.substringAfterLast('/'))
         com.goodwy.gallery.helpers.FilaMiniaturas.garantirFundo(ctx, mMedium.path)
-        val larguraBase = 240
-        // Mesmo aspecto de tela do arquivo .fundo7. O CenterCrop abaixo recorta
-        // a foto na tela (como o CENTER_OUTSIDE do Glide no BestGallery) e o
-        // BlurTransformation divide por 1 - resultado identico ao arquivo.
-        val dm = ctx.resources.displayMetrics
-        val alturaBase = (larguraBase.toFloat() * dm.heightPixels / dm.widthPixels)
-            .toInt().coerceAtLeast(1)
-
-        val fonte = try {
-            MiniaturaPermanente.existente(ctx, mMedium.path)
-        } catch (_: Exception) {
-            null
-        } ?: File(mMedium.path)
-
-        Glide.with(ctx)
-            .load(fonte)
-            .apply(RequestOptions()
-                .override(larguraBase, alturaBase)
-                .diskCacheStrategy(DiskCacheStrategy.RESOURCE))
-            .transform(com.bumptech.glide.load.resource.bitmap.CenterCrop(), BlurTransformation(60, 1))
+        MiniaturaPermanente.fundoRequisicaoBest(ctx, mMedium.path)
+            .transition(com.bumptech.glide.load.resource.bitmap.BitmapTransitionOptions.withCrossFade())
             .into(binding.photoBlurBg)
     }
 
