@@ -1469,7 +1469,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (config.showRecycleBinAtFolders && newDirs.none { it.path == RECYCLE_BIN } && lixeiraTemArquivoNoDisco()) {
             val capaCustom = config.parseAlbumCovers().firstOrNull { it.path == RECYCLE_BIN }?.tmb
             val capa = if (capaCustom != null && File(capaCustom).exists()) capaCustom else capaLixeiraDoDisco()
-            val qtdBin = try { mediaDB.getDeletedMediaCount() } catch (_: Exception) { 0 }
+            val qtdBin = try { mediaDB.getDeletedMediaCount().toInt() } catch (_: Exception) { 0 }
             newDirs.add(Directory().apply {
                 path = RECYCLE_BIN
                 name = getString(com.goodwy.commons.R.string.recycle_bin)
@@ -2141,7 +2141,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (!com.goodwy.gallery.helpers.LixeiraCheia.consumir()) return
         if (!config.showRecycleBinAtFolders) return
         Thread {
-            val qtdItens = try { mediaDB.getDeletedMediaCount() } catch (_: Exception) { 0 }
+            val qtdItens = try { mediaDB.getDeletedMediaCount().toInt() } catch (_: Exception) { 0 }
             if (qtdItens <= 0) return@Thread
             // Capa personalizada do usuario tem prioridade; senao um arquivo do disco.
             val capaCustom = config.parseAlbumCovers().firstOrNull { it.path == RECYCLE_BIN }?.tmb
