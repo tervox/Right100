@@ -1469,11 +1469,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (config.showRecycleBinAtFolders && newDirs.none { it.path == RECYCLE_BIN } && lixeiraTemArquivoNoDisco()) {
             val capaCustom = config.parseAlbumCovers().firstOrNull { it.path == RECYCLE_BIN }?.tmb
             val capa = if (capaCustom != null && File(capaCustom).exists()) capaCustom else capaLixeiraDoDisco()
+            val qtdBin = try { mediaDB.getDeletedMediaCount() } catch (_: Exception) { 0 }
             newDirs.add(Directory().apply {
                 path = RECYCLE_BIN
                 name = getString(com.goodwy.commons.R.string.recycle_bin)
                 location = LOCATION_INTERNAL
                 tmb = capa
+                mediaCnt = qtdBin
+                subfoldersMediaCount = qtdBin
             })
         }
         val dirs = getSortedDirectories(newDirs)
@@ -2101,7 +2104,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun tirarLixeiraVaziaDaLista() {
         if (!com.goodwy.gallery.helpers.LixeiraEsvaziada.consumir()) return
-        if (lixeiraTemArquivoNoDisco()) return
         val base = if (mLatestDirs.isNotEmpty()) mLatestDirs else mDirs
         if (base.none { it.path == RECYCLE_BIN }) return
 
@@ -2139,8 +2141,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (!com.goodwy.gallery.helpers.LixeiraCheia.consumir()) return
         if (!config.showRecycleBinAtFolders) return
         Thread {
-            val temItens = try { mediaDB.getDeletedMediaCount() > 0 } catch (_: Exception) { false }
-            if (!temItens) return@Thread
+            val qtdItens = try { mediaDB.getDeletedMediaCount() } catch (_: Exception) { 0 }
+            if (qtdItens <= 0) return@Thread
             // Capa personalizada do usuario tem prioridade; senao um arquivo do disco.
             val capaCustom = config.parseAlbumCovers().firstOrNull { it.path == RECYCLE_BIN }?.tmb
             val capaLixeira = if (capaCustom != null && File(capaCustom).exists()) capaCustom else capaLixeiraDoDisco()
@@ -2153,6 +2155,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     name = getString(com.goodwy.commons.R.string.recycle_bin)
                     location = LOCATION_INTERNAL
                     tmb = capaLixeira
+                    mediaCnt = qtdItens
+                    subfoldersMediaCount = qtdItens
                 }
                 val nova = ArrayList(base)
                 if (config.showRecycleBinLast) nova.add(lixeira) else nova.add(0, lixeira)

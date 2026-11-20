@@ -1263,6 +1263,7 @@ private fun BaseSimpleActivity.emptyTheRecycleBinInterno(callback: (() -> Unit)?
             }
             quantos = trashed.size
             Right100Diag.add("lixeira: exclusao comecou, itens no banco=" + quantos)
+            com.goodwy.gallery.helpers.LixeiraEsvaziada.marcar()
 
             // 1. Apaga os arquivos: item por item, depois as pastas da lixeira
             trashed.forEach { m ->

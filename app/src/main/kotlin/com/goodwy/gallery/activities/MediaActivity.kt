@@ -252,6 +252,14 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     mMedia = ArrayList()
                     mMediaPath = ""
                 }
+                // O cache de pastas era SEM TETO e nao era liberado aqui: sob pressao de memoria
+                // o Android matava o processo (app "fechando sozinho"). Libera tambem ele.
+                synchronized(mFolderMediaCache) {
+                    mFolderMediaCache.clear()
+                    mFolderMediaCacheUpdatedAt.clear()
+                    mFolderMtime.clear()
+                    mFolderNewestFile.clear()
+                }
             }
         }
     }
@@ -296,9 +304,10 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mFolderMediaCacheUpdatedAt[mPath] ?: 0L
         }
         mLastSuccessfulMediaLoadAt = sharedCacheUpdatedAt
+        // Mostra o cache na hora mesmo se a pasta mudou (midia nova); o verificarPastaEmSegundoPlano
+        // abaixo detecta a mudanca e atualiza atras. Entrar na pasta nao espera a varredura.
         mMediaInvalidated = sharedCacheUpdatedAt == 0L
             || System.currentTimeMillis() - sharedCacheUpdatedAt >= MEDIA_CACHE_TTL_MS
-            || folderChangedOnDisk(mPath, true)
 
         verificarPastaEmSegundoPlano()
         storeStateVariables()
