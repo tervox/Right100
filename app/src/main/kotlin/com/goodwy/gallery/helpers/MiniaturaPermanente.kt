@@ -723,11 +723,15 @@ object MiniaturaPermanente {
         if (destino.isFile && destino.length() > 0L) return true
         return try {
             val dm = context.resources.displayMetrics
+            // Fonte = miniatura 320px (barata); alvo = tela/3 (mesmo tamanho de trabalho do
+            // Best) com Blur(60,1). Decodificar o ORIGINAL em tela cheia aqui custava ~1s por
+            // item e saturava a CPU, travando pasta/troca/varredura.
+            val fonte = existente(context, mediaPath) ?: File(mediaPath)
             val target = com.bumptech.glide.Glide.with(context).asBitmap()
-                .load(File(mediaPath))
+                .load(fonte)
                 .apply(com.bumptech.glide.request.RequestOptions()
-                    .override(dm.widthPixels, dm.heightPixels)
-                    .transform(jp.wasabeef.glide.transformations.BlurTransformation(60, 3)))
+                    .override(dm.widthPixels / 3, dm.heightPixels / 3)
+                    .transform(jp.wasabeef.glide.transformations.BlurTransformation(60, 1)))
                 .submit()
             val bmp = target.get()
             val ok = bmp != null && gravarArquivo(destino, bmp, QUALIDADE_FUNDO)
